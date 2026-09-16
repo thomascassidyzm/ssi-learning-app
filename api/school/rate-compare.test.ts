@@ -95,6 +95,15 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 
 let handler: typeof import('./rate-compare').default
 
+/**
+ * "Just now" — a minute ago, never `new Date()`. The cohort cutoff is
+ * EXCLUSIVE (cohortFor reads `first < cutoff`, matching the exclusive week end
+ * every minute sum uses), so a fixture stamped in the same millisecond as the
+ * handler's own clock passes or fails on scheduler luck. A minute makes no
+ * difference to the pace maths, whose span is floored at a day.
+ */
+const justNow = (): string => new Date(Date.now() - 60_000).toISOString()
+
 // Session row for one class, `pace` cohort-classes each get a distinct end_ord so their
 // paces differ slightly (avoids ties masking real averaging bugs).
 function sessRow(classId: string, endOrd: number, startedAt: string): any {
@@ -158,7 +167,7 @@ describe('GET /api/school/rate-compare — class entity', () => {
     // one cohort is the bug Tom named — "do not grow a second definition".
     // Live on 2026-09-16, 67 of 127 active cym_s_for_eng classes had never
     // played, so the old rule read a school as roughly half as busy as it was.
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [sessRow('class-1', 20, now), sessRow('cohort-0', 20, now)]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
@@ -176,7 +185,7 @@ describe('GET /api/school/rate-compare — class entity', () => {
     // true zero, still in the denominator. The other five have never been
     // played at all, so they are in no denominator anywhere.
     const longAgo = new Date(Date.now() - 200 * 86_400_000).toISOString()
-    rpcRows = [sessRow('class-1', 10, new Date().toISOString()), sessRow('cohort-0', 1, longAgo)]
+    rpcRows = [sessRow('class-1', 10, justNow()), sessRow('cohort-0', 1, longAgo)]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
     await handler(req, res)
@@ -186,7 +195,7 @@ describe('GET /api/school/rate-compare — class entity', () => {
   })
 
   it('computes a real entity-vs-average comparison once the k-floor is met', async () => {
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [sessRow('class-1', 20, now), ...Array.from({ length: 5 }, (_, i) => sessRow(`cohort-${i}`, 10 + i, now))]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
@@ -271,7 +280,7 @@ describe('GET /api/school/rate-compare — school entity', () => {
         { id: `peer-${i}-b`, class_name: 'B', course_code: 'gle_for_eng', school_id: `peer-sch-${i}`, is_active: true },
       ]).flat(),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => [sessRow(`peer-${i}-a`, 10 + i, now), sessRow(`peer-${i}-b`, 10 + i, now)]).flat(),
@@ -297,7 +306,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
         id: `other-course-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
       })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`other-course-${i}`, 10 + i, now)),
@@ -329,7 +338,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
         id: `few-other-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
       })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [sessRow('class-1', 30, now), ...Array.from({ length: 3 }, (_, i) => sessRow(`few-other-${i}`, 10 + i, now))]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const res = makeRes()
@@ -351,7 +360,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     // 4 more peer schools WITH the selected course — 5 total in the cohort.
     DB.schools.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-sch-${i + 1}`, school_name: `Peer ${i + 1}`, group_id: null })))
     DB.classes.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-${i + 1}-class`, class_name: 'X', course_code: 'gle_for_eng', school_id: `peer-sch-${i + 1}`, is_active: true })))
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now),
       sessRow('peer-0-other-course', 12, now),
@@ -380,7 +389,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
       ...Array.from({ length: 5 }, (_, i) => ({ id: `far-class-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: `far-sch-${i}`, is_active: true })),
     )
     scope = { learnerId: 'l1', role: 'govt_admin', classIds: DB.classes.map((c) => c.id), learnerIds: [], studentsByClass: {}, schoolIds: ['sch-1'], groupId: 'grp-wales' }
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`far-class-${i}`, 10 + i, now)),
@@ -437,7 +446,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     DB.classes.push(
       ...Array.from({ length: 5 }, (_, i) => ({ id: `sib-class-${i}`, class_name: 'X', course_code: 'gle_for_eng', school_id: `sib-sch-${i}`, is_active: true })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`sib-class-${i}`, 10 + i, now)),
@@ -467,7 +476,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     DB.classes.push(
       ...Array.from({ length: 5 }, (_, i) => ({ id: `far-class-${i}`, class_name: 'X', course_code: 'gle_for_eng', school_id: `far-sch-${i}`, is_active: true })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`far-class-${i}`, 10 + i, now)),

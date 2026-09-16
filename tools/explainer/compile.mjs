@@ -86,8 +86,14 @@ const rateSrc = read('api/groups/[id]/rate-compare.ts')
 const measures = [...rateSrc.matchAll(/\{ value: '(\w+)', label: '([^']+)', unit: '([^']*)', per: '([^']*)', desc: '([^']+)'/g)]
   .map((m) => ({ value: m[1], label: m[2], unit: m[3], per: m[4], desc: m[5] }))
 if (measures.length < 3) failures.push(`DERIVE: only ${measures.length} measures parsed from rate-compare.ts`)
-const windows = [...rateSrc.matchAll(/\{ value: '(\w+)', label: '([^']+)', days:/g)].map((m) => ({ value: m[1], label: m[2] }))
-if (windows.length < 3) failures.push(`DERIVE: only ${windows.length} windows parsed from rate-compare.ts`)
+// THE SCHOOL WEEK is the window, and there are exactly two of them (job #989,
+// Tom 2026-09-16: "today / 7 days / 30 days is the wrong primitive for schools
+// who work in week-units"). The old rolling chips carried a `days:` field and
+// this parse keyed on it, so when they went the parse matched nothing and the
+// gate failed on every run — a red that said "the pack would lie" when what
+// had actually happened is that the product changed underneath it.
+const windows = [...rateSrc.matchAll(/\{ value: '(\w+_week)', label: '([^']+)' \}/g)].map((m) => ({ value: m[1], label: m[2] }))
+if (windows.length < 2) failures.push(`DERIVE: only ${windows.length} windows parsed from rate-compare.ts`)
 
 // Schema presence: the recursive tree + the tables the explanations lean on.
 const schemaSrc = read('supabase/schema.sql')
