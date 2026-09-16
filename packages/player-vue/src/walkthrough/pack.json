@@ -1,5 +1,5 @@
 {
-  "version": "28c7b5efffc9",
+  "version": "919e66a26910",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -1914,10 +1914,10 @@
       "keywords": [
         "insights",
         "numbers",
-        "rate",
+        "week",
         "compare",
-        "measure",
-        "window",
+        "minutes",
+        "phrases",
         "total",
         "practising",
         "quiet",
@@ -1928,28 +1928,28 @@
       "steps": [
         {
           "anchor": "insights-measure",
-          "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
+          "say": "This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-window",
-          "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
+          "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-compare",
-          "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+          "say": "**Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-rate-widget",
-          "say": "This block is the rate itself, beside whatever you are comparing to. It is an amount per learner per week, never a running total — a total only says how big and how old a place is, a rate says how fast it is moving, which is what you can act on.",
+          "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.",
           "advance": {
             "on": "next"
           }
@@ -1988,7 +1988,7 @@
           "advance": {
             "on": "next"
           },
-          "terminal": "Rates lead, position is context — and the picker text always says what a measure means."
+          "terminal": "Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week."
         }
       ]
     },
@@ -5787,9 +5787,10 @@
       "keywords": [
         "insights",
         "numbers",
-        "rate",
+        "week",
         "compare",
-        "measure",
+        "minutes",
+        "phrases",
         "window"
       ],
       "place": {
@@ -5799,16 +5800,17 @@
       "surface": "schools",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
       "walk": "reading-insights",
-      "what": "Reading the pace of learning at this level — what is being counted, over what period, and against what.",
+      "what": "Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the school.",
       "where": "The node's home page, **See insights**.",
       "how": [
         "Open the node's home page and tap **See insights**.",
-        "Pick the **measure** — rate of progress, practice minutes, or active classes. The line underneath says exactly what it means.",
-        "Pick the **window** — the period the figure covers. A wider window never reads less practice than a narrower one, because practice minutes are the total inside the window, from pressing play to stopping.",
-        "Use **Compare to** to put an average alongside. That average is the mean of every class in the chosen scope on this course, counted whether or not it has practised, and the class you are looking at is one of them — so it reads the same number whichever class you open it from. The figure under the average names how many classes it is a mean of.",
+        "Pick the **window**. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.",
+        "Read the three numbers. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together.",
+        "**New phrases** is how much new ground was reached for the first time that week. A week spent going back over old ground reads zero there and a healthy pile of minutes, which is exactly what that week was.",
+        "Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope on this course, counted whether or not it has practised, and the class you are looking at is one of them — so it reads the same number whichever class you open it from.",
         "**Overview** takes you back to the same place's home page."
       ],
-      "note": "Rate of progress is a per-week rate; practice minutes is a plain total. The chart is one bar per day, hour or month, and a bar with no play is a zero. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice."
+      "note": "The two columns are plain numbers side by side. There is no score and no percentage, so you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored, and a week with no play is an empty week. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice."
     },
     {
       "id": "remove-a-student-from-a-class",
@@ -7577,8 +7579,8 @@
       "note": "The count comes from the server, from one shared rule, never from the page itself. Two pages cannot disagree about who is real."
     },
     {
-      "id": "why-the-insights-show-a-rate-not-a-total",
-      "title": "Why the insights show a rate, not a total",
+      "id": "why-the-insights-are-told-in-weeks",
+      "title": "Why the insights are told in weeks",
       "section": "seeing-progress",
       "personas": [
         "admin",
@@ -7586,14 +7588,14 @@
         "school_admin"
       ],
       "keywords": [
-        "rate",
+        "week",
+        "monday",
         "total",
-        "per week",
-        "fair",
         "compare",
         "average",
-        "pace",
-        "denominator"
+        "denominator",
+        "this week",
+        "last week"
       ],
       "place": {
         "route": "node-insights"
@@ -7602,15 +7604,15 @@
       "surface": "schools",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
       "walk": null,
-      "what": "Everything on the insights page is a rate — an amount per learner per week — rather than a running total. A total only ever says how big and how old something is, so a large school always beats a small one. A rate says how fast it is moving, which is the thing you can actually act on.",
-      "where": "The comparison block under the pickers on any level's insights page.",
+      "what": "A school plans and reviews in weeks, so the insights page counts in weeks too — Monday morning to Sunday night, on your own clock. A rolling \"last seven days\" straddles two different weeks of teaching and cannot be talked about in a staff meeting.",
+      "where": "The block under the pickers on any level's insights page.",
       "how": [
         "Open a level and tap **See insights**.",
-        "Read the line under the pickers — it says in words what the current measure counts.",
-        "The block below puts this level's rate beside whatever you are comparing it to.",
-        "Change the window to compute the same rate over a shorter or longer period."
+        "Read the line under the pickers — it says in words what the numbers count.",
+        "The block below puts this level's week beside the average's same week, as two columns of plain numbers.",
+        "Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old."
       ],
-      "note": "A pace matters more than a position: a class three sentences behind but climbing fast is healthier than one parked far ahead."
+      "note": "Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week."
     },
     {
       "id": "work-through-setup-at-your-own-pace",

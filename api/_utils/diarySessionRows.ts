@@ -84,9 +84,17 @@ export type LegoOrdinals = Map<string, Map<string, number>>
 type TimedEvent = DiaryEvent & { t: number }
 
 /** Group a class account's events by learner id, keeping only class accounts. */
-function eventsByClassAccount(events: DiaryEvent[], classes: DiaryClass[]): { classByLearner: Map<string, DiaryClass>; byLearner: Map<string, TimedEvent[]> } {
+function eventsByClassAccount(
+  events: DiaryEvent[],
+  classes: DiaryClass[],
+  extraLearnerClasses?: Map<string, DiaryClass>,
+): { classByLearner: Map<string, DiaryClass>; byLearner: Map<string, TimedEvent[]> } {
   const classByLearner = new Map<string, DiaryClass>()
   for (const c of classes) if (c.class_learner_id) classByLearner.set(c.class_learner_id, c)
+  // Pupils' own accounts, each attributed to the class they belong to (job
+  // #989's Y). A pupil in two classes is attributed to whichever the caller's
+  // map named first — their minutes are counted once, never doubled.
+  if (extraLearnerClasses) for (const [lid, c] of extraLearnerClasses) if (!classByLearner.has(lid)) classByLearner.set(lid, c)
   const byLearner = new Map<string, TimedEvent[]>()
   for (const e of events) {
     const t = new Date(e.occurred_at).getTime()
@@ -111,6 +119,7 @@ export function sessionRowsFromSpans(
   events: TimedEvent[],
   cls: DiaryClass,
   ordinals: LegoOrdinals,
+  actor: 'class' | 'pupil' = 'class',
 ): ScopedSessionRow[] {
   const out: ScopedSessionRow[] = []
   const SLACK = 1000
@@ -132,6 +141,7 @@ export function sessionRowsFromSpans(
     if (endLego === null) { endLego = startLego; endOrd = startOrd }
     out.push({
       class_id: cls.id,
+      actor,
       course_code: course,
       start_lego_id: startLego,
       end_lego_id: endLego,
@@ -201,6 +211,7 @@ export async function loadDiarySessionRows(
   days: number,
   includeDemo: boolean,
   now: number = Date.now(),
+  opts: { includePupils?: boolean } = {},
 ): Promise<ScopedSessionRow[]> {
   if (classIds.length === 0) return []
   const classes: (DiaryClass & { school_id: string | null })[] = []
@@ -222,7 +233,11 @@ export async function loadDiarySessionRows(
     )
     kept = classes.filter((c) => !c.school_id || !demo.has(c.school_id))
   }
-  const learnerIds = kept.map((c) => c.class_learner_id).filter((id): id is string => !!id)
+  const classLearnerIds = kept.map((c) => c.class_learner_id).filter((id): id is string => !!id)
+  // Y — the pupils' OWN accounts on these classes, read only when asked for
+  // (job #989's week card). Every other caller pays nothing for it.
+  const pupilByLearner = opts.includePupils ? await pupilLearnersByClass(svc, kept) : new Map<string, DiaryClass>()
+  const learnerIds = [...new Set([...classLearnerIds, ...pupilByLearner.keys()])]
   if (learnerIds.length === 0) return []
 
   const sinceIso = new Date(now - Math.max(days, 1) * 86_400_000).toISOString()
@@ -260,14 +275,68 @@ export async function loadDiarySessionRows(
   const ordinals = await loadLegoOrdinals(svc, [...courses])
   // The one rule, with each span's closing clip resolved through course_audio
   // in a single lookup (sessioniseAll) — the same read inAppTimeByLearner does.
-  const { classByLearner, byLearner } = eventsByClassAccount(events, kept)
+  const { classByLearner, byLearner } = eventsByClassAccount(events, kept, pupilByLearner)
   const playRows = new Map<string, DiaryPlayRow[]>()
   for (const [lid, evs] of byLearner) {
     playRows.set(lid, evs.map((e) => toDiaryPlayRow(e as unknown as Record<string, unknown>)).filter((r): r is DiaryPlayRow => !!r))
   }
   const sessions = await sessioniseAll(svc, playRows)
+  const classAccountIds = new Set(classLearnerIds)
   const out: ScopedSessionRow[] = []
-  for (const [lid, evs] of byLearner) out.push(...sessionRowsFromSpans(sessions.get(lid)?.spans ?? [], evs, classByLearner.get(lid)!, ordinals))
+  for (const [lid, evs] of byLearner) {
+    out.push(...sessionRowsFromSpans(
+      sessions.get(lid)?.spans ?? [], evs, classByLearner.get(lid)!, ordinals,
+      classAccountIds.has(lid) ? 'class' : 'pupil',
+    ))
+  }
+  return out
+}
+
+/**
+ * PUPILS' OWN ACCOUNTS, per class — learner id → the class it belongs to.
+ * Membership is `user_tags` CLASS:<id> with role_in_context 'student' (the
+ * same read ownAccountLearners does for a whole scope), then user_id →
+ * learners.id. Staff are deliberately out: Tom's Y is "individual students
+ * time", and a teacher's own minutes are named separately on the teacher
+ * home (class-practice-7d's callerOwn).
+ */
+export async function pupilLearnersByClass(
+  svc: SupabaseClient,
+  classes: DiaryClass[],
+): Promise<Map<string, DiaryClass>> {
+  const out = new Map<string, DiaryClass>()
+  const byId = new Map(classes.map((c) => [c.id, c]))
+  const ids = [...byId.keys()]
+  if (ids.length === 0) return out
+  const classByUid = new Map<string, DiaryClass>()
+  await Promise.all(
+    chunk(ids).map(async (batch) => {
+      const { data } = await svc
+        .from('user_tags')
+        .select('user_id, tag_value')
+        .eq('tag_type', 'class')
+        .eq('role_in_context', 'student')
+        .in('tag_value', batch.map((id) => `CLASS:${id}`))
+        .is('removed_at', null)
+      for (const r of data ?? []) {
+        const uid = String((r as any).user_id || '')
+        const cid = String((r as any).tag_value || '').replace(/^CLASS:/, '')
+        const cls = byId.get(cid)
+        if (uid && cls && !classByUid.has(uid)) classByUid.set(uid, cls)
+      }
+    }),
+  )
+  if (classByUid.size === 0) return out
+  await Promise.all(
+    chunk([...classByUid.keys()]).map(async (batch) => {
+      const { data } = await svc.from('learners').select('id, user_id').in('user_id', batch)
+      for (const r of data ?? []) {
+        const lid = String((r as any).id || '')
+        const cls = classByUid.get(String((r as any).user_id || ''))
+        if (lid && cls) out.set(lid, cls)
+      }
+    }),
+  )
   return out
 }
 
@@ -281,10 +350,11 @@ export async function loadScopedSessionRows(
   days: number,
   includeDemo: boolean,
   now: number = Date.now(),
+  opts: { includePupils?: boolean } = {},
 ): Promise<{ data: ScopedSessionRow[]; error: { message: string } | null }> {
   const [rpc, diary] = await Promise.all([
     svc.rpc('analytics_class_sessions_scoped', { p_class_ids: classIds, p_days: days, p_include_demo: includeDemo }),
-    loadDiarySessionRows(svc, classIds, days, includeDemo, now).catch((e: unknown) => {
+    loadDiarySessionRows(svc, classIds, days, includeDemo, now, opts).catch((e: unknown) => {
       console.error('[diarySessionRows] diary read failed:', e instanceof Error ? e.message : e)
       return [] as ScopedSessionRow[]
     }),
