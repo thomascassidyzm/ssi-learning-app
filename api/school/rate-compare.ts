@@ -66,17 +66,17 @@
  * floor still gates on PEER count, so a lone entity never compares with
  * itself.
  *
+ * AND MEMBERSHIP IS THE ONE COHORT RULE (Tom via Watson, 2026-09-16, refined
+ * the same afternoon): a class that has NEVER played is in no denominator
+ * anywhere, and membership is evaluated against the end of the period being
+ * drawn. This route calls the same `cohortFor` the node route calls, fed by
+ * the same `class_first_play` RPC — one definition of who is in an average,
+ * never two.
+ *
  * NOTE (2026-09-16): this route currently has no client consumer — the
  * teacher/leader insights page reads api/groups/[id]/rate-compare via
- * NodeRateEngine.vue. It was switched in lockstep for the SELF-INCLUSIVE half
- * of the ruling, and it stops there. The later refinement — a class that has
- * NEVER played is in no denominator anywhere, and membership is evaluated per
- * week against that week's end (_utils/rateCompare.ts cohortFor, fed by the
- * class_first_play RPC) — is NOT carried here: it needs a first-play read this
- * route does not make, and with no consumer it was not worth the round trip.
- * So the two lanes DO currently disagree, in one named way, and this route is
- * the stale one. If it is ever wired to a surface, take cohortFor with it
- * rather than growing a second definition of who is in an average.
+ * NodeRateEngine.vue. It is kept switched in lockstep anyway, so the two lanes
+ * cannot drift apart while nobody is looking.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -86,6 +86,7 @@ import { resolveVisibleScope } from '../_utils/schoolScope'
 import { descendantIds } from '../_utils/groupSubtree'
 import { isEntityCoverageExpired } from '../_utils/schoolCoverageGate'
 import { loadScopedSessionRows } from '../_utils/diarySessionRows'
+import { loadClassFirstPlay } from '../_utils/classFirstPlay'
 import {
   aggregateWindowPace,
   aggregateWeeklyTrend,
@@ -94,6 +95,7 @@ import {
   meanTrend,
   coverageLabel,
   cohortFloor,
+  cohortFor,
   type ScopedSessionRow,
 } from '../_utils/rateCompare'
 
@@ -423,12 +425,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const entityWindow = aggregateWindowPace(rows, entity.classIds, days, now)
     const entityTrend = aggregateWeeklyTrend(rows, entity.classIds, TREND_WEEKS, now)
 
-    // Every resolved peer is a member, active or not (Tom, 2026-09-16); the
-    // floor gates on the PEER count so an entity never compares with itself.
-    // A peer with no classes at all on this course is not RUNNING the course
-    // and was never a member of this cohort — dropping it is the course
-    // filter, not an activity filter.
-    const peerMembers = cohort.members.filter((m) => m.classIds.length > 0)
+    // Every peer that has STARTED is a member, quiet or not — the ONE cohort
+    // rule (`cohortFor`, Tom via Watson 2026-09-16), the same function the node
+    // card and its weekly bars call. A class nobody has ever pressed play on is
+    // in no denominator; a started class that was quiet counts at its true
+    // value, 0. This lane has no week windows, so its cohort is evaluated at
+    // the end of the window it was asked for, which is now.
+    //
+    // The floor still gates on the PEER count so an entity never compares with
+    // itself. A peer with no classes at all on this course is not RUNNING the
+    // course and was never a member: that is the course filter, not this one.
+    const firstPlay = await loadClassFirstPlay(svc, allClassIds)
+    const peerMembers = cohort.members
+      .map((m) => ({ ...m, classIds: cohortFor(m.classIds, firstPlay, now.getTime()) }))
+      .filter((m) => m.classIds.length > 0)
     const memberResults = peerMembers.map((m) => ({
       id: m.id,
       window: aggregateWindowPace(rows, m.classIds, days, now),

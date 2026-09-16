@@ -3,7 +3,7 @@
  * now a fixed, self-inclusive mean over EVERY class/school in scope, active
  * or not (Tom's ruling 2026-09-16: "a set member should ALWAYS be included
  * in the average"). Naming the cohort size under the figure ("school
- * average · all 32 classes on this course") makes that denominator visible.
+ * average · 32 classes") makes that denominator visible.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -31,10 +31,10 @@ function baseData(overrides: Partial<RateComparisonData> = {}): RateComparisonDa
 describe('RateCompare cohort-size caption', () => {
   it('prefers the server-formatted cohortSizeLine', () => {
     const wrapper = mount(RateCompare, {
-      props: { data: baseData({ cohortSizeLine: 'Ysgol Cas-gwent Chepstow average · all 32 classes on this course' }) },
+      props: { data: baseData({ cohortSizeLine: 'Ysgol Cas-gwent Chepstow average · 32 classes' }) },
     })
     expect(wrapper.find('.rc-stat-cohort-size').text())
-      .toBe('Ysgol Cas-gwent Chepstow average · all 32 classes on this course')
+      .toBe('Ysgol Cas-gwent Chepstow average · 32 classes')
   })
 
   it('falls back to assembling the line from cohortSize + cohortUnit', () => {
@@ -42,7 +42,7 @@ describe('RateCompare cohort-size caption', () => {
       props: { data: baseData({ cohortSize: 32, cohortUnit: 'classes' }) },
     })
     expect(wrapper.find('.rc-stat-cohort-size').text())
-      .toBe('Ysgol Cas-gwent Chepstow average · all 32 classes')
+      .toBe('Ysgol Cas-gwent Chepstow average · 32 classes')
   })
 
   // Job #983: the node lane's distribution.values now INCLUDE the entity's own

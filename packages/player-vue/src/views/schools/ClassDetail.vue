@@ -1139,7 +1139,7 @@ const mailboxPrompt = useMailboxPrompt()
                  would read as the same thing twice; this one says what it is
                  for (job #999). -->
             <h3 class="arsenal roster-title">{{ embedded ? t('schools.classDetail.rosterTitle', 'Roster') : t('schools.classDetail.ownAccountsTitle', 'Students on their own accounts') }}</h3>
-            <p class="roster-caption schools-subtle">{{ embedded ? t('schools.classDetail.rosterCaption', 'Add a pupil, take one off, or search the list. What each of them has practised is in Students on their own accounts above.') : t('schools.classDetail.ownAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play counts on the class page.') }}</p>
+            <p class="roster-caption schools-subtle">{{ embedded ? t('schools.classDetail.rosterCaption', 'Add a pupil, take one off, or search the list. What each of them has practised is higher up this page.') : t('schools.classDetail.ownAccountsCaption', 'Only pupils who have signed in themselves are counted here. Whole-class play counts on the class page.') }}</p>
           </div>
           <div class="roster-tools">
             <!-- One search at a time: nothing to search in an empty class, and

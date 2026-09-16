@@ -58,7 +58,26 @@ function makeChainable(table: string) {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
-    rpc: () => Promise.resolve({ data: rpcRows, error: rpcError }),
+    rpc: (fn: string, args: any) => {
+      // `class_first_play` decides cohort membership (the ONE rule, _utils/
+      // rateCompare.ts cohortFor): a class nobody has ever pressed play on is
+      // in no denominator. The double answers from the same session fixtures
+      // the rest of the file uses — first session per class, null when it has
+      // none, which IS the never-started case.
+      if (fn === 'class_first_play') {
+        const ids = (args?.p_class_ids ?? []) as string[]
+        return Promise.resolve({
+          data: ids.map((id) => {
+            const times = (rpcRows ?? [])
+              .filter((r: any) => r.class_id === id)
+              .map((r: any) => new Date(r.started_at).getTime())
+            return { class_id: id, first_play: times.length ? new Date(Math.min(...times)).toISOString() : null }
+          }),
+          error: null,
+        })
+      }
+      return Promise.resolve({ data: rpcRows, error: rpcError })
+    },
   }),
 }))
 
@@ -133,15 +152,37 @@ describe('GET /api/school/rate-compare — class entity', () => {
   // not activity-gated: peer classes that exist but have not practised are
   // members at their true value, 0. The floor now gates on whether peers
   // EXIST, so a quiet window no longer blanks the comparison.
-  it('compares against peer classes that exist but have no session activity — they count at 0', async () => {
-    rpcRows = [sessRow('class-1', 10, new Date().toISOString())]
+  it('a never-started peer cannot halve the average — the school lane runs the SAME cohort rule', async () => {
+    // Job #983: this lane still divided by every resolved peer, started or
+    // not, after the node lane had moved to `cohortFor`. Two definitions of
+    // one cohort is the bug Tom named — "do not grow a second definition".
+    // Live on 2026-09-16, 67 of 127 active cym_s_for_eng classes had never
+    // played, so the old rule read a school as roughly half as busy as it was.
+    const now = new Date().toISOString()
+    rpcRows = [sessRow('class-1', 20, now), sessRow('cohort-0', 20, now)]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
     await handler(req, res)
     expect(res.body.insufficientData).toBe(false)
-    // every peer sits at 0, so the average is the entity's own value spread
-    // over the whole self-inclusive cohort — never a peer-free comparison.
-    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(res.body.cohortSize - 1)
+    // class-1 and cohort-0 only; the five never-started classes are not zeros.
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.average.value).toBe(res.body.entity.value)
+    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(0)
+  })
+
+  it('a peer that STARTED and went quiet counts at 0; one that never started is not there at all', async () => {
+    // The ONE cohort rule (Tom via Watson, 2026-09-16, _utils/rateCompare.ts
+    // cohortFor): cohort-0 played 200 days ago and has been quiet since — a
+    // true zero, still in the denominator. The other five have never been
+    // played at all, so they are in no denominator anywhere.
+    const longAgo = new Date(Date.now() - 200 * 86_400_000).toISOString()
+    rpcRows = [sessRow('class-1', 10, new Date().toISOString()), sessRow('cohort-0', 1, longAgo)]
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(1)
   })
 
   it('computes a real entity-vs-average comparison once the k-floor is met', async () => {
@@ -152,13 +193,13 @@ describe('GET /api/school/rate-compare — class entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // 6 peer classes in the school + the entity itself — the average is
-    // self-inclusive and structural (Tom, 2026-09-16), so the sixth peer
-    // counts at 0 even though only 5 of them practised.
-    expect(res.body.cohortSize).toBe(7)
+    // The 5 peers that have played + the entity itself: the average is
+    // self-inclusive (Tom, 2026-09-16), and the sixth peer, which nobody has
+    // ever pressed play on, is in no denominator (his refinement, same day).
+    expect(res.body.cohortSize).toBe(6)
     expect(res.body.entity.label).toBe('Rang a Cúig')
     expect(res.body.average.label).toBe('School average')
-    expect(res.body.distribution.values).toHaveLength(7)
+    expect(res.body.distribution.values).toHaveLength(6)
     // Never leaks another class's identity — only the aggregate label + numbers.
     expect(JSON.stringify(res.body)).not.toContain('cohort-0')
   })
@@ -265,19 +306,20 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const sameCourseReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global' })
     const sameCourseRes = makeRes()
     await handler(sameCourseReq, sameCourseRes)
-    // The 6 gle_for_eng cohort-* classes exist on this course besides class-1.
-    // Membership is structural (Tom, 2026-09-16), so they compare at 0 rather
-    // than blanking the card — but never the other-course classes.
-    expect(sameCourseRes.body.insufficientData).toBe(false)
-    expect(sameCourseRes.body.cohortSize).toBe(7)
+    // The 6 gle_for_eng cohort-* classes exist on this course besides class-1,
+    // but nobody has ever played one, so they are in no denominator — and the
+    // other-course classes are out by course. That leaves class-1 alone on this
+    // course: an honest empty state, not a comparison with six phantom zeros.
+    expect(sameCourseRes.body.insufficientData).toBe(true)
 
     const allCoursesReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const allCoursesRes = makeRes()
     await handler(allCoursesReq, allCoursesRes)
     expect(allCoursesRes.statusCode).toBe(200)
     expect(allCoursesRes.body.insufficientData).toBe(false)
-    // 6 cohort-* + 5 other-course-* peers + the entity — self-inclusive
-    expect(allCoursesRes.body.cohortSize).toBe(12)
+    // The 5 other-course-* peers that HAVE played, plus the entity. The 6
+    // never-started cohort-* classes are in no denominator.
+    expect(allCoursesRes.body.cohortSize).toBe(6)
     expect(allCoursesRes.body.average.label).toBe('Global average · all courses')
   })
 
@@ -292,10 +334,11 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const res = makeRes()
     await handler(req, res)
-    // Peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15); membership is
-    // structural, so the 6 quiet cohort-* classes count too, plus the entity.
+    // Peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15). The 3 peers
+    // that have played, plus the entity: the 6 never-started cohort-* classes
+    // are in no denominator (Tom's refinement, 2026-09-16).
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(10)
+    expect(res.body.cohortSize).toBe(4)
   })
 
   it('school-vs-global_all_courses aggregates each peer school across ALL its courses, not just the selected one', async () => {
