@@ -7897,7 +7897,10 @@ CREATE TABLE public.bug_reports (
     educational_role text,
     school_role text,
     school_id uuid,
-    group_id uuid
+    group_id uuid,
+    reply_message_id uuid,
+    replied_at timestamp with time zone,
+    replied_by text
 );
 
 
@@ -7934,6 +7937,27 @@ COMMENT ON COLUMN public.bug_reports.account_code IS 'The account code Settings 
 --
 
 COMMENT ON COLUMN public.bug_reports.reporter_email IS 'The signed-in email on the verified bearer at report time. Never from the client. Job #677.';
+
+
+--
+-- Name: COLUMN bug_reports.reply_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.reply_message_id IS 'The user_messages row the reply went out as, or null if nobody has replied. The words the learner reads live on that row, never here: bug_reports is still a postbox and the player never reads it.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_at IS 'When the reply was sent. Null means unanswered; the reply tool refuses to answer an answered report unless told to resend.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_by IS 'Auth uid of whoever sent the reply — the sender_user_id on the admin_messages broadcast.';
 
 
 --
@@ -18775,6 +18799,14 @@ ALTER TABLE ONLY public.audio_repair_candidates
 
 ALTER TABLE ONLY public.bug_reports
     ADD CONSTRAINT bug_reports_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE SET NULL;
+
+
+--
+-- Name: bug_reports bug_reports_reply_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bug_reports
+    ADD CONSTRAINT bug_reports_reply_message_id_fkey FOREIGN KEY (reply_message_id) REFERENCES public.user_messages(id) ON DELETE SET NULL;
 
 
 --
