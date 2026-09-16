@@ -1,0 +1,2189 @@
+[
+ {
+  "walk": "add-a-class-under-a-group",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "verb-add-class",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "add-a-class-under-a-group",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "add-class-name",
+  "defined": "components/admin/NodeActionBar.addClass.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "add-a-class-under-a-group",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "add-class-submit",
+  "defined": "components/admin/NodeActionBar.addClass.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "add-a-school-to-your-programme",
+  "route": "schools-list",
+  "kinds": "",
+  "personas": "leader",
+  "step": 1,
+  "anchor": "verb-add-school",
+  "defined": "components/admin/NodeActionBar.vue ; views/schools/SchoolsView.vue"
+ },
+ {
+  "walk": "add-a-school-to-your-programme",
+  "route": "schools-list",
+  "kinds": "",
+  "personas": "leader",
+  "step": 2,
+  "anchor": "verb-add-school",
+  "defined": "components/admin/NodeActionBar.vue ; views/schools/SchoolsView.vue"
+ },
+ {
+  "walk": "add-a-student-to-a-class",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "verb-invite-student",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "add-a-student-to-a-class",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "invite-form-submit",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "add-students-to-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "class-student-add",
+  "defined": "views/schools/ClassDetail.addStudents.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "add-students-to-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 2,
+  "anchor": "class-student-picker",
+  "defined": "views/schools/ClassDetail.addStudents.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "add-teacher-by-name",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "teacher-named-seat",
+  "defined": "views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "add-teacher-by-name",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "teacher-named-seat",
+  "defined": "views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "choose-a-class-course",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "create-class-course",
+  "defined": "components/schools/CreateClassModal.vue"
+ },
+ {
+  "walk": "choose-a-class-course",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "create-class-course",
+  "defined": "components/schools/CreateClassModal.vue"
+ },
+ {
+  "walk": "choose-a-class-course",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 3,
+  "anchor": "create-class-course",
+  "defined": "components/schools/CreateClassModal.vue"
+ },
+ {
+  "walk": "choose-something-else-to-learn",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-course-search",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "choose-something-else-to-learn",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "library-course-grid",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "choose-something-else-to-learn",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 3,
+  "anchor": "library-course-grid",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "class-page-play-and-manage",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-page-play",
+  "defined": "views/admin/NodeHomeView.playAsClassViewAs.test.ts ; views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "class-page-play-and-manage",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-page-manage",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "copy-a-class-link-without-opening-the-class",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "classes-share-link",
+  "defined": "views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "copy-a-schools-joining-links",
+  "route": "schools-list",
+  "kinds": "",
+  "personas": "leader",
+  "step": 1,
+  "anchor": "schools-list-link-chips",
+  "defined": "views/schools/SchoolsView.vue"
+ },
+ {
+  "walk": "copy-a-teachers-play-onto-their-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "class-copy-play-picker",
+  "defined": "components/schools/CopyTeacherPlayCard.vue"
+ },
+ {
+  "walk": "copy-a-teachers-play-onto-their-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "class-copy-play-preview",
+  "defined": "components/schools/CopyTeacherPlayCard.test.ts ; components/schools/CopyTeacherPlayCard.vue"
+ },
+ {
+  "walk": "copy-a-teachers-play-onto-their-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 3,
+  "anchor": "class-copy-play-preview-result",
+  "defined": "components/schools/CopyTeacherPlayCard.vue"
+ },
+ {
+  "walk": "copy-a-teachers-play-onto-their-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 4,
+  "anchor": "class-copy-play-apply",
+  "defined": "components/schools/CopyTeacherPlayCard.test.ts ; components/schools/CopyTeacherPlayCard.vue"
+ },
+ {
+  "walk": "copy-every-teachers-play",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "school-copy-play-sweep",
+  "defined": "components/schools/CopyPlaySweepCard.vue"
+ },
+ {
+  "walk": "copy-every-teachers-play",
+  "route": "node-home",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "school-copy-play-sweep-copy",
+  "defined": "components/schools/CopyPlaySweepCard.test.ts ; components/schools/CopyPlaySweepCard.vue"
+ },
+ {
+  "walk": "courses-worth-attention",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-courses",
+  "defined": "views/intel/CoursesView.vue"
+ },
+ {
+  "walk": "courses-worth-attention",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "courses-worth-attention",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "courses-worth-attention",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "create-your-first-classes",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "setup-add-class-row",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "create-your-first-classes",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "setup-add-class-row",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "download-your-schools-data",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "settings-export-data",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "email-someone-their-invite-again",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "ways-in-resend",
+  "defined": "components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "find-a-student-or-export-the-list",
+  "route": "students",
+  "kinds": "",
+  "personas": "admin|school_admin|teacher",
+  "step": 1,
+  "anchor": "student-view-link",
+  "defined": "views/schools/StudentsView.vue"
+ },
+ {
+  "walk": "find-a-student-or-export-the-list",
+  "route": "students",
+  "kinds": "",
+  "personas": "admin|school_admin|teacher",
+  "step": 2,
+  "anchor": "students-export",
+  "defined": "views/schools/StudentsView.vue"
+ },
+ {
+  "walk": "funded-org-courses",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "verb-courses",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "funded-org-courses",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "org-enrolment-courses",
+  "defined": "components/schools/NodeEntitlementControl.vue"
+ },
+ {
+  "walk": "funded-org-courses",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "org-enrolment-courses",
+  "defined": "components/schools/NodeEntitlementControl.vue"
+ },
+ {
+  "walk": "funder-numbers",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "leader|admin",
+  "step": 1,
+  "anchor": "funder-numbers",
+  "defined": "components/admin/OrgFunderNumbers.vue ; views/admin/NodeHomeView.test.ts"
+ },
+ {
+  "walk": "funder-numbers",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "leader|admin",
+  "step": 2,
+  "anchor": "funder-month",
+  "defined": "components/admin/OrgFunderNumbers.vue"
+ },
+ {
+  "walk": "funder-numbers",
+  "route": "node-home",
+  "kinds": "org",
+  "personas": "leader|admin",
+  "step": 3,
+  "anchor": "funder-download",
+  "defined": "components/admin/OrgFunderNumbers.vue"
+ },
+ {
+  "walk": "go-back-over-something",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-belt-browser",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "go-back-over-something",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "belt-browser-list",
+  "defined": "components/CourseBrowser.vue"
+ },
+ {
+  "walk": "go-back-over-something",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 3,
+  "anchor": "belt-browser-list",
+  "defined": "components/CourseBrowser.vue"
+ },
+ {
+  "walk": "hand-a-teacher-access-code",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "teacher-signin-link",
+  "defined": "components/admin/NodeBelowTree.vue ; views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "hand-a-teacher-access-code",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "teacher-signin-link",
+  "defined": "components/admin/NodeBelowTree.vue ; views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "hand-out-a-sign-up-link-for-one-course",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "ways-in-copy-course",
+  "defined": "components/admin/WaysInLedger.dialectLinks.test.ts ; components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "hand-out-your-staff-links",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "setup-staff-links",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-teacher-make-lead",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 3,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-page",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "scope-rail",
+  "defined": "intel/ScopeRail.vue ; intel/questionPageTemplate.test.ts ; walkthrough/useWalkthrough.test.ts"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "verb-bar",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 5,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "how-every-question-page-is-laid-out",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 6,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "install-the-app",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 1,
+  "anchor": "account-card",
+  "defined": "components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "install-the-app",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 2,
+  "anchor": "account-install",
+  "defined": "components/admin/YourAccount.test.ts ; components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "install-the-app",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 3,
+  "anchor": "account-install",
+  "defined": "components/admin/YourAccount.test.ts ; components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-coteacher-link",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 3,
+  "anchor": "class-join-link",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "invite-a-teacher-to-your-school",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "teachers-invite-link",
+  "defined": "views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "invite-first-person",
+  "route": "node-home",
+  "kinds": "org|group",
+  "personas": "admin|leader",
+  "step": 1,
+  "anchor": "verb-invite-person",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue ; walkthrough/compileGate.test.ts"
+ },
+ {
+  "walk": "invite-first-person",
+  "route": "node-home",
+  "kinds": "org|group",
+  "personas": "admin|leader",
+  "step": 2,
+  "anchor": "invite-form-role",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue ; views/admin/NodeHomeView.test.ts"
+ },
+ {
+  "walk": "invite-first-person",
+  "route": "node-home",
+  "kinds": "org|group",
+  "personas": "admin|leader",
+  "step": 3,
+  "anchor": "invite-form-submit",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "invite-first-person",
+  "route": "node-home",
+  "kinds": "org|group",
+  "personas": "admin|leader",
+  "step": 4,
+  "anchor": "ways-in-ledger",
+  "defined": "components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "invite-first-teacher",
+  "route": "node-home",
+  "kinds": "school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "verb-invite-person",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue ; walkthrough/compileGate.test.ts"
+ },
+ {
+  "walk": "invite-first-teacher",
+  "route": "node-home",
+  "kinds": "school",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "invite-form-role",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue ; views/admin/NodeHomeView.test.ts"
+ },
+ {
+  "walk": "invite-first-teacher",
+  "route": "node-home",
+  "kinds": "school",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "invite-form-submit",
+  "defined": "components/admin/NodeActionBar.classInvite.test.ts ; components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "invite-first-teacher",
+  "route": "node-home",
+  "kinds": "school",
+  "personas": "admin|leader|school_admin",
+  "step": 4,
+  "anchor": "ways-in-ledger",
+  "defined": "components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "invites-desk",
+  "route": "admin-invites",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "invites-mode-strip",
+  "defined": "components/admin/invites/InviteCreateCard.vue"
+ },
+ {
+  "walk": "invites-desk",
+  "route": "admin-invites",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "invites-org-who",
+  "defined": "components/admin/invites/OrgInviteForm.vue"
+ },
+ {
+  "walk": "invites-desk",
+  "route": "admin-invites",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "invites-org-submit",
+  "defined": "components/admin/invites/OrgInviteForm.vue"
+ },
+ {
+  "walk": "invites-desk",
+  "route": "admin-invites",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "invites-active-toggle",
+  "defined": "components/admin/invites/UnifiedInviteList.vue"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "class-rename",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 2,
+  "anchor": "class-delete",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 3,
+  "anchor": "class-student-remove",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "settings-tab-profile",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "settings-save-profile",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 3,
+  "anchor": "settings-tab-billing",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 4,
+  "anchor": "settings-billing-plan",
+  "defined": "views/schools/SchoolBillingPanel.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 5,
+  "anchor": "settings-tab-data",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 6,
+  "anchor": "settings-delete-school",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "minutes-in-the-app-this-week",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "dash-minutes-this-week",
+  "defined": "views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-teacher-other-classes",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 3,
+  "anchor": "assign-classes-list",
+  "defined": "components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 4,
+  "anchor": "assign-classes-list",
+  "defined": "components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 5,
+  "anchor": "assign-classes-save",
+  "defined": "components/schools/AssignClassesModal.test.ts ; components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "one-persons-story",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-person",
+  "defined": "views/intel/PersonView.vue"
+ },
+ {
+  "walk": "open-your-inbox",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 1,
+  "anchor": "schools-user-menu-trigger",
+  "defined": "components/schools/shared/SchoolsTopBar.vue"
+ },
+ {
+  "walk": "open-your-inbox",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 2,
+  "anchor": "schools-inbox-menu",
+  "defined": "components/schools/shared/SchoolsTopBar.vue"
+ },
+ {
+  "walk": "org-choose-courses",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "verb-courses",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "org-choose-courses",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "verb-courses",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "org-choose-courses",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "verb-courses",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "play-as-class-from-your-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "dash-class-card-play",
+  "defined": "views/schools/DashboardView.teacherPlayAsClass.test.ts ; views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "play-as-class-from-your-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 2,
+  "anchor": "dash-class-card-play",
+  "defined": "views/schools/DashboardView.teacherPlayAsClass.test.ts ; views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "playing-as-yourself",
+  "route": "library",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "player-playing-as-yourself",
+  "defined": "components/schools/PlayingAsYourselfBanner.test.ts ; components/schools/PlayingAsYourselfBanner.vue"
+ },
+ {
+  "walk": "playing-as-yourself",
+  "route": "library",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "player-playing-as-yourself",
+  "defined": "components/schools/PlayingAsYourselfBanner.test.ts ; components/schools/PlayingAsYourselfBanner.vue"
+ },
+ {
+  "walk": "practice-on-your-own-account",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "dash-own-practice",
+  "defined": "views/schools/DashboardView.teacherPlayAsClass.test.ts ; views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "prove-your-mailbox-reaches-you",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "mailbox-check-send",
+  "defined": "components/schools/MailboxCheckPrompt.vue"
+ },
+ {
+  "walk": "prove-your-mailbox-reaches-you",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "mailbox-check-confirm",
+  "defined": "components/schools/MailboxCheckPrompt.vue"
+ },
+ {
+  "walk": "question-not-yet",
+  "route": "intel",
+  "kinds": "not-yet",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-not-yet",
+  "defined": "views/intel/NotYetBuiltView.vue"
+ },
+ {
+  "walk": "question-not-yet",
+  "route": "intel",
+  "kinds": "not-yet",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "question-not-yet",
+  "route": "intel",
+  "kinds": "not-yet",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "read-your-messages",
+  "route": "inbox",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 1,
+  "anchor": "schools-inbox",
+  "defined": "views/schools/InboxView.vue"
+ },
+ {
+  "walk": "read-your-messages",
+  "route": "inbox",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 2,
+  "anchor": "schools-inbox",
+  "defined": "views/schools/InboxView.vue"
+ },
+ {
+  "walk": "reading-a-class-page",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "class-practice",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "reading-a-class-page",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "class-practice-show-all",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "reading-a-class-page",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "class-journey",
+  "defined": "views/admin/NodeHomeView.vue ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "reading-a-class-page",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 4,
+  "anchor": "class-students",
+  "defined": "views/admin/NodeHomeView.test.ts ; views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "reading-a-class-page",
+  "route": "node-home",
+  "kinds": "class",
+  "personas": "admin|leader|school_admin",
+  "step": 5,
+  "anchor": "class-students-show-all",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "reading-a-question-page",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "findings",
+  "defined": "intel/QuestionFindings.vue"
+ },
+ {
+  "walk": "reading-a-question-page",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "updated-stamp",
+  "defined": "intel/UpdatedStamp.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "reading-a-question-page",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "population-chip",
+  "defined": "intel/PopulationChip.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "insights-measure",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "insights-window",
+  "defined": "insight/NodeRateEngine.vue ; walkthrough/useWalkthrough.test.ts"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "insights-compare",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 4,
+  "anchor": "insights-rate-widget",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 5,
+  "anchor": "insights-org-practising",
+  "defined": "insight/OrgIntelPanel.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 6,
+  "anchor": "insights-org-quiet",
+  "defined": "insight/OrgIntelPanel.test.ts ; insight/OrgIntelPanel.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 7,
+  "anchor": "insights-org-journey",
+  "defined": "insight/OrgIntelPanel.test.ts ; insight/OrgIntelPanel.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 8,
+  "anchor": "insights-voice-pause",
+  "defined": "views/admin/NodeInsightsView.vue"
+ },
+ {
+  "walk": "reading-insights",
+  "route": "node-insights",
+  "kinds": "",
+  "personas": "admin|leader|school_admin",
+  "step": 9,
+  "anchor": "insights-overview",
+  "defined": "views/admin/NodeInsightsView.vue"
+ },
+ {
+  "walk": "reading-minutes",
+  "route": "intel",
+  "kinds": "pulse",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-pulse",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts ; views/intel/PulseView.vue"
+ },
+ {
+  "walk": "reading-minutes",
+  "route": "intel",
+  "kinds": "pulse",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "insights-window",
+  "defined": "insight/NodeRateEngine.vue ; walkthrough/useWalkthrough.test.ts"
+ },
+ {
+  "walk": "reading-minutes",
+  "route": "intel",
+  "kinds": "pulse",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "insights-measure",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "reading-minutes",
+  "route": "intel",
+  "kinds": "pulse",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "reading-minutes",
+  "route": "intel",
+  "kinds": "pulse",
+  "personas": "admin",
+  "step": 5,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "reading-the-course-list",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-course-card",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "reading-the-course-list",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "library-course-card",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "reading-the-course-list",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 3,
+  "anchor": "library-course-card",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "reading-the-course-list",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 4,
+  "anchor": "library-course-grid",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "reading-your-class-list",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "classes-table",
+  "defined": "views/schools/TeacherDashboard.defaultSort.test.ts ; views/schools/TeacherDashboard.phoneSort.test.ts ; views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "reading-your-class-list",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "classes-filters",
+  "defined": "views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "reading-your-class-list",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 3,
+  "anchor": "classes-year-groups",
+  "defined": "views/schools/TeacherDashboard.topThreeYearGroups.test.ts ; views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "reading-your-class-list",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 4,
+  "anchor": "classes-row",
+  "defined": "views/schools/TeacherDashboard.defaultSort.test.ts ; views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "remove-a-teacher",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "teacher-remove",
+  "defined": "views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "report-a-bug-from-settings",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 1,
+  "anchor": "report-bug",
+  "defined": "components/SettingsScreen.vue ; views/me/ProfileView.vue"
+ },
+ {
+  "walk": "report-a-bug-from-settings",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 2,
+  "anchor": "report-bug-sheet",
+  "defined": "components/ReportBugSheet.vue"
+ },
+ {
+  "walk": "report-a-bug-from-settings",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 3,
+  "anchor": "report-bug-text",
+  "defined": "components/ReportBugSheet.test.ts ; components/ReportBugSheet.vue"
+ },
+ {
+  "walk": "report-a-bug-from-settings",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 4,
+  "anchor": "report-bug-send",
+  "defined": "components/ReportBugSheet.vue"
+ },
+ {
+  "walk": "report-a-bug-from-the-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 1,
+  "anchor": "schools-user-menu-trigger",
+  "defined": "components/schools/shared/SchoolsTopBar.vue"
+ },
+ {
+  "walk": "report-a-bug-from-the-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 2,
+  "anchor": "schools-report-bug",
+  "defined": "components/schools/shared/SchoolsTopBar.reportBug.test.ts ; components/schools/shared/SchoolsTopBar.vue"
+ },
+ {
+  "walk": "report-a-bug-from-the-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 3,
+  "anchor": "schools-report-bug-happened",
+  "defined": "components/schools/ReportBugModal.vue"
+ },
+ {
+  "walk": "report-a-bug-from-the-dashboard",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 4,
+  "anchor": "schools-report-bug-send",
+  "defined": "components/schools/ReportBugModal.vue"
+ },
+ {
+  "walk": "run-class-session",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-join-link",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "run-class-session",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-join-code",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "run-class-session",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 3,
+  "anchor": "class-play",
+  "defined": "views/schools/ClassDetail.playAsClassViewAs.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "save-your-progress",
+  "route": "library",
+  "kinds": "guest",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-save-progress",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "save-your-progress",
+  "route": "library",
+  "kinds": "guest",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "library-save-progress",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "school-identity-list",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "settings-identity-add-domain",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "school-identity-list",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "settings-identity-add-address",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "school-identity-list",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 3,
+  "anchor": "settings-identity-remove",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "school-language-and-time-zone",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "settings-tab-locale",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "school-language-and-time-zone",
+  "route": "settings",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "settings-localisation-save",
+  "defined": "views/schools/SettingsView.vue"
+ },
+ {
+  "walk": "see-every-school-in-your-programme",
+  "route": "schools-list",
+  "kinds": "",
+  "personas": "leader",
+  "step": 1,
+  "anchor": "schools-list-table",
+  "defined": "views/schools/SchoolsView.vue"
+ },
+ {
+  "walk": "seeing-how-it-is-going",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "node-map-rail",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "seeing-how-it-is-going",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "node-updated",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "seeing-how-it-is-going",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "node-stats",
+  "defined": "views/admin/NodeHomeView.tappable.test.ts ; views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "seeing-how-it-is-going",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 4,
+  "anchor": "node-year-groups",
+  "defined": "views/admin/NodeHomeView.tappable.test.ts ; views/admin/NodeHomeView.test.ts ; views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "seeing-how-it-is-going",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 5,
+  "anchor": "below-tree-name",
+  "defined": "components/admin/NodeBelowTree.vue"
+ },
+ {
+  "walk": "set-your-password",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 1,
+  "anchor": "account-card",
+  "defined": "components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "set-your-password",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 2,
+  "anchor": "account-password",
+  "defined": "components/admin/YourAccount.test.ts ; components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "set-your-password",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "leader|school_admin",
+  "step": 3,
+  "anchor": "account-password",
+  "defined": "components/admin/YourAccount.test.ts ; components/admin/YourAccount.vue"
+ },
+ {
+  "walk": "setup-choose-courses",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "setup-course-picker",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "setup-choose-courses",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "setup-course-picker",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "setup-give-class-course",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "setup-class-course",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "setup-give-class-course",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "setup-class-course",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "setup-give-class-course",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 3,
+  "anchor": "setup-class-course",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "share-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "share-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-teacher-add",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "share-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 3,
+  "anchor": "class-teacher-picker",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "share-a-class",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 4,
+  "anchor": "class-teachers",
+  "defined": "views/schools/ClassDetail.teacherAffordance.test.ts ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "start-or-make-a-class",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 1,
+  "anchor": "classes-row-play",
+  "defined": "views/schools/TeacherDashboard.playAsClassViewAs.test.ts ; views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "start-or-make-a-class",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 2,
+  "anchor": "verb-new-class",
+  "defined": "views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "start-or-make-a-class",
+  "route": "classes",
+  "kinds": "",
+  "personas": "school_admin|teacher",
+  "step": 3,
+  "anchor": "classes-export",
+  "defined": "views/schools/TeacherDashboard.vue"
+ },
+ {
+  "walk": "structure-a-group",
+  "route": "node-home",
+  "kinds": "group",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "verb-add-school",
+  "defined": "components/admin/NodeActionBar.vue ; views/schools/SchoolsView.vue"
+ },
+ {
+  "walk": "structure-a-group",
+  "route": "node-home",
+  "kinds": "group",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "verb-mint-demo",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "structure-a-group",
+  "route": "node-home",
+  "kinds": "group",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "verb-rename",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "structure-a-group",
+  "route": "node-home",
+  "kinds": "group",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "verb-delete",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "subscribe-as-a-tutor",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "upgrade-subscribe-tutor",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-organisation",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "leader",
+  "step": 1,
+  "anchor": "upgrade-seats-actual",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-organisation",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "leader",
+  "step": 2,
+  "anchor": "upgrade-subscribe-org",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-organisation",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "leader",
+  "step": 3,
+  "anchor": "upgrade-update-seats",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-school",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "upgrade-seats-actual",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-school",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "upgrade-subscribe-school",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "subscribe-your-school",
+  "route": "upgrade",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 3,
+  "anchor": "upgrade-update-seats",
+  "defined": "views/schools/UpgradeView.vue"
+ },
+ {
+  "walk": "take-a-teacher-off-a-class",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "leader|school_admin|teacher",
+  "step": 1,
+  "anchor": "teacher-assign-classes",
+  "defined": "components/admin/NodeBelowTree.vue ; views/schools/TeachersView.vue"
+ },
+ {
+  "walk": "take-a-teacher-off-a-class",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "leader|school_admin|teacher",
+  "step": 2,
+  "anchor": "assign-classes-modal",
+  "defined": "components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "take-a-teacher-off-a-class",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "leader|school_admin|teacher",
+  "step": 3,
+  "anchor": "assign-classes-list",
+  "defined": "components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "take-a-teacher-off-a-class",
+  "route": "teachers",
+  "kinds": "",
+  "personas": "leader|school_admin|teacher",
+  "step": 4,
+  "anchor": "assign-classes-save",
+  "defined": "components/schools/AssignClassesModal.test.ts ; components/schools/AssignClassesModal.vue"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "ways-in-ledger",
+  "defined": "components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "ways-in-show-all",
+  "defined": "components/admin/WaysInLedger.grouped.test.ts ; components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 3,
+  "anchor": "ways-in-copy",
+  "defined": "components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 4,
+  "anchor": "ways-in-remint",
+  "defined": "components/admin/WaysInLedger.vue ; walkthrough/waysInWalkHonesty.test.ts"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 5,
+  "anchor": "ways-in-revoke",
+  "defined": "components/admin/WaysInLedger.grouped.test.ts ; components/admin/WaysInLedger.vue"
+ },
+ {
+  "walk": "ways-in",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 6,
+  "anchor": "verb-shareable-link",
+  "defined": "components/admin/NodeActionBar.vue"
+ },
+ {
+  "walk": "weak-points",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-weak-points",
+  "defined": "views/intel/WeakPointsView.vue"
+ },
+ {
+  "walk": "weak-points",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "weak-points",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "what-the-class-tools-page-counts",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 1,
+  "anchor": "class-tools-note",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "what-the-class-tools-page-counts",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher|school_admin",
+  "step": 2,
+  "anchor": "class-roster",
+  "defined": "views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "what-they-practised",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 1,
+  "anchor": "node-phrases",
+  "defined": "views/admin/NodeHomeView.test.ts ; views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "what-they-practised",
+  "route": "node-home",
+  "kinds": "org|group|school",
+  "personas": "admin|leader|school_admin",
+  "step": 2,
+  "anchor": "node-phrases-show-all",
+  "defined": "views/admin/NodeHomeView.vue"
+ },
+ {
+  "walk": "what-your-numbers-mean",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-activity-stats",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "what-your-numbers-mean",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "library-stat-total-time",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "what-your-numbers-mean",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 3,
+  "anchor": "library-stat-phrases-learnt",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "where-and-what",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-where-and-what",
+  "defined": "views/intel/WhereAndWhatView.vue"
+ },
+ {
+  "walk": "where-and-what",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "where-and-what",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "where-and-what",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "where-the-class-has-got-to",
+  "route": "class-detail",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "class-journey",
+  "defined": "views/admin/NodeHomeView.vue ; views/schools/ClassDetail.vue"
+ },
+ {
+  "walk": "where-you-are-in-this-course",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 1,
+  "anchor": "library-progress-card",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "where-you-are-in-this-course",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 2,
+  "anchor": "library-belt-strip",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "where-you-are-in-this-course",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 3,
+  "anchor": "library-position-track",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "where-you-are-in-this-course",
+  "route": "library",
+  "kinds": "",
+  "personas": "learner",
+  "step": 4,
+  "anchor": "library-belt-browser",
+  "defined": "components/BrowseScreen.vue"
+ },
+ {
+  "walk": "who-is-about-to-leave",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-leaving",
+  "defined": "views/intel/LeavingView.vue"
+ },
+ {
+  "walk": "who-is-about-to-leave",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "who-is-about-to-leave",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "who-is-about-to-leave",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "work-through-setup",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 1,
+  "anchor": "setup-step-rail",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "work-through-setup",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 2,
+  "anchor": "setup-school-name",
+  "defined": "views/schools/SetupView.vue"
+ },
+ {
+  "walk": "work-through-setup",
+  "route": "setup",
+  "kinds": "",
+  "personas": "school_admin",
+  "step": 3,
+  "anchor": "setup-save-exit",
+  "defined": "views/schools/SetupView.saveExit.test.ts ; views/schools/SetupView.vue"
+ },
+ {
+  "walk": "working-now",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 1,
+  "anchor": "question-working",
+  "defined": "views/intel/WorkingView.vue"
+ },
+ {
+  "walk": "working-now",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 2,
+  "anchor": "answer",
+  "defined": "intel/QuestionPage.vue ; intel/questionPageTemplate.test.ts"
+ },
+ {
+  "walk": "working-now",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 3,
+  "anchor": "evidence",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "working-now",
+  "route": "intel",
+  "kinds": "",
+  "personas": "admin",
+  "step": 4,
+  "anchor": "rows",
+  "defined": "intel/QuestionPage.vue"
+ },
+ {
+  "walk": "your-account-identity",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 1,
+  "anchor": "account-identity",
+  "defined": "components/SettingsScreen.identity.test.ts ; components/SettingsScreen.vue"
+ },
+ {
+  "walk": "your-account-identity",
+  "route": "player-settings",
+  "kinds": "",
+  "personas": "teacher|school_admin|leader",
+  "step": 2,
+  "anchor": "account-identity",
+  "defined": "components/SettingsScreen.identity.test.ts ; components/SettingsScreen.vue"
+ },
+ {
+  "walk": "your-class-against-the-average",
+  "route": "analytics",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "teacher-insights-class",
+  "defined": "insight/TeacherInsightsView.vue"
+ },
+ {
+  "walk": "your-class-against-the-average",
+  "route": "analytics",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 2,
+  "anchor": "insights-measure",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "your-class-against-the-average",
+  "route": "analytics",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 3,
+  "anchor": "insights-window",
+  "defined": "insight/NodeRateEngine.vue ; walkthrough/useWalkthrough.test.ts"
+ },
+ {
+  "walk": "your-class-against-the-average",
+  "route": "analytics",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 4,
+  "anchor": "insights-compare",
+  "defined": "insight/NodeRateEngine.vue"
+ },
+ {
+  "walk": "your-classes-at-a-glance",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 1,
+  "anchor": "dash-class-card",
+  "defined": "views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "your-classes-at-a-glance",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 2,
+  "anchor": "dash-class-week",
+  "defined": "views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "your-classes-at-a-glance",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 3,
+  "anchor": "dash-class-week-pupils",
+  "defined": "views/schools/DashboardView.teacherPlayAsClass.test.ts ; views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "your-classes-at-a-glance",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 4,
+  "anchor": "dash-teacher-stats",
+  "defined": "views/schools/DashboardView.vue"
+ },
+ {
+  "walk": "your-classes-at-a-glance",
+  "route": "dashboard",
+  "kinds": "",
+  "personas": "teacher",
+  "step": 5,
+  "anchor": "dash-teacher-own-accounts",
+  "defined": "views/schools/DashboardView.vue"
+ }
+]

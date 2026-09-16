@@ -1,0 +1,81 @@
+walk steps whose anchor vanishes under view-as (isAdminView-derived gate): 32
+  
+     add-students-to-a-class 
+     | 
+     step1 class-student-add [self:!isAdminView] 
+     step2 class-student-picker [self:showAddStudent && !isAdminView]
+  
+     add-teacher-by-name 
+     | 
+     step1 teacher-named-seat [self:canManageStaff] 
+     step2 teacher-named-seat [self:canManageStaff]
+  
+     find-a-student-or-export-the-list 
+     | 
+     step2 students-export [ancestor L191:!isAdminView]
+  
+     hand-over-the-lead 
+     | 
+     step1 class-teachers [self:!isAdminView] 
+     step2 class-teacher-make-lead [ancestor L940:!isAdminView] 
+     step3 class-teachers [self:!isAdminView]
+  
+     invite-a-supply-teacher 
+     | 
+     step1 class-teachers [self:!isAdminView] 
+     step2 class-coteacher-link [ancestor L940:!isAdminView] 
+     step3 class-join-link [ancestor L1425:!isAdminView]
+  
+     invite-a-teacher-to-your-school 
+     | 
+     step1 teachers-invite-link [ancestor L728:canManageStaff]
+  
+     manage-a-class-from-its-page 
+     | 
+     step1 class-rename [self:!isAdminView] 
+     step2 class-delete [self:!isAdminView] 
+     step3 class-student-remove [self:!isAdminView]
+  
+     manage-your-school-settings 
+     | 
+     step2 settings-save-profile [ancestor L557:canEditSchool] 
+     step6 settings-delete-school [ancestor L772:canEditSchool]
+  
+     move-a-teacher-between-classes 
+     | 
+     step1 class-teachers [self:!isAdminView] 
+     step2 class-teacher-other-classes [ancestor L940:!isAdminView]
+  
+     remove-a-teacher 
+     | 
+     step1 teacher-remove [self:canManageStaff && row.role !== 'Admin']
+  
+     run-class-session 
+     | 
+     step1 class-join-link [ancestor L1425:!isAdminView] 
+     step2 class-join-code [ancestor L1425:!isAdminView]
+  
+     school-identity-list 
+     | 
+     step1 settings-identity-add-domain [ancestor L587:canEditSchool] 
+     step2 settings-identity-add-address [ancestor L587:canEditSchool] 
+     step3 settings-identity-remove [ancestor L587:canEditSchool]
+  
+     school-language-and-time-zone 
+     | 
+     step2 settings-localisation-save [ancestor L696:!isAdminView]
+  
+     share-a-class 
+     | 
+     step1 class-teachers [self:!isAdminView] 
+     step2 class-teacher-add [ancestor L940:!isAdminView] 
+     step3 class-teacher-picker [ancestor L940:!isAdminView] 
+     step4 class-teachers [self:!isAdminView]
+  
+     start-or-make-a-class 
+     | 
+     step2 verb-new-class [self:!isAdminView]
+  
+     what-the-class-tools-page-counts 
+     | 
+     step1 class-tools-note [self:!isAdminView && classData.id]

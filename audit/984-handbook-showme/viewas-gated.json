@@ -1,0 +1,322 @@
+[
+ {
+  "walk": "add-students-to-a-class",
+  "personas": "teacher",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-student-add",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1206,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "add-students-to-a-class",
+  "personas": "teacher",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-student-picker",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1217,
+  "gate": "self:showAddStudent && !isAdminView"
+ },
+ {
+  "walk": "add-teacher-by-name",
+  "personas": "school_admin",
+  "route": "teachers",
+  "step": 1,
+  "anchor": "teacher-named-seat",
+  "file": "views/schools/TeachersView.vue",
+  "line": 430,
+  "gate": "self:canManageStaff"
+ },
+ {
+  "walk": "add-teacher-by-name",
+  "personas": "school_admin",
+  "route": "teachers",
+  "step": 2,
+  "anchor": "teacher-named-seat",
+  "file": "views/schools/TeachersView.vue",
+  "line": 430,
+  "gate": "self:canManageStaff"
+ },
+ {
+  "walk": "find-a-student-or-export-the-list",
+  "personas": "admin|school_admin|teacher",
+  "route": "students",
+  "step": 2,
+  "anchor": "students-export",
+  "file": "views/schools/StudentsView.vue",
+  "line": 215,
+  "gate": "ancestor L191:!isAdminView"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-teacher-make-lead",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1006,
+  "gate": "ancestor L940:!isAdminView"
+ },
+ {
+  "walk": "hand-over-the-lead",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 3,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-coteacher-link",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1107,
+  "gate": "ancestor L940:!isAdminView"
+ },
+ {
+  "walk": "invite-a-supply-teacher",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 3,
+  "anchor": "class-join-link",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1458,
+  "gate": "ancestor L1425:!isAdminView"
+ },
+ {
+  "walk": "invite-a-teacher-to-your-school",
+  "personas": "school_admin",
+  "route": "teachers",
+  "step": 1,
+  "anchor": "teachers-invite-link",
+  "file": "views/schools/TeachersView.vue",
+  "line": 755,
+  "gate": "ancestor L728:canManageStaff"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "personas": "teacher",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-rename",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 811,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "personas": "teacher",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-delete",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 843,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "manage-a-class-from-its-page",
+  "personas": "teacher",
+  "route": "class-detail",
+  "step": 3,
+  "anchor": "class-student-remove",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1350,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "personas": "school_admin",
+  "route": "settings",
+  "step": 2,
+  "anchor": "settings-save-profile",
+  "file": "views/schools/SettingsView.vue",
+  "line": 580,
+  "gate": "ancestor L557:canEditSchool"
+ },
+ {
+  "walk": "manage-your-school-settings",
+  "personas": "school_admin",
+  "route": "settings",
+  "step": 6,
+  "anchor": "settings-delete-school",
+  "file": "views/schools/SettingsView.vue",
+  "line": 806,
+  "gate": "ancestor L772:canEditSchool"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "move-a-teacher-between-classes",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-teacher-other-classes",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 977,
+  "gate": "ancestor L940:!isAdminView"
+ },
+ {
+  "walk": "remove-a-teacher",
+  "personas": "school_admin",
+  "route": "teachers",
+  "step": 1,
+  "anchor": "teacher-remove",
+  "file": "views/schools/TeachersView.vue",
+  "line": 681,
+  "gate": "self:canManageStaff && row.role !== 'Admin'"
+ },
+ {
+  "walk": "run-class-session",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-join-link",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1458,
+  "gate": "ancestor L1425:!isAdminView"
+ },
+ {
+  "walk": "run-class-session",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-join-code",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1470,
+  "gate": "ancestor L1425:!isAdminView"
+ },
+ {
+  "walk": "school-identity-list",
+  "personas": "school_admin",
+  "route": "settings",
+  "step": 1,
+  "anchor": "settings-identity-add-domain",
+  "file": "views/schools/SettingsView.vue",
+  "line": 631,
+  "gate": "ancestor L587:canEditSchool"
+ },
+ {
+  "walk": "school-identity-list",
+  "personas": "school_admin",
+  "route": "settings",
+  "step": 2,
+  "anchor": "settings-identity-add-address",
+  "file": "views/schools/SettingsView.vue",
+  "line": 660,
+  "gate": "ancestor L587:canEditSchool"
+ },
+ {
+  "walk": "school-identity-list",
+  "personas": "school_admin",
+  "route": "settings",
+  "step": 3,
+  "anchor": "settings-identity-remove",
+  "file": "views/schools/SettingsView.vue",
+  "line": 611,
+  "gate": "ancestor L587:canEditSchool"
+ },
+ {
+  "walk": "school-language-and-time-zone",
+  "personas": "school_admin|teacher",
+  "route": "settings",
+  "step": 2,
+  "anchor": "settings-localisation-save",
+  "file": "views/schools/SettingsView.vue",
+  "line": 717,
+  "gate": "ancestor L696:!isAdminView"
+ },
+ {
+  "walk": "share-a-class",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "share-a-class",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 2,
+  "anchor": "class-teacher-add",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1058,
+  "gate": "ancestor L940:!isAdminView"
+ },
+ {
+  "walk": "share-a-class",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 3,
+  "anchor": "class-teacher-picker",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 1070,
+  "gate": "ancestor L940:!isAdminView"
+ },
+ {
+  "walk": "share-a-class",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 4,
+  "anchor": "class-teachers",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 940,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "start-or-make-a-class",
+  "personas": "school_admin|teacher",
+  "route": "classes",
+  "step": 2,
+  "anchor": "verb-new-class",
+  "file": "views/schools/TeacherDashboard.vue",
+  "line": 538,
+  "gate": "self:!isAdminView"
+ },
+ {
+  "walk": "what-the-class-tools-page-counts",
+  "personas": "teacher|school_admin",
+  "route": "class-detail",
+  "step": 1,
+  "anchor": "class-tools-note",
+  "file": "views/schools/ClassDetail.vue",
+  "line": 883,
+  "gate": "self:!isAdminView && classData.id"
+ }
+]
