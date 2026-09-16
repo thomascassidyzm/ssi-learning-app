@@ -29,23 +29,27 @@ export interface WeekSide {
   newPhrases: number
   hasData?: boolean
   size?: number
+  /**
+   * "27 classes" — the denominator, counted server-side off the very cohort
+   * these numbers were averaged over, with the right noun at every level.
+   * Counting it here got "classes" wrong above class level.
+   */
+  sizeLabel?: string
 }
 
 export interface WeekBlock {
   window: string
-  /**
-   * The average's own denominator, in words, SERVER-SIDE (job #979b) — it
-   * names the right noun at every level: "all 34 classes on this course" for
-   * a class, "all 9 schools on this course" for a node. Rendering the count
-   * here instead got the noun wrong above class level.
-   */
-  cohortSizeLine?: string | null
   label: string
   rangeLabel: string
   timeZone?: string
   entity: WeekSide
   cohort: WeekSide | null
-  bars: { weeks: string[]; entity: number[]; cohort: number[] }
+  /**
+   * Weekly bars. A number is a real week; NULL is absence — nobody in the
+   * cohort had started playing yet, so there is no number to draw and no zero
+   * to imply one. The chart leaves a gap.
+   */
+  bars: { weeks: string[]; entity: (number | null)[]; cohort: (number | null)[] }
   pupilMinutesCapped?: boolean
 }
 
@@ -78,11 +82,16 @@ function mins(n: number): string {
 const entity = computed(() => props.data.entity)
 const cohort = computed(() => props.data.cohort)
 
-/** The server's own sentence when it sent one, so the noun is right at every level. */
+/**
+ * "Ysgol Cas-gwent Chepstow School average · 27 classes" — the denominator in
+ * four words beside the name it belongs to (Watson, 2026-09-16). It counts
+ * classes that have STARTED: a class set up and never played is in no
+ * average, so the school reads as busy as it actually is.
+ */
 const denominatorLine = computed(() => {
-  if (props.data.cohortSizeLine) return `${props.data.cohortSizeLine}, this one included`
-  const size = props.data.cohort?.size
-  return size ? `Average of all ${size} in this comparison, this one included` : null
+  const c = props.data.cohort
+  if (!c) return null
+  return c.sizeLabel ? `${c.label} · ${c.sizeLabel}` : (c.size ? `${c.label} · ${c.size}` : null)
 })
 
 const barsSpan = computed(() => {
@@ -90,7 +99,9 @@ const barsSpan = computed(() => {
   if (w.length === 0) return ''
   return `${w[0]} → ${w[w.length - 1]}`
 })
-const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || props.data.bars.cohort.some((v) => v > 0))
+const hasBars = computed(() =>
+  props.data.bars.entity.some((v) => typeof v === 'number' && v > 0)
+  || props.data.bars.cohort.some((v) => typeof v === 'number' && v > 0))
 </script>
 
 <template>

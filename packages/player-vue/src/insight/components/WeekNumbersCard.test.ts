@@ -9,8 +9,7 @@ function block(over: Partial<WeekBlock> = {}): WeekBlock {
     rangeLabel: '7–13 Sep',
     timeZone: 'Europe/London',
     entity: { label: '11P', classMinutes: 18, pupilMinutes: 0, totalMinutes: 18, newPhrases: 7, hasData: true },
-    cohort: { label: 'Ysgol Cas-gwent Chepstow School average', classMinutes: 8, pupilMinutes: 2, totalMinutes: 10, newPhrases: 4, size: 34 },
-    cohortSizeLine: 'Average of all 34 classes on this course',
+    cohort: { label: 'Ysgol Cas-gwent Chepstow School average', classMinutes: 8, pupilMinutes: 2, totalMinutes: 10, newPhrases: 4, size: 27, sizeLabel: '27 classes' },
     bars: { weeks: ['7–13 Sep', '14–20 Sep'], entity: [18, 0], cohort: [8, 0.1] },
     ...over,
   }
@@ -38,7 +37,7 @@ describe('WeekNumbersCard — three numbers, no ratio', () => {
     const t = render({ data: block() }).text().replace(/\s+/g, ' ')
     expect(t).toContain('Ysgol Cas-gwent Chepstow School average')
     expect(t).toContain('Play as class8m')
-    expect(t).toContain('Average of all 34 classes on this course, this one included')
+    expect(t).toContain('Ysgol Cas-gwent Chepstow School average · 27 classes')
   })
 
   it('NEVER draws a ratio, a percentage-of-average or a delta', () => {
@@ -73,10 +72,15 @@ describe('WeekNumbersCard — three numbers, no ratio', () => {
     }
   })
 
-  it('says the right noun above class level, because the server writes the sentence', () => {
-    const t = render({ data: block({ cohortSizeLine: 'Average of all 9 schools on this course' }) }).text().replace(/\s+/g, ' ')
-    expect(t).toContain('Average of all 9 schools on this course, this one included')
+  it('says the right noun above class level, because the server counts it', () => {
+    const t = render({ data: block({ cohort: { label: 'Global average · this course', classMinutes: 8, pupilMinutes: 0, totalMinutes: 8, newPhrases: 4, size: 9, sizeLabel: '9 schools' } }) }).text().replace(/\s+/g, ' ')
+    expect(t).toContain('Global average · this course · 9 schools')
     expect(t).not.toContain('classes')
+  })
+
+  it('a cohort of one is a class, not classes', () => {
+    const t = render({ data: block({ cohort: { label: 'School average', classMinutes: 8, pupilMinutes: 0, totalMinutes: 8, newPhrases: 4, size: 1, sizeLabel: '1 class' } }) }).text()
+    expect(t).toContain('School average · 1 class')
   })
 
   it('names a capped pupil read rather than reporting zero individual practice as a fact', () => {

@@ -67,6 +67,7 @@ import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
+import { loadClassFirstPlay } from '../../_utils/classFirstPlay'
 import { applyCors } from '../../_utils/cors'
 import {
   aggregateWindowPace,
@@ -78,6 +79,8 @@ import {
   weekNumbersForClassIds,
   meanWeekNumbers,
   weeklyMinutesBars,
+  meanBars,
+  cohortFor,
   type ScopedSessionRow,
   type MeasureId,
 } from '../../_utils/rateCompare'
@@ -691,7 +694,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       insufficient(firstMembers.error)
       return
     }
-    let members = firstMembers.members
+    // ─── WHO IS IN THE DENOMINATOR (Tom via Watson, 2026-09-16) — every class
+    // in the compare-to scope on this course that had STARTED by the end of
+    // the window being read, the viewed class included on the same terms. A
+    // class that has never played is in no denominator anywhere: 67 of the 127
+    // active classes on cym_s_for_eng have never played a session, and
+    // counting them read the school as less than half as busy as it is.
+    //
+    // THIS OVERRIDES the never-started half of job #979b's structural cohort,
+    // on Tom's ruling. The rest of #979b stands exactly: membership does not
+    // move with the window, a STARTED but quiet class counts at its true value
+    // (0 for a sum, job #982's rule), and the viewed class is inside its own
+    // average — so the number a school leader reads is the same from every
+    // class they open it from.
+    //
+    // ONE gate for the whole page: the ladder, the floor, the card, the bars,
+    // the headline average, the percentile and the caption all divide by this
+    // same set. Two denominators on one screen is the bug this replaces.
+    const firstPlay = new Map<string, number | null>()
+    const ensureFirstPlay = async (ids: string[]): Promise<void> => {
+      const missing = ids.filter((id) => !firstPlay.has(id))
+      if (missing.length === 0) return
+      for (const [id, t] of await loadClassFirstPlay(svc, missing)) firstPlay.set(id, t)
+    }
+    // The cohort is read at the END of the window: for a week that is the
+    // week's own end, so last week's bars never move when a class starts this
+    // week; for the legacy ?days= path it is now, i.e. "has ever played".
+    const windowCohortEnd = weekWindowId ? currentWeek.endMs : nowMs
+    const onlyStarted = async (
+      ms: { id: string; classIds: string[] }[],
+    ): Promise<{ id: string; classIds: string[] }[]> => {
+      await ensureFirstPlay([...entityClassIds, ...ms.flatMap((m) => m.classIds)])
+      return ms
+        .map((m) => ({ ...m, classIds: cohortFor(m.classIds, firstPlay, windowCohortEnd) }))
+        .filter((m) => m.classIds.length > 0)
+    }
+
+    let members = await onlyStarted(firstMembers.members)
 
     // ─── Compare LADDER on the untouched DEFAULT (generalises the old
     // root-only all-courses fallback, 2026-07-20): when the default
@@ -713,24 +752,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         baseBody.applied.compare_to = rung
         const wm = await resolveMembers()
         if (wm.error) continue
-        members = wm.members
+        members = await onlyStarted(wm.members)
       }
     }
 
     if (members.length < effectiveFloor) {
       // Name the actual gate rather than a vague "not enough data" (founder ask
-      // 2026-07-20): which peer unit, how many are needed. Membership is
-      // structural now, so this fires only when the scope genuinely has no
-      // other class/school running the course — never because of a quiet
-      // window (a widened root still only lands here when all-courses is
-      // ALSO empty).
+      // 2026-07-20): which peer unit, how many are needed. Membership does not
+      // move with the WINDOW — a quiet week never empties the card — but it
+      // does require the peer to have STARTED, so the honest words are "have
+      // started", not "exist": a scope full of classes that were set up and
+      // never played has nothing to compare against, and saying so is the
+      // point (a widened root still only lands here when all-courses is ALSO
+      // empty).
       const plural = classRow ? 'classes' : 'schools'
       const unit = members.length === 1 ? (classRow ? 'class' : 'school') : plural
       const worldNote = entityIsDemo ? 'demo ' : ''
       const scopeNote = cohortCourse ? 'running this course ' : ''
       const reason = members.length === 0
-        ? `No other ${worldNote}${plural} ${scopeNote}exist in this scope yet — a fair comparison needs at least ${effectiveFloor}.`
-        : `Only ${members.length} other ${worldNote}${unit} ${scopeNote}exists in this scope — a fair comparison needs at least ${effectiveFloor}.`
+        ? `No other ${worldNote}${plural} ${scopeNote}have started in this scope yet — a fair comparison needs at least ${effectiveFloor}.`
+        : `Only ${members.length} other ${worldNote}${unit} ${scopeNote}${members.length === 1 ? 'has' : 'have'} started in this scope — a fair comparison needs at least ${effectiveFloor}.`
       insufficient(reason, members.length)
       return
     }
@@ -756,6 +797,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
       rows = (rawRows as ScopedSessionRow[]) || []
     }
+    // Candidates for the PER-WEEK cohort below: the entity plus every started
+    // member. `firstPlay` already holds all of them (onlyStarted filled it).
+    const candidateIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])]
+    await ensureFirstPlay(candidateIds)
+
     const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
 
     // ─── THE WEEK CARD (job #989) — three numbers for the window, the
@@ -765,14 +811,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // job #979b's FIXED structural set — every class on the course in scope,
     // the quiet ones and the viewed one included — so the school's week reads
     // the same whoever is looking at it. ───
+    // The cohort's unit: classes when the entity is a class, schools above it
+    // (the peers-like-me rule this endpoint has always used).
+    const cohortNoun = (n: number): string =>
+      classRow ? (n === 1 ? 'class' : 'classes') : (n === 1 ? 'school' : 'schools')
+
     let weekBlock: Record<string, unknown> | null = null
     if (weekWindowId) {
       const buckets = weekBuckets(nowMs, timeZone, TREND_WEEKS)
       const entityWeek = weekNumbersForClassIds(rows, entityClassIds, currentWeek.startMs, currentWeek.endMs)
-      const memberIdSets = [entityClassIds, ...members.map((m) => m.classIds)]
+      // The cohort, evaluated at the end of the window for the card and
+      // AGAIN at the end of each bucket for the bars — one function, three
+      // callers, so a bar and the number above it can never disagree.
+      const cohortAt = (weekEndMs: number): string[] => cohortFor(candidateIds, firstPlay, weekEndMs)
+      const windowCohort = cohortAt(currentWeek.endMs)
       const cohortWeek = meanWeekNumbers(
-        memberIdSets.map((ids) => weekNumbersForClassIds(rows, ids, currentWeek.startMs, currentWeek.endMs)))
-      const cohortBars = memberIdSets.map((ids) => weeklyMinutesBars(rows, ids, buckets))
+        windowCohort.map((id) => weekNumbersForClassIds(rows, [id], currentWeek.startMs, currentWeek.endMs)))
+      // The entity's OWN series: the sum of ITS classes that had started by
+      // each week, and absence before any of them had. A zero in a week the
+      // class did not yet exist as a playing class would say it was idle.
+      const entityBars = weeklyMinutesBars(rows, entityClassIds, buckets,
+        (end) => cohortFor(entityClassIds, firstPlay, end))
+      // The comparison series: the MEAN over the cohort as it stood each week,
+      // built from each member's own series so a member is absent from the
+      // weeks before it started and a zero in every week after. Same
+      // `cohortFor`, one class at a time — the bar and the number above it
+      // cannot disagree because they are the same function.
+      const cohortBars = meanBars(candidateIds.map((id) =>
+        weeklyMinutesBars(rows, [id], buckets, (end) => cohortFor([id], firstPlay, end))))
       weekBlock = {
         window: weekWindowId,
         label: windowConfig.label,
@@ -786,18 +852,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           newPhrases: entityWeek.newPhrases,
           hasData: entityWeek.hasData,
         },
-        cohort: {
+        // An empty cohort is ABSENCE — no numbers at all, never a row of
+        // zeros that reads as "the school did nothing".
+        cohort: windowCohort.length === 0 ? null : {
           label: compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average',
           classMinutes: cohortWeek.classMinutes,
           pupilMinutes: cohortWeek.pupilMinutes,
           totalMinutes: cohortWeek.totalMinutes,
           newPhrases: cohortWeek.newPhrases,
-          size: memberIdSets.length,
+          size: windowCohort.length,
+          // "school average · 27 classes" (Watson, 2026-09-16) — the
+          // denominator said in four words, with the right noun at every
+          // level. Counted off the SAME windowCohort the numbers above it
+          // were averaged over, so the caption cannot drift from them.
+          sizeLabel: `${windowCohort.length} ${cohortNoun(windowCohort.length)}`,
         },
         bars: {
           weeks: buckets.map((b) => weekLabel(b, timeZone)),
-          entity: weeklyMinutesBars(rows, entityClassIds, buckets),
-          cohort: meanTrend(cohortBars),
+          entity: entityBars,
+          cohort: cohortBars,
         },
         // Named, not hidden: past the cap Y is not read at all, so the total
         // is class play only and says so.
@@ -867,11 +940,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const alreadyScoped = / this course$| all courses$/.test(compareLabel)
     const cohortScopeNote = cohortCourse ? ' on this course' : ' across all courses'
     const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
-    // The week card says the same denominator in its own voice — the card
-    // already carries the cohort's NAME above the numbers, so this sentence
-    // only has to say how many and of what, with the right noun at every
-    // level: "all 34 classes on this course", "all 9 schools on this course".
-    if (weekBlock) weekBlock.cohortSizeLine = `Average of all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
+    // The week card carries its own denominator caption (`cohort.sizeLabel`),
+    // counted off the cohort its own numbers were averaged over. Nothing to
+    // set here — the two must not be written twice.
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content

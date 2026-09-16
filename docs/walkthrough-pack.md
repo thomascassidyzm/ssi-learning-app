@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `919e66a26910` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `5e7e1b529b13` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -403,7 +403,7 @@ Personas: admin, leader, school_admin · place: node-insights
 
 1. [`insights-measure` · next] This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.
 2. [`insights-window` · next] The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.
-3. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included.
+3. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere.
 4. [`insights-rate-widget` · next] Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.
 5. [`insights-org-practising` · next] **Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.
 6. [`insights-org-quiet` · next] **Quiet** is the half you act on: which classes practised before and have stopped, how long ago, and which have never started. Open a class row to see where it stopped.

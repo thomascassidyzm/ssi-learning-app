@@ -1736,7 +1736,7 @@
           "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two."
         },
         "2": {
-          "say": "**Compare to** decides whose average sits beside yours. It divides by every class on the course, the quiet ones and this one included."
+          "say": "**Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere."
         },
         "3": {
           "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself."
