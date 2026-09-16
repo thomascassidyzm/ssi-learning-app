@@ -96,8 +96,8 @@ describe('AdminTopBar — Intelligence | Admin, one switch, derived from the rou
     const tools = wrapper.findAll('.tabs .nvm')[0]
     await tools.find('button.nvm-trigger').trigger('click')
     const labels = tools.findAll('.nvm-item-label').map((el) => el.text())
-    expect(labels).toEqual(['Messages', 'Release notes', 'Invites audit', 'Methodology', 'Handbook'])
-    expect(tools.findAll('.nvm-item-desc')).toHaveLength(5)
+    expect(labels).toEqual(['Support', 'Messages', 'Release notes', 'Invites audit', 'Methodology', 'Handbook'])
+    expect(tools.findAll('.nvm-item-desc')).toHaveLength(6)
   })
 
   it('marks the Tools trigger active when the current page lives inside it', async () => {
@@ -119,7 +119,7 @@ describe('AdminTopBar — Intelligence | Admin, one switch, derived from the rou
     expect(wrapper.find('.tabs-collapsed .nvm-trigger-label').text()).toBe('People')
     await wrapper.find('.tabs-collapsed .nvm-trigger').trigger('click')
     let items = wrapper.findAll('.tabs-collapsed .nvm-item-label').map((el) => el.text())
-    expect(items).toEqual(['Structure', 'People', 'Messages', 'Release notes', 'Invites audit', 'Methodology', 'Handbook'])
+    expect(items).toEqual(['Structure', 'People', 'Support', 'Messages', 'Release notes', 'Invites audit', 'Methodology', 'Handbook'])
     expect(switchState(wrapper)).toEqual(['Intelligence', 'Admin*'])
 
     wrapper = await mountAt('/intel/person')

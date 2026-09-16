@@ -700,6 +700,14 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
+        // Support (job #28): every in-app report a learner has sent us, from
+        // both postboxes, with the reply. Unanswered first.
+        path: 'support',
+        name: 'admin-support',
+        component: () => import('@/views/admin/AdminSupport.vue'),
+        meta: { title: 'Support', description: 'Every report sent from inside the app, and the reply' },
+      },
+      {
         // Admin-to-learner messaging (job #821): one composer, three audiences.
         path: 'messages',
         name: 'admin-messages',
