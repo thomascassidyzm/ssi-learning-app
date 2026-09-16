@@ -19,7 +19,6 @@
     "total",
     "classes",
     "quiet",
-    "not practised",
     "voice",
     "pause"
   ],
@@ -55,14 +54,6 @@
         "on": "next"
       },
       "checked": "b09ac89e.18d8c9b8"
-    },
-    {
-      "anchor": "insights-not-practised",
-      "say": "**Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "6fe90846.b3f75b36"
     },
     {
       "anchor": "insights-more",

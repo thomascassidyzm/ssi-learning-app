@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `124a3fa2ecdd` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `99d5ecc28093` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1492,9 +1492,9 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 1. Open a level and tap **See insights**.
 2. Tap **Voice and pause** at the bottom of the page.
 3. Read the uptake figure first — it is how many learners this is based on.
-4. Open a class or a learner within it to see the same reading at a smaller scope.
+4. Open a class to see the same reading at a smaller scope.
 
-**Worth knowing.** A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a roster here.
+**Worth knowing.** Nobody is named here: the figures are counts over the level, never a row per pupil. A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a reading here.
 
 ## Walking down to a school, a class or a person
 
@@ -1677,16 +1677,15 @@ Moment: something-wrong · section: seeing-progress · roles: leader, school_adm
 
 Moment: every-lesson · section: seeing-progress · roles: leader, school_admin · anchor: `insights-org-practising` · in `packages/player-vue/src/insight/OrgIntelPanel.vue`
 
-**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and which people practised on their own account and for how long. An organisation with no classes reads only the people line here, asked as how many of your people practised.
+**What it's for.** Whether your classes are actually doing it: how many practised together in the last seven days against the seven before, how many phrases they practised, and how many people practised on their own account — a count, never a name. An organisation with no classes reads only the people line here, asked as how many of your people practised.
 
-**Where it is.** The **Practising** question at the top of any level's insights page.
+**Where it is.** The **Practising** question under **More about this level** on any level's insights page.
 
 1. Read the sentence for this week against last week.
 2. Read the line for how many phrases were practised each day over the last four weeks.
-3. Read the class rows for who practised, when they last practised together and where in the course they are.
-4. Read the people rows for own-account minutes.
+3. Read the class rows for which classes practised, when they last practised together and where in the course they are.
 
-**Worth knowing.** A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's minutes are their own logins.
+**Worth knowing.** A class's minutes are time in the app on its own class account, the gaps between phrases included, the same number its class page shows. People's own-account minutes are counted in the sentence and never listed by name.
 
 ## Which courses are worth attention
 
@@ -1702,19 +1701,6 @@ Moment: every-lesson · section: seeing-progress · roles: admin · anchor: `que
 4. Open a course row to see which bits of it people stumble on.
 
 **Worth knowing.** Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off.
-
-## Who has not practised this week
-
-Moment: something-wrong · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-not-practised` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
-
-**What it's for.** The names of the people on their own accounts who have not practised in the last seven days — the half you act on. By name, never by minutes: this is not a league table.
-
-**Where it is.** **Who has not practised this week**, under the class list on a school's or group's insights page. Tap it to open.
-
-1. Tap the line to open it.
-2. Read the names. The count beside the title says how many of how many.
-
-**Worth knowing.** Someone who practised for a minute is not on this list. A school with no pupil accounts has nobody to list and says so.
 
 ## Who is about to leave
 

@@ -51,7 +51,7 @@ vi.mock('@/insight/data/orgIntel', () => ({
 vi.mock('@/insight/data/vadScope', () => ({ fetchVadScope: async () => ({ scope: { kind: 'school', label: 'Sunrise', learnerIds: [], classes: [] }, names: {}, metricsByLearner: {}, prosodyByLearner: {}, prosodyAvailable: false }) }))
 vi.mock('@/insight/data/vadUptake', () => ({ summariseVad: () => null }))
 vi.mock('@/insight/VadPanel.vue', () => ({ default: { name: 'VadPanel', template: '<div class="vad-stub" />' } }))
-vi.mock('@/insight/OrgIntelPanel.vue', () => ({ default: { name: 'OrgIntelPanel', props: ['payload', 'hidePeople'], template: '<div class="oq-stub" :data-hide-people="String(hidePeople)" />' } }))
+vi.mock('@/insight/OrgIntelPanel.vue', () => ({ default: { name: 'OrgIntelPanel', props: ['payload'], template: '<div class="oq-stub" />' } }))
 
 const RouterLinkStub = { props: { to: { type: [String, Object], required: true } }, template: `<a :href="typeof to === 'string' ? to : ''"><slot /></a>` }
 
@@ -69,18 +69,14 @@ describe('NodeInsightsView — the leader’s page', () => {
     expect(w.find('.cwl-quiet-sum').text()).toBe('1 class has not started yet')
     // the org questions, the not-practised list and voice all sit behind a tap
     for (const d of w.findAll('details.niv-more')) expect(d.attributes('open')).toBeUndefined()
-    expect(w.find('.oq-stub').attributes('data-hide-people')).toBe('true')
   })
 
-  it('who has not practised: by name, never by minutes, and framed as absence', async () => {
+  it('NO per-pupil display anywhere — not on the glance, not behind a tap (Tom, 2026-09-16)', async () => {
     const w = mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
-    const d = w.find('[data-walk="insights-not-practised"]')
-    expect(d.find('.niv-more-title').text()).toBe('Who has not practised this week')
-    expect(d.find('.niv-more-count').text()).toBe('2 of 3')
-    expect(d.findAll('.niv-names li').map((li) => li.text())).toEqual(['Arjun', 'Zara'])
-    expect(d.text()).not.toContain('Meera')
-    expect(d.text()).not.toMatch(/\b\d+ ?min\b/)
+    for (const name of ['Zara', 'Arjun', 'Meera']) expect(w.text()).not.toContain(name)
+    expect(w.find('[data-walk="insights-not-practised"]').exists()).toBe(false)
+    expect(w.findComponent({ name: 'VadPanel' }).exists()).toBe(true)
   })
 
   it('the card links to each class’s own insights on the member surface', async () => {
