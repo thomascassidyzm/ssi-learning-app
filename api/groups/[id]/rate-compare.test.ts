@@ -1342,6 +1342,22 @@ describe('GET /api/groups/:id/rate-compare — year/department tags, the leader\
     const single = makeRes()
     await handler(makeReq('c2', { window: 'this_week' }), single)
     expect(single.body.week.classes).toBeUndefined()
+    expect(single.body.week.classesNormal).toBeUndefined()
+  })
+
+  it('every started class row carries its OWN twelve weeks of bars, with one faint normal line for the level (Tom\'s lab verdict, 2026-09-16)', async () => {
+    TABLES.classes.push({ id: 'c8', class_name: 'Year 2 Hindi', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true, tags: {} })
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), res)
+    const rows = res.body.week.classes
+    const c2 = rows.find((r: any) => r.id === 'c2')
+    // same twelve buckets as the card above it, so a bar and its number agree
+    expect(c2.bars).toHaveLength(res.body.week.bars.weeks.length)
+    expect(c2.bars[c2.bars.length - 1]).toBe(c2.totalMinutes)
+    // a class that has never played draws nothing — absence, never a row of zeros
+    expect(rows.find((r: any) => r.id === 'c8').bars).toBeNull()
+    // the faint normal line is sent ONCE for the level, not copied per class
+    expect(res.body.week.classesNormal).toHaveLength(res.body.week.bars.weeks.length)
   })
 
   it('a class carries ALL-TIME totals with no comparison figure; a never-started class says so rather than showing zeros', async () => {

@@ -320,8 +320,9 @@ const metricDesc = computed(() => {
             walks up from the smallest group your class is part of — a year, a
             department, the school, the district, and on up — and opens on the
             smallest one that holds more than one class.
-         5. The thin line under the total is the last twelve weeks: your class over a
-            fainter line of the average. No axes; it is there to be glanced at.
+         5. Under the numbers, the last twelve weeks as bars: one bar a week for this
+            level, the newest one solid, with the average drawn across them as a faint
+            line. No axes; it is there to be glanced at.
          Worth knowing. Nothing here is a score, a rank or a percentage — two columns
          of plain numbers, and you do the comparing. A class that was set up and has
          never played is in no average anywhere. The average counts every class in
@@ -394,7 +395,8 @@ const metricDesc = computed(() => {
          How you do it.
          1. Open a level and tap **See insights**.
          2. The card puts this level's week beside the average's same week, as two
-            columns of plain numbers, with a thin twelve-week line under the total.
+            columns of plain numbers, with twelve weekly bars under them and the
+            average as a faint line across the bars.
          3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the
             page opens on last week, because the week in progress is barely a lesson old.
          4. Tap **why?** on the card for what the numbers count and why minutes and

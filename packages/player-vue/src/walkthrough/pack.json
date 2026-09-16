@@ -1,5 +1,5 @@
 {
-  "version": "99d5ecc28093",
+  "version": "efb62cfe6bd8",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -4682,7 +4682,7 @@
       "what": "Seeing every class under this level at a glance, the one that has gone longest without practising first, with its week beside its name.",
       "where": "Under the card on a school's or a group's insights page.",
       "how": [
-        "Read down the list. Each card says when that class last practised, then its total time and new phrases for the week.",
+        "Read down the list. Each card says when that class last practised, then its total time and new phrases for the week, then that class's last twelve weeks as small bars with the average here drawn across them as a faint line.",
         "Tap a class to open its own card, with the average beside it.",
         "Classes that have not started yet are counted in one quiet line at the end; open it to see their names."
       ],
@@ -6215,7 +6215,7 @@
         "Switch **This week** and **Last week** if you need to. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.",
         "Read the three numbers down the left, with the average beside each one. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.",
         "Use **Compare to** to choose whose average sits in the second column. It walks up from the smallest group your class is part of — a year, a department, the school, the district, and on up — and opens on the smallest one that holds more than one class.",
-        "The thin line under the total is the last twelve weeks: your class over a fainter line of the average. No axes; it is there to be glanced at."
+        "Under the numbers, the last twelve weeks as bars: one bar a week for this level, the newest one solid, with the average drawn across them as a faint line. No axes; it is there to be glanced at."
       ],
       "note": "Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest."
     },
@@ -8344,7 +8344,7 @@
       "where": "The card at the top of any level's insights page.",
       "how": [
         "Open a level and tap **See insights**.",
-        "The card puts this level's week beside the average's same week, as two columns of plain numbers, with a thin twelve-week line under the total.",
+        "The card puts this level's week beside the average's same week, as two columns of plain numbers, with twelve weekly bars under them and the average as a faint line across the bars.",
         "Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.",
         "Tap **why?** on the card for what the numbers count and why minutes and new phrases move apart."
       ],

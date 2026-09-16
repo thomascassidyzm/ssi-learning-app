@@ -17,8 +17,11 @@
 // percentile, no "1st of 3", no ordinal of any kind — dentist energy. Two
 // columns of plain numbers let a head of department see the gap themselves.
 //
-// Beside the total, a thin twelve-week temperature line: the class over a
-// fainter line of the cohort. No axes, no legend.
+// Under the numbers, twelve weekly bars: one bar per week for this class in
+// the class colour, this week's bar solid, with the cohort's mean laid across
+// them as a faint line — "normal for here". Tom's verdict from the display
+// lab, 2026-09-16: "Bars with a faint normal line is best." No axes, no
+// legend, no rank.
 //
 // 'All time' is TOTALS ONLY, on its own line beneath, with no comparison
 // figure and no cohort column: since the class started, practice time and
@@ -31,7 +34,7 @@
 // quiet week reads as a quiet week; nothing here scolds anybody for it.
 // ============================================================================
 import { computed, ref } from 'vue'
-import TemperatureLine from './TemperatureLine.vue'
+import WeekBars from './WeekBars.vue'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -61,6 +64,8 @@ export interface WeekClassRow {
   pupilMinutes: number | null
   totalMinutes: number | null
   newPhrases: number | null
+  /** That class's own twelve weeks of minutes; null before it started. */
+  bars?: (number | null)[] | null
 }
 
 export interface WeekBlock {
@@ -76,6 +81,8 @@ export interface WeekBlock {
    * to imply one. The line breaks.
    */
   bars: { weeks: string[]; entity: (number | null)[]; cohort: (number | null)[] }
+  /** The faint normal line for the per-class cards: the mean over this node's classes. */
+  classesNormal?: (number | null)[] | null
   pupilMinutesCapped?: boolean
   /** The leader's page: one row per class under this node, quietest first. */
   classes?: WeekClassRow[]
@@ -171,14 +178,18 @@ const allTimeLine = computed(() => {
           <span class="wk-cell wk-num wk-num-entity" :class="r.big ? 'wk-big' : 'wk-small'" role="cell">{{ r.entity }}</span>
           <span v-if="cohort" class="wk-cell wk-num" :class="r.big ? 'wk-big' : 'wk-small'" role="cell">{{ r.cohort }}</span>
         </div>
-        <!-- The temperature line sits under the total: twelve weeks of it. -->
-        <div v-if="r.key === 'total' && hasBars" class="wk-row wk-row-line" role="row">
-          <span class="wk-cell wk-cell-label wk-line-label" role="rowheader">{{ t('insights.week.lastTwelveWeeks', 'Last 12 weeks') }}</span>
-          <span class="wk-cell wk-line" :class="{ 'wk-line-span': cohort }" role="cell">
-            <TemperatureLine :entity="data.bars.entity" :cohort="cohort ? data.bars.cohort : null" :label="t('insights.week.lineLabel', 'Total learning time, last twelve weeks, this class over the average')" />
-          </span>
-        </div>
       </template>
+    </div>
+
+    <!-- ── Twelve weeks of it, under the numbers: bars for this class, the
+         average as a faint line across them (Tom's lab verdict, 2026-09-16). ── -->
+    <div v-if="hasBars" class="wk-trend">
+      <p class="wk-trend-label">{{ t('insights.week.lastTwelveWeeks', 'Last 12 weeks') }}</p>
+      <WeekBars
+        :entity="data.bars.entity"
+        :cohort="cohort ? data.bars.cohort : null"
+        :label="t('insights.week.lineLabel', 'Total learning time, last twelve weeks, this class over the average')"
+      />
     </div>
 
     <p v-if="denominatorLine" class="wk-denominator">{{ denominatorLine }}</p>
@@ -290,10 +301,14 @@ const allTimeLine = computed(() => {
   font-size: 14px;
   color: var(--ink-secondary, #5b534c);
 }
-.wk-row-line .wk-cell { padding: 4px 0 8px; }
-.wk-line-label { font-size: 9.5px; }
-.wk-line { display: flex; align-items: center; }
-.wk-line-span { grid-column: 2 / span 2; }
+.wk-trend { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wk-trend-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted, #8A8078);
+}
 
 .wk-denominator,
 .wk-note {
