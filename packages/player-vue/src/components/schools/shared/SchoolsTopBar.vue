@@ -182,6 +182,14 @@ const tabs = computed<NavTab[]>(() => {
   // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
   const teacherTabs: NavTab[] = [
     { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: '/schools',           routeName: 'schools-dashboard' },
+    // My Classes is a top-nav entry for the teacher shell (founder ruling,
+    // 2026-09-16). It was reachable only sideways — the 'Classes /' crumb on a
+    // class page — so a teacher's own classes, the thing they open every day,
+    // had no door of its own. The label is the page's own title ('My Classes',
+    // routed to TeacherDashboard), which is also what every Handbook
+    // description already calls it. A groupless tutor is a derived teacher and
+    // keeps the same entry: their classes live on the same page.
+    { label: t('schools.ui.topBar.tabMyClasses', 'My Classes'), to: '/schools/classes', routeName: 'classes' },
     { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
     // Same "Insights" unification as the school_admin set above.
     { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: '/schools/analytics', routeName: 'analytics' },

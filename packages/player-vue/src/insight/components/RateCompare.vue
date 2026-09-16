@@ -49,6 +49,17 @@ const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 // e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
+// Cohort-size line under the headline: "school average · mean of 32 classes
+// active in this window" (job #979 — makes the average's own denominator
+// visible, since it grows with the window and can make a wider window read
+// lower than a narrower one even though the maths is correct). Omitted when
+// the server hasn't sent both a size and a unit (e.g. the schools lane).
+const cohortSizeLine = computed(() => {
+  const { cohortSize, cohortUnit, average } = props.data
+  if (!cohortSize || !cohortUnit) return null
+  return `${average.label} · mean of ${cohortSize} ${cohortUnit} active in this window`
+})
+
 // The chart caption comes from the server (windows+measures contract); the
 // hardcoded "Rolling weekly · last 8 weeks" survives only as the fallback for
 // a payload that predates the contract (windowLabel/trendLabel absent).
@@ -220,6 +231,7 @@ const cohortTicks = computed<number[]>(() => {
           <span class="rc-stat-caption">
             <span class="rc-cap-you">{{ subject }}</span> v {{ captionRest }}
           </span>
+          <span v-if="cohortSizeLine" class="rc-stat-cohort-size">{{ cohortSizeLine }}</span>
         </div>
 
         <div class="rc-head-delta">
@@ -413,6 +425,12 @@ const cohortTicks = computed<number[]>(() => {
   color: var(--ink-muted);
 }
 .rc-cap-you { color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1); }
+.rc-stat-cohort-size {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
 
 .rc-head-delta {
   display: flex;

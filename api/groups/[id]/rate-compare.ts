@@ -759,6 +759,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       subjectIsViewer: false,
       levelNoun,
       cohortLabel,
+      cohortUnit,
       distribution: {
         values: dist.values,
         min: dist.min,
