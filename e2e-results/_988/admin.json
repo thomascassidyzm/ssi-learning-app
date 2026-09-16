@@ -1,0 +1,94 @@
+{
+  "base": "https://staging.saysomethingin.app",
+  "role": "admin",
+  "viewAs": null,
+  "at": "2026-09-16T10:47:23.995Z",
+  "widths": {
+    "desktop": {
+      "entries": [
+        {
+          "id": "the-invites-desk",
+          "title": "The invites desk",
+          "clipId": "invites-desk",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        },
+        {
+          "id": "look-up-one-student",
+          "title": "Look up one student",
+          "clipId": "find-a-student-or-export-the-list",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        },
+        {
+          "id": "take-your-lists-away-as-a-spreadsheet",
+          "title": "Take your lists away as a spreadsheet",
+          "clipId": "find-a-student-or-export-the-list",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        }
+      ],
+      "handbookUrl": "https://staging.saysomethingin.app/schools/handbook",
+      "entryCount": 109,
+      "withClipCount": 3
+    },
+    "phone": {
+      "entries": [
+        {
+          "id": "the-invites-desk",
+          "title": "The invites desk",
+          "clipId": "invites-desk",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        },
+        {
+          "id": "look-up-one-student",
+          "title": "Look up one student",
+          "clipId": "find-a-student-or-export-the-list",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        },
+        {
+          "id": "take-your-lists-away-as-a-spreadsheet",
+          "title": "Take your lists away as a spreadsheet",
+          "clipId": "find-a-student-or-export-the-list",
+          "goto": {
+            "href": null,
+            "note": "no Take-me-there link rendered"
+          },
+          "showMe": {
+            "error": "offer button not rendered"
+          }
+        }
+      ],
+      "handbookUrl": "https://staging.saysomethingin.app/schools/handbook",
+      "entryCount": 109,
+      "withClipCount": 3
+    }
+  }
+}

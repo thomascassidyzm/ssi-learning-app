@@ -1,0 +1,18 @@
+{
+  "base": "https://staging.saysomethingin.app",
+  "role": "learner",
+  "viewAs": null,
+  "at": "2026-09-16T10:47:33.404Z",
+  "widths": {
+    "desktop": {
+      "entries": [],
+      "hasToggle": 1,
+      "error": "locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for locator('.hl-toggle').first()\n    - locator resolved to <button type=\"button\" data-v-b1522848=\"\" class=\"hl-toggle is-armed\">…</button>\n  - attempting click action\n    - waiting for element to be visible, enabled and stable\n"
+    },
+    "phone": {
+      "entries": [],
+      "hasToggle": 1,
+      "error": "locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for locator('.hl-toggle').first()\n    - locator resolved to <button type=\"button\" data-v-b1522848=\"\" class=\"hl-toggle is-armed\">…</button>\n  - attempting click action\n    - waiting for element to be visible, enabled and stable\n"
+    }
+  }
+}
