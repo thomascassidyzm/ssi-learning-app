@@ -28,15 +28,18 @@ vi.mock('@/insight/NodeRateEngine.vue', () => ({
     setup(_, { emit }) {
       onMounted(() => {
         emit('state', { node: { id: 'school-node', name: 'Sunrise', label: 'school', kind: 'node' }, options: { courses: [], compares: [] }, applied: { course_code: 'eng_for_hin', compare_to: 'x', days: 7, window: 'this_week' } })
-        emit('data', { week: { label: 'This week', classes: weekClasses } })
+        emit('data', { applied: { course_code: 'eng_for_hin', window: 'this_week' }, week: { label: 'This week', classes: weekClasses } })
       })
       return () => h('div', { class: 'engine-stub' })
     },
   }),
 }))
+const orgIntelCalls: { nodeId: string; opts: any }[] = []
 vi.mock('@/insight/data/orgIntel', () => ({
   OrgIntelError: class extends Error {},
-  fetchOrgIntel: async () => ({
+  fetchOrgIntel: async (nodeId: string, _tok: string | null, opts: any = {}) => {
+    orgIntelCalls.push({ nodeId, opts })
+    return {
     node: { id: 'school-node', name: 'Sunrise', kind: 'school' }, windowDays: 7, lookbackDays: 28, countedAt: new Date().toISOString(),
     practising: { classCount: 3, classesThisWeek: 1, classesLastWeek: 1, phrasesThisWeek: 9, phrasesLastWeek: 3, classMinutesThisWeek: 40, classMinutesLastWeek: 10, peopleCount: 3, peopleThisWeek: 1, peopleLastWeek: 0, ownMinutesThisWeek: 5, ownMinutesLastWeek: 0 },
     byDay: [], quiet: { quietCount: 1, neverCount: 1, buckets: [] }, journey: { courses: [], stages: [] },
@@ -46,17 +49,25 @@ vi.mock('@/insight/data/orgIntel', () => ({
       { learnerId: 'p2', name: 'Arjun', minutesThisWeek: 0, minutesLastWeek: 4, lastPractisedDay: '2026-09-01' },
       { learnerId: 'p3', name: 'Meera', minutesThisWeek: 55, minutesLastWeek: 0, lastPractisedDay: '2026-09-15' },
     ],
-  }),
+    }
+  },
 }))
-vi.mock('@/insight/data/vadScope', () => ({ fetchVadScope: async () => ({ scope: { kind: 'school', label: 'Sunrise', learnerIds: [], classes: [] }, names: {}, metricsByLearner: {}, prosodyByLearner: {}, prosodyAvailable: false }) }))
-vi.mock('@/insight/data/vadUptake', () => ({ summariseVad: () => null }))
-vi.mock('@/insight/VadPanel.vue', () => ({ default: { name: 'VadPanel', template: '<div class="vad-stub" />' } }))
+const vadCalls: { target: any; opts: any }[] = []
+vi.mock('@/insight/data/vadScope', () => ({
+  fetchVadAggregate: async (target: any, _tok: string | null, opts: any = {}) => {
+    vadCalls.push({ target, opts })
+    return { scope: { kind: 'group', id: 'school-node', label: 'Sunrise', total: 12, classes: [] }, summary: { total: 12, withData: 4 }, classUptake: [], truncated: false }
+  },
+}))
+vi.mock('@/insight/VadPanel.vue', () => ({ default: { name: 'VadPanel', props: ['summary', 'scopeLabel', 'isLoading', 'error', 'classUptake', 'truncated', 'hideLearners'], template: '<div class="vad-stub" />' } }))
 vi.mock('@/insight/OrgIntelPanel.vue', () => ({ default: { name: 'OrgIntelPanel', props: ['payload'], template: '<div class="oq-stub" />' } }))
 
 const RouterLinkStub = { props: { to: { type: [String, Object], required: true } }, template: `<a :href="typeof to === 'string' ? to : ''"><slot /></a>` }
 
 beforeEach(() => {
   clearNodeHomeCache()
+  orgIntelCalls.length = 0
+  vadCalls.length = 0
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ kind: 'node', node: { id: 'school-node', name: 'Sunrise', label: 'school', hasSchool: true }, ancestors: [], siblings: [], children: [] }) })))
 })
 
@@ -83,5 +94,32 @@ describe('NodeInsightsView — the leader’s page', () => {
     const w = mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
     expect(w.find('.cwl-card').attributes('href')).toBe('/org/q/insights')
+  })
+
+  // ── job #32 fix-up, 2026-09-16 ─────────────────────────────────────────
+  it('EVERY PANEL READS THE CARD’S SCOPE: the course the card resolved goes to both panels', async () => {
+    const w = mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+    expect(w.exists()).toBe(true)
+    // The engine resolved eng_for_hin; neither panel may answer for another
+    // course — the leader's page reported four classes under a card reporting
+    // one until this.
+    expect(orgIntelCalls.at(-1)!.opts.courseCode).toBe('eng_for_hin')
+    expect(vadCalls.at(-1)!.opts.courseCode).toBe('eng_for_hin')
+  })
+
+  it('asks the org read for the JOURNEY alone, so no pupil ledger is even read', async () => {
+    mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+    expect(orgIntelCalls.at(-1)!.opts.questions).toEqual(['journey'])
+  })
+
+  it('the voice panel is read as AGGREGATES, so no pupil name reaches this page', async () => {
+    const w = mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+    // fetchVadScope — the named read — is not imported here at all; the only
+    // door this page has is the aggregate one.
+    expect(vadCalls.length).toBeGreaterThan(0)
+    expect(w.findComponent({ name: 'VadPanel' }).props('summary')).toMatchObject({ withData: 4 })
   })
 })

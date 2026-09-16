@@ -28,8 +28,7 @@ import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/com
 import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import VadPanel from '@/insight/VadPanel.vue'
-import { fetchVadScope, type VadScopePayload } from '@/insight/data/vadScope'
-import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
+import { fetchVadAggregate, type VadAggregatePayload } from '@/insight/data/vadScope'
 import OrgIntelPanel from '@/insight/OrgIntelPanel.vue'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { fetchOrgIntel, OrgIntelError, type OrgIntelPayload } from '@/insight/data/orgIntel'
@@ -77,11 +76,18 @@ const weekClasses = ref<WeekClassRow[] | null>(null)
 /** The faint normal line across every per-class card: the mean over this level's classes. */
 const weekClassesNormal = ref<(number | null)[] | null>(null)
 const weekLabel = ref<string>('')
+// THE CARD DECIDES THE SCOPE (job #32 fix-up). Whatever course the card
+// resolved — the one the picker shows — every panel below it reads the same
+// one. Before this the expanded panels answered for all four of a school's
+// classes while the card answered for the one Marathi class above them.
+const appliedCourse = ref<string | null>(null)
 function onEngineData(json: Record<string, unknown> | null): void {
   const week = json?.week as { classes?: WeekClassRow[]; classesNormal?: (number | null)[]; label?: string } | null | undefined
   weekClasses.value = Array.isArray(week?.classes) ? week!.classes! : null
   weekClassesNormal.value = Array.isArray(week?.classesNormal) ? week!.classesNormal! : null
   weekLabel.value = week?.label ? week.label.toLowerCase() : ''
+  const applied = json?.applied as { course_code?: string | null } | null | undefined
+  appliedCourse.value = applied?.course_code ?? null
 }
 const classLinkFor = (id: string): string => (member.value ? `/org/${id}/insights` : `/admin/classes/${id}/insights`)
 
@@ -176,17 +182,26 @@ const classless = computed(() => !!home.value && !isClass.value && derivePreset(
 // The node's :id may be a group, a school or a class; the endpoint resolves all
 // three with the same precedence as the node-home endpoint, so nothing is
 // guessed client-side.
-const vad = ref<VadScopePayload | null>(null)
+//
+// AGGREGATES ONLY ON THIS PAGE (job #32 fix-up, 2026-09-16). Tom's ruling of
+// 16:31Z is that nothing in Insights names a pupil; a hidden row is still a
+// row that arrived, and this page was receiving 86 pupil names and 537
+// learner-keyed metric rows for one school. So it calls the endpoint's
+// aggregate door: the summary and the per-class uptake, computed server-side,
+// with no roster and no name in the response at all. The admin board keeps
+// the named read. The course is the CARD's course, so the panel and the card
+// cannot describe different classes.
+const vad = ref<VadAggregatePayload | null>(null)
 const vadLoading = ref(true)
 const vadError = ref<string | null>(null)
 
-watch(nodeId, async (id) => {
+watch([nodeId, appliedCourse], async ([id, courseCode]) => {
   vad.value = null
   vadError.value = null
   if (!id) { vadLoading.value = false; return }
   vadLoading.value = true
   try {
-    vad.value = await fetchVadScope({ groupId: id }, await getAuthToken())
+    vad.value = await fetchVadAggregate({ groupId: id }, await getAuthToken(), { courseCode })
   } catch (e: unknown) {
     vadError.value = e instanceof Error ? e.message : t('org.insights.vadReadError', 'Could not read the voice & pause data.')
   } finally {
@@ -194,14 +209,10 @@ watch(nodeId, async (id) => {
   }
 }, { immediate: true })
 
-const vadSummary = computed<VadSummary | null>(() => {
-  const v = vad.value
-  if (!v) return null
-  return summariseVad(v.scope.learnerIds, v.names, v.metricsByLearner, v.prosodyByLearner, v.prosodyAvailable)
-})
-const vadScopeLabel = computed(() => vad.value?.scope.label || title.value)
+const vadSummary = computed(() => vad.value?.summary ?? null)
+const vadScopeLabel = computed(() => vad.value?.scope?.label || title.value)
 // Class rows only make sense above a class; a class scope IS one class.
-const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.value?.scope.classes ?? []))
+const vadClassUptake = computed(() => (vad.value?.scope?.kind === 'class' ? [] : vad.value?.classUptake ?? []))
 
 // ─── THE ORG QUESTIONS, scoped to this node ─────────────────────────────────
 // Tom, 2026-09-10: the intelligence surface is "great for ssi admin / but why
@@ -215,13 +226,19 @@ const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.
 const orgIntel = ref<OrgIntelPayload | null>(null)
 const orgIntelLoading = ref(true)
 const orgIntelError = ref<string | null>(null)
-watch(nodeId, async (id) => {
+watch([nodeId, appliedCourse, () => classless.value], async ([id, courseCode, noClasses]) => {
   orgIntel.value = null
   orgIntelError.value = null
   if (!id) { orgIntelLoading.value = false; return }
   orgIntelLoading.value = true
   try {
-    orgIntel.value = await fetchOrgIntel(id, await getAuthToken())
+    // The journey is the only question this page asks, unless the node has no
+    // class structure at all — see the panel's comment below. Asking for the
+    // journey alone also means no pupil ledger is read, so no name is built.
+    orgIntel.value = await fetchOrgIntel(id, await getAuthToken(), {
+      courseCode: noClasses ? null : (courseCode as string | null),
+      questions: noClasses ? ['practising'] : ['journey'],
+    })
   } catch (e: unknown) {
     orgIntelError.value = e instanceof OrgIntelError && e.code === 'coverage_expired'
       ? t('org.intel.coverageExpired', 'This school’s platform coverage has expired, so its practice cannot be shown.')
@@ -232,14 +249,6 @@ watch(nodeId, async (id) => {
     orgIntelLoading.value = false
   }
 }, { immediate: true })
-
-// The per-learner page is admin-only (the member surface has no equivalent —
-// its teacher-relevant content lives flat on the class node home, founder
-// ruling 2026-07-19). So a leader's rows are not clickable rather than
-// clickable into a 403.
-function openVadLearner(learnerId: string) {
-  if (!member.value) void router.push(`/admin/users/${learnerId}`)
-}
 
 // Overview = this node's home — the same URL family the lens was opened from.
 // Member mount (/org/:id/insights — a leader inside the /schools
@@ -328,26 +337,30 @@ const homeLink = computed(() => {
              moment: every-lesson
              roles: school_admin, leader, admin
              place: node-insights
-             keywords: more, practising, quiet, journey, four weeks, questions
-             What it's for. The three questions about this level — are they doing it,
-             who has stopped, and where in the course each class has got to — kept off
-             the first screen so the card and the class list can be read at a glance.
+             keywords: more, journey, course, stop, drop off, four weeks, questions
+             What it's for. Where in the course this level's classes have got to, and
+             the point most of them stop before — kept off the first screen so the card
+             and the class list can be read at a glance.
              Where it is. **More about this level**, under the class list on any
              level's insights page. Tap it to open.
              How you do it.
              1. Tap the line to open it.
-             2. Read the three questions, each answered in a sentence with its own
-                small chart underneath.
-             Worth knowing. These count the last four weeks, not the school week the
-             card above counts, and nothing in them compares you with anyone else.
-             checked: 816d741d.7c288168
+             2. Read the journey question, answered in a sentence with its funnel
+                underneath.
+             Worth knowing. It reads the same course the card above reads. Whether
+             classes are practising, and which have gone quiet, are answered by the
+             card and the class list above rather than asked again here — they used to
+             be, counted over a different four weeks, and the two answers disagreed.
+             An organisation with no classes anywhere sees the people question here
+             instead, which is the only one that can apply to it.
+             checked: 816d741d.4862a99a
         -->
         <details class="niv-more" data-walk="insights-more">
           <summary class="niv-more-sum">
             <span class="niv-more-title">{{ t('org.insights.moreTitle', 'More about this level') }}</span>
             <span class="niv-more-count">{{ classless
               ? t('org.insights.moreSubOne', 'one question, the last four weeks')
-              : t('org.insights.moreSub', 'practising, quiet, journey — the last four weeks') }}</span>
+              : t('org.insights.moreJourney', 'how far through the course, and where they stop') }}</span>
           </summary>
           <OrgIntelPanel
             :payload="orgIntel"
@@ -355,7 +368,7 @@ const homeLink = computed(() => {
             :error="orgIntelError"
             :member="member"
             :classless="classless"
-            :hide-people="true"
+            :questions="classless ? ['practising'] : ['journey']"
           />
         </details>
 
@@ -398,13 +411,9 @@ const homeLink = computed(() => {
             :scope-label="vadScopeLabel"
             :is-loading="vadLoading"
             :error="vadError"
-            :classes="vadClasses"
-            :names="vad?.names"
-            :metrics-by-learner="vad?.metricsByLearner"
-            :prosody-by-learner="vad?.prosodyByLearner"
+            :class-uptake="vadClassUptake"
             :truncated="vad?.truncated"
             :hide-learners="true"
-            @open-learner="openVadLearner"
           />
         </details>
       </div>

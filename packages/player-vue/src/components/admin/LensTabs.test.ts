@@ -30,11 +30,13 @@ const here = dirname(fileURLToPath(import.meta.url))
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 
 describe('graph tool leads the Insights page', () => {
-  it('renders NodeRateEngine above the org-questions section in NodeInsightsView', () => {
+  it('renders NodeRateEngine above everything kept behind a tap in NodeInsightsView', () => {
     const src = readFileSync(join(here, '../../views/admin/NodeInsightsView.vue'), 'utf8')
     const tpl = src.slice(src.indexOf('<template>'))
     const engine = tpl.indexOf('<NodeRateEngine')
-    const questions = tpl.indexOf('class="org-intel-section"')
+    // The org questions moved inside <details class="niv-more"> in the #22
+    // rebuild; this looked for their old wrapper and had been red on dev since.
+    const questions = tpl.indexOf('data-walk="insights-more"')
     expect(engine).toBeGreaterThan(-1)
     expect(questions).toBeGreaterThan(-1)
     expect(engine).toBeLessThan(questions)

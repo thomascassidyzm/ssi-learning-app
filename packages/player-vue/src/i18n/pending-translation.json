@@ -1931,7 +1931,6 @@
     "walkthrough.reading-insights.steps.5.say",
     "walkthrough.reading-insights.steps.6.say",
     "walkthrough.reading-insights.steps.7.say",
-    "walkthrough.reading-insights.steps.8.say",
     "walkthrough.reading-insights.title",
     "walkthrough.reading-minutes.steps.0.say",
     "walkthrough.reading-minutes.steps.1.say",
@@ -2118,7 +2117,6 @@
     "walkthrough.your-own-teaching-numbers.steps.1.say",
     "walkthrough.your-own-teaching-numbers.steps.1.terminal",
     "walkthrough.what-the-class-tools-page-counts.steps.0.terminal",
-    "walkthrough.reading-insights.steps.9.say",
     "walkthrough.your-class-against-the-average.steps.4.say",
     "walkthrough.your-class-against-the-average.steps.5.say",
     "walkthrough.your-class-against-the-average.steps.5.terminal",
@@ -2126,6 +2124,6 @@
     "schools.handbookPage.justMineAgain",
     "org.ui.walkOffer.showMeCount",
     "player.audioSilentRun",
-    "walkthrough.reading-insights.steps.9.terminal"
+    "walkthrough.reading-insights.steps.7.terminal"
   ]
 }

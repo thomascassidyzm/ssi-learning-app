@@ -86,6 +86,9 @@ const weekBlock = ref<WeekBlock | null>(null)
 // energy and nothing on this page draws one (Tom via RBF, 2026-09-16).
 const allTime = ref<AllTimeBlock | null>(null)
 const tags = ref<ClassTagsView | null>(null)
+// What one member of the cohort IS at this level — the server's own noun, the
+// one its denominator caption is counted in ("3 schools").
+const unitNoun = ref<string | null>(null)
 const engineState = ref<EngineState | null>(null)
 
 // Direct calls can overlap (rapid prop changes) — latest request wins, a
@@ -141,6 +144,7 @@ async function fetchComparison(): Promise<void> {
     weekBlock.value = (json.week as WeekBlock | null) ?? null
     allTime.value = (json.allTime as AllTimeBlock | null) ?? null
     tags.value = (json.tags as ClassTagsView | null) ?? null
+    unitNoun.value = typeof json.levelNoun === 'string' ? json.levelNoun : null
     if (json.insufficientData) {
       insufficientReason.value = json.reason || t('insights.rateEngine.notEnoughData', 'Not enough data to compare fairly yet.')
     } else {
@@ -413,6 +417,7 @@ const metricDesc = computed(() => {
         :data="weekBlock"
         :no-cohort-reason="insufficientReason"
         :all-time="allTime"
+        :unit-noun="unitNoun || undefined"
       />
     </div>
     <div v-else-if="comparison" class="nre-widget-card" data-walk="insights-rate-widget">
