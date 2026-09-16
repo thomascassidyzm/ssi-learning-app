@@ -23,7 +23,7 @@
           "text": "Add a class",
           "box": {
             "x": 770.53125,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 106.921875,
             "h": 39
           },
@@ -41,7 +41,7 @@
           "text": "",
           "box": {
             "x": 342,
-            "y": 380.890625,
+            "y": 400.890625,
             "w": 193,
             "h": 39
           },
@@ -59,7 +59,7 @@
           "text": "Add",
           "box": {
             "x": 751,
-            "y": 381.890625,
+            "y": 401.890625,
             "w": 59.484375,
             "h": 37
           },
@@ -77,7 +77,7 @@
           "text": "Add",
           "box": {
             "x": 751,
-            "y": 381.890625,
+            "y": 401.890625,
             "w": 59.484375,
             "h": 37
           },
@@ -128,65 +128,20 @@
       {
         "idx": 0,
         "anchorWanted": "teacher-named-seat",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ Add by name",
-          "box": {
-            "x": 612.28125,
-            "y": 330,
-            "w": 121.90625,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "teacher-named-seat",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ Add by name",
-          "box": {
-            "x": 612.28125,
-            "y": 330,
-            "w": 121.90625,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "teacher-named-seat",
         "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ Add by name",
-          "box": {
-            "x": 612.28125,
-            "y": 330,
-            "w": 121.90625,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
       {
-        "note": "no active state — walk ended/lost"
+        "note": "click-advance step but real anchor element not found — cannot advance"
       }
     ],
     "gotoLinkPresent": true,
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "bring-your-first-person-in",
@@ -212,7 +167,7 @@
           "text": "Invite a person",
           "box": {
             "x": 342,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 129.53125,
             "h": 39
           },
@@ -230,7 +185,7 @@
           "text": "Teacher",
           "box": {
             "x": 342,
-            "y": 379.890625,
+            "y": 399.890625,
             "w": 200,
             "h": 41
           },
@@ -248,7 +203,7 @@
           "text": "Create their link",
           "box": {
             "x": 952,
-            "y": 381.890625,
+            "y": 401.890625,
             "w": 140.125,
             "h": 37
           },
@@ -266,7 +221,7 @@
           "text": "Ways in5 links",
           "box": {
             "x": 363,
-            "y": 390.75,
+            "y": 411.75,
             "w": 864,
             "h": 18
           },
@@ -284,7 +239,7 @@
           "text": "Ways in5 links",
           "box": {
             "x": 363,
-            "y": 390.75,
+            "y": 411.75,
             "w": 864,
             "h": 18
           },
@@ -322,12 +277,12 @@
         "anchored": {
           "exists": true,
           "tag": "P",
-          "text": "3 teachers joined · subscribing for 3 seats",
+          "text": "3 teachers joined · subscribing for 1 seat  — 2 teachers wit",
           "box": {
             "x": 597.328125,
-            "y": 537.71875,
+            "y": 578.71875,
             "w": 402,
-            "h": 20.390625
+            "h": 40.78125
           },
           "inViewport": true
         },
@@ -340,37 +295,264 @@
         "anchored": {
           "exists": true,
           "tag": "BUTTON",
-          "text": "Subscribe — £45/mo",
+          "text": "Subscribe — £15/mo",
           "box": {
             "x": 597.328125,
-            "y": 516.109375,
+            "y": 536.5,
             "w": 402,
             "h": 39.25
           },
           "inViewport": true
         },
-        "cardPresent": true
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
       },
       {
-        "idx": 2,
-        "anchorWanted": "upgrade-update-seats",
-        "ringCount": 0,
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
         "anchored": {
-          "exists": false
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
         },
-        "cardPresent": true
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
       },
       {
-        "idx": 2,
-        "anchorWanted": "upgrade-update-seats",
-        "ringCount": 0,
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
         "anchored": {
-          "exists": false
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
         },
-        "cardPresent": true
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
       },
       {
-        "note": "no active state — walk ended/lost"
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £15/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 536.5,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true,
+        "advanceError": "locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator('[data-walk-card] button')"
       }
     ],
     "gotoLinkPresent": true,
@@ -402,7 +584,7 @@
           "text": "School profile",
           "box": {
             "x": 379,
-            "y": 336.5,
+            "y": 377.5,
             "w": 202,
             "h": 40.25
           },
@@ -413,18 +595,9 @@
       {
         "idx": 1,
         "anchorWanted": "settings-save-profile",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save changes",
-          "box": {
-            "x": 629,
-            "y": 380,
-            "w": 119.28125,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -438,7 +611,7 @@
           "text": "Billing",
           "box": {
             "x": 379,
-            "y": 205.75,
+            "y": 400.25,
             "w": 202,
             "h": 40.25
           },
@@ -449,9 +622,18 @@
       {
         "idx": 3,
         "anchorWanted": "settings-billing-plan",
-        "ringCount": 0,
+        "ringCount": 1,
         "anchored": {
-          "exists": false
+          "exists": true,
+          "tag": "DIV",
+          "text": "Current planZZ Test — Chepstow scenario — 1 teacher seat£15 ",
+          "box": {
+            "x": 629,
+            "y": 366,
+            "w": 570,
+            "h": 109.25
+          },
+          "inViewport": true
         },
         "cardPresent": true
       },
@@ -465,7 +647,7 @@
           "text": "Data & privacy",
           "box": {
             "x": 379,
-            "y": 380,
+            "y": 400,
             "w": 202,
             "h": 40.25
           },
@@ -498,7 +680,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/settings",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "choose-what-a-class-learns",
@@ -565,7 +747,7 @@
           "text": "Invite a person",
           "box": {
             "x": 342,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 129.53125,
             "h": 39
           },
@@ -583,7 +765,7 @@
           "text": "Teacher",
           "box": {
             "x": 342,
-            "y": 379.890625,
+            "y": 399.890625,
             "w": 200,
             "h": 41
           },
@@ -601,7 +783,7 @@
           "text": "Create their link",
           "box": {
             "x": 952,
-            "y": 381.890625,
+            "y": 401.890625,
             "w": 140.125,
             "h": 37
           },
@@ -619,7 +801,7 @@
           "text": "Ways in5 links",
           "box": {
             "x": 363,
-            "y": 390.75,
+            "y": 411.75,
             "w": 864,
             "h": 18
           },
@@ -637,7 +819,7 @@
           "text": "Ways in5 links",
           "box": {
             "x": 363,
-            "y": 390.75,
+            "y": 411.75,
             "w": 864,
             "h": 18
           },
@@ -712,36 +894,18 @@
       {
         "idx": 0,
         "anchorWanted": "settings-identity-add-domain",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add domain",
-          "box": {
-            "x": 1109.0625,
-            "y": 1102.875,
-            "w": 110.9375,
-            "h": 39.25
-          },
-          "inViewport": false
+          "exists": false
         },
         "cardPresent": true
       },
       {
         "idx": 1,
         "anchorWanted": "settings-identity-add-address",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add address",
-          "box": {
-            "x": 1107.359375,
-            "y": 694.375,
-            "w": 112.640625,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -770,7 +934,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/settings",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "copy-a-class-link-without-opening-the-class",
@@ -796,11 +960,11 @@
           "text": "Copy link",
           "box": {
             "x": 990.65625,
-            "y": 815.9375,
+            "y": 738.9375,
             "w": 79.421875,
             "h": 30
           },
-          "inViewport": false
+          "inViewport": true
         },
         "cardPresent": true
       },
@@ -814,7 +978,7 @@
           "text": "Copied ✓",
           "box": {
             "x": 989.28125,
-            "y": 573.9375,
+            "y": 738.9375,
             "w": 80.796875,
             "h": 30
           },
@@ -842,76 +1006,7 @@
     "entryVisibleInScope": true,
     "showMeButtonPresent": true,
     "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes/d52efceb-da67-413b-a660-9fbe6c48a494",
-    "walkActiveAfterShowMe": "copy-a-teachers-play-onto-their-class:0",
-    "walkId": "copy-a-teachers-play-onto-their-class",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "class-copy-play-picker",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Mr Tom Tester",
-          "box": {
-            "x": 918.53125,
-            "y": 1204.9375,
-            "w": 276.46875,
-            "h": 34
-          },
-          "inViewport": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "class-copy-play-preview",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "See what would move",
-          "box": {
-            "x": 918.53125,
-            "y": 683.9375,
-            "w": 146.453125,
-            "h": 33
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "class-copy-play-preview-result",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "class-copy-play-apply",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "class-copy-play-apply",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
+    "walkActiveAfterShowMe": null,
     "gotoLinkPresent": true,
     "gotoHref": "/schools/classes",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
@@ -1008,7 +1103,7 @@
           "text": "School profile",
           "box": {
             "x": 379,
-            "y": 336.5,
+            "y": 377.5,
             "w": 202,
             "h": 40.25
           },
@@ -1019,18 +1114,9 @@
       {
         "idx": 1,
         "anchorWanted": "settings-save-profile",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save changes",
-          "box": {
-            "x": 629,
-            "y": 380,
-            "w": 119.28125,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -1044,7 +1130,7 @@
           "text": "Billing",
           "box": {
             "x": 379,
-            "y": 205.75,
+            "y": 400.25,
             "w": 202,
             "h": 40.25
           },
@@ -1055,9 +1141,18 @@
       {
         "idx": 3,
         "anchorWanted": "settings-billing-plan",
-        "ringCount": 0,
+        "ringCount": 1,
         "anchored": {
-          "exists": false
+          "exists": true,
+          "tag": "DIV",
+          "text": "Current planZZ Test — Chepstow scenario — 1 teacher seat£15 ",
+          "box": {
+            "x": 629,
+            "y": 366,
+            "w": 570,
+            "h": 109.25
+          },
+          "inViewport": true
         },
         "cardPresent": true
       },
@@ -1071,7 +1166,7 @@
           "text": "Data & privacy",
           "box": {
             "x": 379,
-            "y": 380,
+            "y": 400,
             "w": 202,
             "h": 40.25
           },
@@ -1212,29 +1307,20 @@
           "text": "▶ Play as class",
           "box": {
             "x": 1094.140625,
-            "y": 815.9375,
+            "y": 738.9375,
             "w": 112.859375,
             "h": 30
           },
-          "inViewport": false
+          "inViewport": true
         },
         "cardPresent": true
       },
       {
         "idx": 1,
         "anchorWanted": "verb-new-class",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ New class",
-          "box": {
-            "x": 1112.453125,
-            "y": 380.59375,
-            "w": 107.546875,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -1247,10 +1333,10 @@
           "tag": "BUTTON",
           "text": "Export CSV",
           "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
+            "x": 1122.875,
+            "y": 342.34375,
             "w": 97.125,
-            "h": 39.25
+            "h": 38.5
           },
           "inViewport": true
         },
@@ -1265,10 +1351,10 @@
           "tag": "BUTTON",
           "text": "Export CSV",
           "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
+            "x": 1122.875,
+            "y": 342.34375,
             "w": 97.125,
-            "h": 39.25
+            "h": 38.5
           },
           "inViewport": true
         },
@@ -1307,7 +1393,7 @@
           "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
           "box": {
             "x": 371,
-            "y": 718.9375,
+            "y": 641.9375,
             "w": 848,
             "h": 257.75
           },
@@ -1343,7 +1429,7 @@
           "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
           "box": {
             "x": 370,
-            "y": 322.84375,
+            "y": 343.84375,
             "w": 850,
             "h": 154.09375
           },
@@ -1407,67 +1493,7 @@
     "entryVisibleInScope": true,
     "showMeButtonPresent": true,
     "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
-    "walkActiveAfterShowMe": "your-account-identity:0",
-    "walkId": "your-account-identity",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "account-identity",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "You are signed in asthomas.cassidy+chepstowtest-leader@gmail",
-          "box": {
-            "x": 423,
-            "y": 336.578125,
-            "w": 434,
-            "h": 247.140625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "account-identity",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "You are signed in asthomas.cassidy+chepstowtest-leader@gmail",
-          "box": {
-            "x": 423,
-            "y": 336.578125,
-            "w": 434,
-            "h": 247.140625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "account-identity",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "You are signed in asthomas.cassidy+chepstowtest-leader@gmail",
-          "box": {
-            "x": 423,
-            "y": 336.578125,
-            "w": 434,
-            "h": 247.140625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
+    "walkActiveAfterShowMe": null,
     "gotoLinkPresent": true,
     "gotoHref": "/schools/settings",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
@@ -1494,12 +1520,12 @@
         "anchored": {
           "exists": true,
           "tag": "ASIDE",
-          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview",
+          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview▸",
           "box": {
             "x": 32,
-            "y": 304,
+            "y": 207,
             "w": 290,
-            "h": 117.5
+            "h": 145.5
           },
           "inViewport": true
         },
@@ -1512,10 +1538,10 @@
         "anchored": {
           "exists": true,
           "tag": "DIV",
-          "text": "Updated 11:07",
+          "text": "Updated 11:33",
           "box": {
             "x": 342,
-            "y": 390.890625,
+            "y": 411.890625,
             "w": 906,
             "h": 17.265625
           },
@@ -1533,7 +1559,7 @@
           "text": "2Phrases practised this week1/2Classes practising this week1",
           "box": {
             "x": 342,
-            "y": 347.15625,
+            "y": 368.15625,
             "w": 906,
             "h": 105
           },
@@ -1551,7 +1577,7 @@
           "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
           "box": {
             "x": 342,
-            "y": 323.15625,
+            "y": 343.15625,
             "w": 906,
             "h": 154.09375
           },
@@ -1569,7 +1595,7 @@
           "text": "ZZ Test — Chepstow scenario",
           "box": {
             "x": 389,
-            "y": 387.25,
+            "y": 408.25,
             "w": 204.953125,
             "h": 25
           },
@@ -1587,7 +1613,7 @@
           "text": "ZZ Test — Chepstow scenario",
           "box": {
             "x": 389,
-            "y": 387.25,
+            "y": 408.25,
             "w": 204.953125,
             "h": 25
           },
@@ -1662,101 +1688,20 @@
       {
         "idx": 0,
         "anchorWanted": "teacher-assign-classes",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Assign to a class",
-          "box": {
-            "x": 984.171875,
-            "y": 469.234375,
-            "w": 113.96875,
-            "h": 33
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "assign-classes-modal",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Assign Mr Tom Tester to classesTick every class Mr Tom Teste",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "assign-classes-list",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "UL",
-          "text": "Y7 WelshZZ Test — Year 7 Welshjoins as co-teacher",
-          "box": {
-            "x": 400,
-            "y": 381.125,
-            "w": 480,
-            "h": 81.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "assign-classes-save",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save",
-          "box": {
-            "x": 816.40625,
-            "y": 491.375,
-            "w": 63.59375,
-            "h": 37.5
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "assign-classes-save",
         "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save",
-          "box": {
-            "x": 816.40625,
-            "y": 491.375,
-            "w": 63.59375,
-            "h": 37.5
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
       {
-        "note": "no active state — walk ended/lost"
+        "note": "click-advance step but real anchor element not found — cannot advance"
       }
     ],
     "gotoLinkPresent": true,
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "hand-a-teacher-their-access-code",
@@ -1775,36 +1720,9 @@
       {
         "idx": 0,
         "anchorWanted": "teacher-signin-link",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Access code",
-          "box": {
-            "x": 1104.140625,
-            "y": 469.234375,
-            "w": 90.34375,
-            "h": 33
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "teacher-signin-link",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Access code",
-          "box": {
-            "x": 1104.140625,
-            "y": 383.234375,
-            "w": 90.34375,
-            "h": 33
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -1813,16 +1731,16 @@
         "anchorWanted": "teacher-signin-link",
         "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Access code",
-          "box": {
-            "x": 1104.140625,
-            "y": 383.234375,
-            "w": 90.34375,
-            "h": 33
-          },
-          "inViewport": true
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "teacher-signin-link",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
         },
         "cardPresent": true
       },
@@ -1833,7 +1751,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "hand-out-a-sign-up-link-for-one-course",
@@ -1946,12 +1864,12 @@
         "anchored": {
           "exists": true,
           "tag": "ASIDE",
-          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview",
+          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview▸",
           "box": {
             "x": 32,
-            "y": 304,
+            "y": 207,
             "w": 290,
-            "h": 117.5
+            "h": 145.5
           },
           "inViewport": true
         },
@@ -1964,10 +1882,10 @@
         "anchored": {
           "exists": true,
           "tag": "DIV",
-          "text": "Updated 11:09",
+          "text": "Updated 11:35",
           "box": {
             "x": 342,
-            "y": 390.890625,
+            "y": 411.890625,
             "w": 906,
             "h": 17.265625
           },
@@ -1985,7 +1903,7 @@
           "text": "2Phrases practised this week1/2Classes practising this week1",
           "box": {
             "x": 342,
-            "y": 347.15625,
+            "y": 368.15625,
             "w": 906,
             "h": 105
           },
@@ -2003,7 +1921,7 @@
           "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
           "box": {
             "x": 342,
-            "y": 323.15625,
+            "y": 343.15625,
             "w": 906,
             "h": 154.09375
           },
@@ -2021,7 +1939,7 @@
           "text": "ZZ Test — Chepstow scenario",
           "box": {
             "x": 389,
-            "y": 387.25,
+            "y": 408.25,
             "w": 204.953125,
             "h": 25
           },
@@ -2039,7 +1957,7 @@
           "text": "ZZ Test — Chepstow scenario",
           "box": {
             "x": 389,
-            "y": 387.25,
+            "y": 408.25,
             "w": 204.953125,
             "h": 25
           },
@@ -2073,18 +1991,9 @@
       {
         "idx": 0,
         "anchorWanted": "teachers-invite-link",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "https://staging.saysomethingin.app/redeem/DNW-214Copy invite",
-          "box": {
-            "x": 965.65625,
-            "y": 835.65625,
-            "w": 233.34375,
-            "h": 98.5
-          },
-          "inViewport": false
+          "exists": false
         },
         "cardPresent": true
       },
@@ -2093,16 +2002,7 @@
         "anchorWanted": "teachers-invite-link",
         "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "https://staging.saysomethingin.app/redeem/DNW-214Copy invite",
-          "box": {
-            "x": 965.65625,
-            "y": 835.65625,
-            "w": 233.34375,
-            "h": 98.5
-          },
-          "inViewport": false
+          "exists": false
         },
         "cardPresent": true
       },
@@ -2113,7 +2013,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "let-a-named-address-in-through-your-links",
@@ -2132,36 +2032,18 @@
       {
         "idx": 0,
         "anchorWanted": "settings-identity-add-domain",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add domain",
-          "box": {
-            "x": 1109.0625,
-            "y": 1102.875,
-            "w": 110.9375,
-            "h": 39.25
-          },
-          "inViewport": false
+          "exists": false
         },
         "cardPresent": true
       },
       {
         "idx": 1,
         "anchorWanted": "settings-identity-add-address",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add address",
-          "box": {
-            "x": 1107.359375,
-            "y": 694.375,
-            "w": 112.640625,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -2190,7 +2072,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/settings",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "look-up-one-student",
@@ -2203,40 +2085,7 @@
     "entryVisibleInScope": true,
     "showMeButtonPresent": true,
     "urlAfterShowMe": "https://staging.saysomethingin.app/schools/students",
-    "walkActiveAfterShowMe": "find-a-student-or-export-the-list:0",
-    "walkId": "find-a-student-or-export-the-list",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "student-view-link",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "students-export",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "students-export",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
+    "walkActiveAfterShowMe": null,
     "gotoLinkPresent": true,
     "gotoHref": "/schools/students",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/students",
@@ -2266,29 +2115,20 @@
           "text": "▶ Play as class",
           "box": {
             "x": 1094.140625,
-            "y": 815.9375,
+            "y": 738.9375,
             "w": 112.859375,
             "h": 30
           },
-          "inViewport": false
+          "inViewport": true
         },
         "cardPresent": true
       },
       {
         "idx": 1,
         "anchorWanted": "verb-new-class",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ New class",
-          "box": {
-            "x": 1112.453125,
-            "y": 380.59375,
-            "w": 107.546875,
-            "h": 39.25
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -2301,10 +2141,10 @@
           "tag": "BUTTON",
           "text": "Export CSV",
           "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
+            "x": 1122.875,
+            "y": 342.34375,
             "w": 97.125,
-            "h": 39.25
+            "h": 38.5
           },
           "inViewport": true
         },
@@ -2319,10 +2159,10 @@
           "tag": "BUTTON",
           "text": "Export CSV",
           "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
+            "x": 1122.875,
+            "y": 342.34375,
             "w": 97.125,
-            "h": 39.25
+            "h": 38.5
           },
           "inViewport": true
         },
@@ -2335,7 +2175,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/classes",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "make-a-link-anyone-can-use",
@@ -2397,7 +2237,7 @@
           "text": "Copy",
           "box": {
             "x": 1101.78125,
-            "y": 385.75,
+            "y": 406.75,
             "w": 50.34375,
             "h": 28
           },
@@ -2424,7 +2264,7 @@
           "text": "Revoke",
           "box": {
             "x": 1156.125,
-            "y": 385.75,
+            "y": 406.75,
             "w": 60.875,
             "h": 28
           },
@@ -2442,7 +2282,7 @@
           "text": "Get a shareable link",
           "box": {
             "x": 479.53125,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 163.078125,
             "h": 39
           },
@@ -2460,7 +2300,7 @@
           "text": "Get a shareable link",
           "box": {
             "x": 479.53125,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 163.078125,
             "h": 39
           },
@@ -2535,7 +2375,7 @@
           "text": "1Your schoolWhat your school is called.2Add staffShare your ",
           "box": {
             "x": 128,
-            "y": 445.484375,
+            "y": 486.484375,
             "w": 260,
             "h": 273.46875
           },
@@ -2630,7 +2470,7 @@
           "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
           "box": {
             "x": 371,
-            "y": 718.9375,
+            "y": 641.9375,
             "w": 848,
             "h": 257.75
           },
@@ -2666,7 +2506,7 @@
           "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
           "box": {
             "x": 370,
-            "y": 322.84375,
+            "y": 343.84375,
             "w": 850,
             "h": 154.09375
           },
@@ -2779,7 +2619,7 @@
           "text": "Copy",
           "box": {
             "x": 1101.78125,
-            "y": 385.75,
+            "y": 406.75,
             "w": 50.34375,
             "h": 28
           },
@@ -2806,7 +2646,7 @@
           "text": "Revoke",
           "box": {
             "x": 1156.125,
-            "y": 385.75,
+            "y": 406.75,
             "w": 60.875,
             "h": 28
           },
@@ -2824,7 +2664,7 @@
           "text": "Get a shareable link",
           "box": {
             "x": 479.53125,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 163.078125,
             "h": 39
           },
@@ -2842,7 +2682,7 @@
           "text": "Get a shareable link",
           "box": {
             "x": 479.53125,
-            "y": 380.890625,
+            "y": 355.890625,
             "w": 163.078125,
             "h": 39
           },
@@ -2857,7 +2697,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
     "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "anchorExistsAfterGoto": false
+    "anchorExistsAfterGoto": true
   },
   {
     "id": "open-your-inbox",
@@ -2931,7 +2771,7 @@
         "anchored": {
           "exists": true,
           "tag": "DIV",
-          "text": "Your accountthomas.cassidy+chepstowtest-leader@gmail.com",
+          "text": "Your accountthomas.cassidy+ssi@gmail.com",
           "box": {
             "x": 363,
             "y": 756.75,
@@ -3029,7 +2869,7 @@
           "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
           "box": {
             "x": 371,
-            "y": 718.9375,
+            "y": 641.9375,
             "w": 848,
             "h": 257.75
           },
@@ -3065,7 +2905,7 @@
           "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
           "box": {
             "x": 370,
-            "y": 322.84375,
+            "y": 343.84375,
             "w": 850,
             "h": 154.09375
           },
@@ -3139,10 +2979,10 @@
         "anchored": {
           "exists": true,
           "tag": "SECTION",
-          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "text": "The inbox is read-only while you are viewing as someone else",
           "box": {
             "x": 342,
-            "y": 272.5,
+            "y": 313.5,
             "w": 906,
             "h": 59
           },
@@ -3157,10 +2997,10 @@
         "anchored": {
           "exists": true,
           "tag": "SECTION",
-          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "text": "The inbox is read-only while you are viewing as someone else",
           "box": {
             "x": 342,
-            "y": 272.5,
+            "y": 313.5,
             "w": 906,
             "h": 59
           },
@@ -3175,10 +3015,10 @@
         "anchored": {
           "exists": true,
           "tag": "SECTION",
-          "text": "Nothing for you yet. Anything sent to you will appear here.",
+          "text": "The inbox is read-only while you are viewing as someone else",
           "box": {
             "x": 342,
-            "y": 272.5,
+            "y": 313.5,
             "w": 906,
             "h": 59
           },
@@ -3236,7 +3076,7 @@
           "text": "MeasureRate of progress",
           "box": {
             "x": 996.1875,
-            "y": 303.359375,
+            "y": 344.359375,
             "w": 232.8125,
             "h": 61
           },
@@ -3254,7 +3094,7 @@
           "text": "WindowTodayLast 7 daysLast 30 daysAll time",
           "box": {
             "x": 361,
-            "y": 306.859375,
+            "y": 347.859375,
             "w": 370.390625,
             "h": 57.5
           },
@@ -3272,7 +3112,7 @@
           "text": "Compare toGlobal average · all courses",
           "box": {
             "x": 361,
-            "y": 369.359375,
+            "y": 390.359375,
             "w": 868,
             "h": 61
           },
@@ -3287,10 +3127,10 @@
         "anchored": {
           "exists": true,
           "tag": "DIV",
-          "text": "Rate of progress0v28.6ZZ Test — Chepstow scenario v Global a",
+          "text": "Rate of progress0v29.3ZZ Test — Chepstow scenario v Global a",
           "box": {
             "x": 342,
-            "y": -0.265625,
+            "y": 40.734375,
             "w": 906,
             "h": 810
           },
@@ -3308,7 +3148,7 @@
           "text": "How many of your classes practised together this week, and i",
           "box": {
             "x": 342,
-            "y": 0.203125,
+            "y": 41.203125,
             "w": 906,
             "h": 682.5
           },
@@ -3326,7 +3166,7 @@
           "text": "Which classes have gone quiet, and which have never started?",
           "box": {
             "x": 342,
-            "y": 123.703125,
+            "y": 143.703125,
             "w": 906,
             "h": 553.5
           },
@@ -3344,7 +3184,7 @@
           "text": "How far through the course have your classes got, and where ",
           "box": {
             "x": 342,
-            "y": 0.203125,
+            "y": 41.203125,
             "w": 906,
             "h": 596
           },
@@ -3380,7 +3220,7 @@
           "text": "OverviewInsights",
           "box": {
             "x": 1072.8125,
-            "y": 196,
+            "y": 237,
             "w": 175.1875,
             "h": 36.5
           },
@@ -3398,7 +3238,7 @@
           "text": "OverviewInsights",
           "box": {
             "x": 1072.8125,
-            "y": 196,
+            "y": 237,
             "w": 175.1875,
             "h": 36.5
           },
@@ -3432,18 +3272,9 @@
       {
         "idx": 0,
         "anchorWanted": "teacher-remove",
-        "ringCount": 1,
+        "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Remove",
-          "box": {
-            "x": 1151.484375,
-            "y": 469.234375,
-            "w": 67.953125,
-            "h": 33
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -3452,16 +3283,7 @@
         "anchorWanted": "teacher-remove",
         "ringCount": 0,
         "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Remove",
-          "box": {
-            "x": 1151.484375,
-            "y": 469.234375,
-            "w": 67.953125,
-            "h": 33
-          },
-          "inViewport": true
+          "exists": false
         },
         "cardPresent": true
       },
@@ -3472,7 +3294,7 @@
     "gotoLinkPresent": true,
     "gotoHref": "/schools/teachers",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": true
+    "anchorExistsAfterGoto": false
   },
   {
     "id": "report-a-bug-from-settings",
@@ -3485,103 +3307,7 @@
     "entryVisibleInScope": true,
     "showMeButtonPresent": true,
     "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
-    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
-    "walkId": "report-a-bug-from-settings",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "report-bug",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bugTell us what went wrong. We attach the details f",
-          "box": {
-            "x": 424,
-            "y": 418.90625,
-            "w": 432,
-            "h": 82
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "report-bug-sheet",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bug×Add a screenshot Send",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "report-bug-text",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TEXTAREA",
-          "text": "",
-          "box": {
-            "x": 376,
-            "y": 537,
-            "w": 528,
-            "h": 146
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
+    "walkActiveAfterShowMe": null,
     "gotoLinkPresent": true,
     "gotoHref": "/schools/settings",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
@@ -3603,1672 +3329,5 @@
     "gotoHref": "/schools",
     "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
     "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "say-what-happened",
-    "title": "Say what happened",
-    "anchor": "report-bug-text",
-    "place": "settings",
-    "clips": [
-      "report-a-bug-from-settings"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
-    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
-    "walkId": "report-a-bug-from-settings",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "report-bug",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bugTell us what went wrong. We attach the details f",
-          "box": {
-            "x": 424,
-            "y": 418.90625,
-            "w": 432,
-            "h": 82
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "report-bug-sheet",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bug×Add a screenshot Send",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "report-bug-text",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TEXTAREA",
-          "text": "",
-          "box": {
-            "x": 376,
-            "y": 537,
-            "w": 528,
-            "h": 146
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "say-what-happened-on-the-dashboard",
-    "title": "Say what happened on the dashboard",
-    "anchor": "schools-report-bug-happened",
-    "place": "dashboard",
-    "clips": [
-      "report-a-bug-from-the-dashboard"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "walkActiveAfterShowMe": null,
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools",
-    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "see-that-your-report-arrived",
-    "title": "See that your report arrived",
-    "anchor": "report-bug-thanks",
-    "place": "settings",
-    "clips": [],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": false,
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "see-what-your-school-pays",
-    "title": "See what your school pays",
-    "anchor": "settings-billing-plan",
-    "place": "settings",
-    "clips": [
-      "manage-your-school-settings"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
-    "walkActiveAfterShowMe": "manage-your-school-settings:0",
-    "walkId": "manage-your-school-settings",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "settings-tab-profile",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "School profile",
-          "box": {
-            "x": 379,
-            "y": 336.5,
-            "w": 202,
-            "h": 40.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "settings-save-profile",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save changes",
-          "box": {
-            "x": 629,
-            "y": 380,
-            "w": 119.28125,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "settings-tab-billing",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Billing",
-          "box": {
-            "x": 379,
-            "y": 205.75,
-            "w": 202,
-            "h": 40.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "settings-billing-plan",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 4,
-        "anchorWanted": "settings-tab-data",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Data & privacy",
-          "box": {
-            "x": 379,
-            "y": 380,
-            "w": 202,
-            "h": 40.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 5,
-        "anchorWanted": "settings-delete-school",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 5,
-        "anchorWanted": "settings-delete-school",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "send-a-dashboard-bug-report",
-    "title": "Send a dashboard bug report",
-    "anchor": "schools-report-bug-send",
-    "place": "dashboard",
-    "clips": [
-      "report-a-bug-from-the-dashboard"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "walkActiveAfterShowMe": null,
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools",
-    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "send-the-report",
-    "title": "Send the report",
-    "anchor": "report-bug-send",
-    "place": "settings",
-    "clips": [
-      "report-a-bug-from-settings"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
-    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
-    "walkId": "report-a-bug-from-settings",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "report-bug",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bugTell us what went wrong. We attach the details f",
-          "box": {
-            "x": 424,
-            "y": 418.90625,
-            "w": 432,
-            "h": 82
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "report-bug-sheet",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bug×Add a screenshot Send",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "report-bug-text",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TEXTAREA",
-          "text": "",
-          "box": {
-            "x": 376,
-            "y": 537,
-            "w": 528,
-            "h": 146
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "set-or-change-your-password",
-    "title": "Set or change your password",
-    "anchor": "account-password",
-    "place": "node-home",
-    "clips": [
-      "set-your-password"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "walkActiveAfterShowMe": "set-your-password:0",
-    "walkId": "set-your-password",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "account-card",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Your accountthomas.cassidy+chepstowtest-leader@gmail.com",
-          "box": {
-            "x": 363,
-            "y": 756.75,
-            "w": 864,
-            "h": 18
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "account-password",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "No password yetYou got in through a link. A password is how ",
-          "box": {
-            "x": 363,
-            "y": 628.75,
-            "w": 864,
-            "h": 54
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "account-password",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "No password yetYou got in through a link. A password is how ",
-          "box": {
-            "x": 363,
-            "y": 628.75,
-            "w": 864,
-            "h": 54
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "account-password",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "No password yetYou got in through a link. A password is how ",
-          "box": {
-            "x": 363,
-            "y": 628.75,
-            "w": 864,
-            "h": 54
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "anchorExistsAfterGoto": true
-  },
-  {
-    "id": "set-your-language-and-time-zone",
-    "title": "Set your language and time zone",
-    "anchor": "settings-localisation-save",
-    "place": "settings",
-    "clips": [
-      "school-language-and-time-zone"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
-    "walkActiveAfterShowMe": "school-language-and-time-zone:0",
-    "walkId": "school-language-and-time-zone",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "settings-tab-locale",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Localisation",
-          "box": {
-            "x": 379,
-            "y": 378.75,
-            "w": 202,
-            "h": 40.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "settings-localisation-save",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "settings-localisation-save",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "start-a-class-session-from-the-list",
-    "title": "Start a class session from the list",
-    "anchor": "classes-row-play",
-    "place": "classes",
-    "clips": [
-      "start-or-make-a-class"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
-    "walkActiveAfterShowMe": "start-or-make-a-class:0",
-    "walkId": "start-or-make-a-class",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "classes-row-play",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "▶ Play as class",
-          "box": {
-            "x": 1094.140625,
-            "y": 815.9375,
-            "w": 112.859375,
-            "h": 30
-          },
-          "inViewport": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "verb-new-class",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "+ New class",
-          "box": {
-            "x": 1112.453125,
-            "y": 380.59375,
-            "w": 107.546875,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "classes-export",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Export CSV",
-          "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
-            "w": 97.125,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "classes-export",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Export CSV",
-          "box": {
-            "x": 1007.328125,
-            "y": 380.59375,
-            "w": 97.125,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/classes",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
-    "anchorExistsAfterGoto": true
-  },
-  {
-    "id": "students-on-their-own-accounts",
-    "title": "Students on their own accounts",
-    "anchor": "class-roster",
-    "place": "class-detail",
-    "clips": [
-      "what-the-class-tools-page-counts"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes/d52efceb-da67-413b-a660-9fbe6c48a494",
-    "walkActiveAfterShowMe": "what-the-class-tools-page-counts:0",
-    "walkId": "what-the-class-tools-page-counts",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "class-tools-note",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "P",
-          "text": "This is the class's tools page. Its practice, minutes in the",
-          "box": {
-            "x": 374,
-            "y": 304.4375,
-            "w": 468.1875,
-            "h": 42
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "class-roster",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "SECTION",
-          "text": "Students on their own accountsOnly pupils who have signed in",
-          "box": {
-            "x": 374,
-            "y": 70.4375,
-            "w": 509.53125,
-            "h": 640
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "class-roster",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "SECTION",
-          "text": "Students on their own accountsOnly pupils who have signed in",
-          "box": {
-            "x": 374,
-            "y": 70.4375,
-            "w": 509.53125,
-            "h": 640
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/classes",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "subscribe-your-school",
-    "title": "Subscribe your school",
-    "anchor": "upgrade-subscribe-school",
-    "place": "upgrade",
-    "clips": [
-      "subscribe-your-school"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/upgrade",
-    "walkActiveAfterShowMe": "subscribe-your-school:0",
-    "walkId": "subscribe-your-school",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "upgrade-seats-actual",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "P",
-          "text": "3 teachers joined · subscribing for 3 seats",
-          "box": {
-            "x": 597.328125,
-            "y": 537.71875,
-            "w": 402,
-            "h": 20.390625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "upgrade-subscribe-school",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Subscribe — £45/mo",
-          "box": {
-            "x": 597.328125,
-            "y": 516.109375,
-            "w": 402,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "upgrade-update-seats",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "upgrade-update-seats",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/upgrade",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/upgrade",
-    "anchorExistsAfterGoto": true
-  },
-  {
-    "id": "take-a-domain-or-address-off-your-school-s-list",
-    "title": "Take a domain or address off your school's list",
-    "anchor": "settings-identity-remove",
-    "place": "settings",
-    "clips": [
-      "school-identity-list"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
-    "walkActiveAfterShowMe": "school-identity-list:0",
-    "walkId": "school-identity-list",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "settings-identity-add-domain",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add domain",
-          "box": {
-            "x": 1109.0625,
-            "y": 1102.875,
-            "w": 110.9375,
-            "h": 39.25
-          },
-          "inViewport": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "settings-identity-add-address",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Add address",
-          "box": {
-            "x": 1107.359375,
-            "y": 694.375,
-            "w": 112.640625,
-            "h": 39.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "settings-identity-remove",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "settings-identity-remove",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "take-a-teacher-off-a-class-or-move-them",
-    "title": "Take a teacher off a class, or move them",
-    "anchor": "assign-classes-modal",
-    "place": "teachers",
-    "clips": [
-      "take-a-teacher-off-a-class"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/teachers",
-    "walkActiveAfterShowMe": "take-a-teacher-off-a-class:0",
-    "walkId": "take-a-teacher-off-a-class",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "teacher-assign-classes",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Assign to a class",
-          "box": {
-            "x": 984.171875,
-            "y": 469.234375,
-            "w": 113.96875,
-            "h": 33
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "assign-classes-modal",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Assign Mr Tom Tester to classesTick every class Mr Tom Teste",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "assign-classes-list",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "UL",
-          "text": "Y7 WelshZZ Test — Year 7 Welshjoins as co-teacher",
-          "box": {
-            "x": 400,
-            "y": 381.125,
-            "w": 480,
-            "h": 81.25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "assign-classes-save",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save",
-          "box": {
-            "x": 816.40625,
-            "y": 491.375,
-            "w": 63.59375,
-            "h": 37.5
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "assign-classes-save",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Save",
-          "box": {
-            "x": 816.40625,
-            "y": 491.375,
-            "w": 63.59375,
-            "h": 37.5
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/teachers",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "take-your-lists-away-as-a-spreadsheet",
-    "title": "Take your lists away as a spreadsheet",
-    "anchor": "students-export",
-    "place": "students",
-    "clips": [
-      "find-a-student-or-export-the-list"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/students",
-    "walkActiveAfterShowMe": "find-a-student-or-export-the-list:0",
-    "walkId": "find-a-student-or-export-the-list",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "student-view-link",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "students-export",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "students-export",
-        "ringCount": 0,
-        "anchored": {
-          "exists": false
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/students",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/students",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "tell-us-about-something-that-went-wrong",
-    "title": "Tell us about something that went wrong",
-    "anchor": "report-bug-sheet",
-    "place": "settings",
-    "clips": [
-      "report-a-bug-from-settings"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
-    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
-    "walkId": "report-a-bug-from-settings",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "report-bug",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bugTell us what went wrong. We attach the details f",
-          "box": {
-            "x": 424,
-            "y": 418.90625,
-            "w": 432,
-            "h": 82
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "report-bug-sheet",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Report a bug×Add a screenshot Send",
-          "box": {
-            "x": 0,
-            "y": 0,
-            "w": 1280,
-            "h": 800
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "report-bug-text",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TEXTAREA",
-          "text": "",
-          "box": {
-            "x": 376,
-            "y": 537,
-            "w": 528,
-            "h": 146
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "report-bug-send",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "Send",
-          "box": {
-            "x": 376,
-            "y": 728,
-            "w": 528,
-            "h": 52
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/settings",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "the-classes-by-year-group",
-    "title": "The classes by year group",
-    "anchor": "classes-year-groups",
-    "place": "classes",
-    "clips": [
-      "reading-your-class-list"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
-    "walkActiveAfterShowMe": "reading-your-class-list:0",
-    "walkId": "reading-your-class-list",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "classes-table",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TABLE",
-          "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
-          "box": {
-            "x": 371,
-            "y": 718.9375,
-            "w": 848,
-            "h": 257.75
-          },
-          "inViewport": false
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "classes-filters",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "CourseAll coursesSort byTime in app",
-          "box": {
-            "x": 370,
-            "y": 397.9375,
-            "w": 850,
-            "h": 66
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "classes-year-groups",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
-          "box": {
-            "x": 370,
-            "y": 322.84375,
-            "w": 850,
-            "h": 154.09375
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "classes-row",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "TR",
-          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
-          "box": {
-            "x": 371,
-            "y": 546.9375,
-            "w": 848,
-            "h": 84
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "classes-row",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "TR",
-          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
-          "box": {
-            "x": 371,
-            "y": 546.9375,
-            "w": 848,
-            "h": 84
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/schools/classes",
-    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
-    "anchorExistsAfterGoto": false
-  },
-  {
-    "id": "the-numbers-by-year-group",
-    "title": "The numbers by year group",
-    "anchor": "node-year-groups",
-    "place": "node-home",
-    "clips": [
-      "seeing-how-it-is-going"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "walkActiveAfterShowMe": "seeing-how-it-is-going:0",
-    "walkId": "seeing-how-it-is-going",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "node-map-rail",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "ASIDE",
-          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview",
-          "box": {
-            "x": 32,
-            "y": 304,
-            "w": 290,
-            "h": 117.5
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "node-updated",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Updated 11:24",
-          "box": {
-            "x": 342,
-            "y": 390.890625,
-            "w": 906,
-            "h": 17.265625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "node-stats",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "2Phrases practised this week1/2Classes practising this week1",
-          "box": {
-            "x": 342,
-            "y": 347.15625,
-            "w": 906,
-            "h": 105
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "node-year-groups",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
-          "box": {
-            "x": 342,
-            "y": 323.15625,
-            "w": 906,
-            "h": 154.09375
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 4,
-        "anchorWanted": "below-tree-name",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "ZZ Test — Chepstow scenario",
-          "box": {
-            "x": 389,
-            "y": 387.25,
-            "w": 204.953125,
-            "h": 25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 4,
-        "anchorWanted": "below-tree-name",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "ZZ Test — Chepstow scenario",
-          "box": {
-            "x": 389,
-            "y": 387.25,
-            "w": 204.953125,
-            "h": 25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoLinkPresent": true,
-    "gotoHref": "/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "urlAfterGoto": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "anchorExistsAfterGoto": true
-  },
-  {
-    "id": "the-numbers-on-any-level",
-    "title": "The numbers on any level",
-    "anchor": "node-stats",
-    "place": "node-home",
-    "clips": [
-      "seeing-how-it-is-going"
-    ],
-    "entryVisibleInScope": true,
-    "showMeButtonPresent": true,
-    "urlAfterShowMe": "https://staging.saysomethingin.app/org/648185c9-78cf-48bd-98bd-8a5dd73670d5",
-    "walkActiveAfterShowMe": "seeing-how-it-is-going:0",
-    "walkId": "seeing-how-it-is-going",
-    "steps": [
-      {
-        "idx": 0,
-        "anchorWanted": "node-map-rail",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "ASIDE",
-          "text": "Where you areZZ Test — Chepstow scenarioyou're hereOverview",
-          "box": {
-            "x": 32,
-            "y": 304,
-            "w": 290,
-            "h": 117.5
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 1,
-        "anchorWanted": "node-updated",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "Updated 11:24",
-          "box": {
-            "x": 342,
-            "y": 390.890625,
-            "w": 906,
-            "h": 17.265625
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 2,
-        "anchorWanted": "node-stats",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "2Phrases practised this week1/2Classes practising this week1",
-          "box": {
-            "x": 342,
-            "y": 347.15625,
-            "w": 906,
-            "h": 105
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 3,
-        "anchorWanted": "node-year-groups",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "DIV",
-          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
-          "box": {
-            "x": 342,
-            "y": 323.15625,
-            "w": 906,
-            "h": 154.09375
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 4,
-        "anchorWanted": "below-tree-name",
-        "ringCount": 1,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "ZZ Test — Chepstow scenario",
-          "box": {
-            "x": 389,
-            "y": 387.25,
-            "w": 204.953125,
-            "h": 25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "idx": 4,
-        "anchorWanted": "below-tree-name",
-        "ringCount": 0,
-        "anchored": {
-          "exists": true,
-          "tag": "BUTTON",
-          "text": "ZZ Test — Chepstow scenario",
-          "box": {
-            "x": 389,
-            "y": 387.25,
-            "w": 204.953125,
-            "h": 25
-          },
-          "inViewport": true
-        },
-        "cardPresent": true
-      },
-      {
-        "note": "no active state — walk ended/lost"
-      }
-    ],
-    "gotoError": "page.waitForTimeout: Target page, context or browser has been closed"
-  },
-  {
-    "id": "told-when-you-are-playing-as-yourself",
-    "title": "Told when you are playing as yourself",
-    "anchor": "player-playing-as-yourself",
-    "place": "library",
-    "clips": [
-      "playing-as-yourself"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "voice-and-pause",
-    "title": "Voice and pause",
-    "anchor": "insights-voice-pause",
-    "place": "node-insights",
-    "clips": [
-      "reading-insights"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "walking-down-to-a-school-a-class-or-a-person",
-    "title": "Walking down to a school, a class or a person",
-    "anchor": "below-tree-name",
-    "place": "node-home",
-    "clips": [
-      "seeing-how-it-is-going"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "ways-in-who-can-get-in-and-how-to-change-it",
-    "title": "Ways in — who can get in, and how to change it",
-    "anchor": "ways-in-ledger",
-    "place": "node-home",
-    "clips": [
-      "ways-in",
-      "invite-first-teacher"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "what-your-classes-actually-practised",
-    "title": "What your classes actually practised",
-    "anchor": "node-phrases",
-    "place": "node-home",
-    "clips": [
-      "what-they-practised"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "when-more-people-join-than-you-have-seats",
-    "title": "When more people join than you have seats",
-    "anchor": "upgrade-seats-actual",
-    "place": "upgrade",
-    "clips": [
-      "subscribe-your-school"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "where-a-class-s-practice-is-read",
-    "title": "Where a class's practice is read",
-    "anchor": "class-tools-note",
-    "place": "class-detail",
-    "clips": [
-      "what-the-class-tools-page-counts"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "where-classes-are-in-the-course-and-where-they-stop",
-    "title": "Where classes are in the course and where they stop",
-    "anchor": "insights-org-journey",
-    "place": "node-insights",
-    "clips": [
-      "reading-insights"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "whether-a-class-is-practising-together",
-    "title": "Whether a class is practising together",
-    "anchor": "class-practice",
-    "place": "node-home",
-    "clips": [
-      "reading-a-class-page"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "which-classes-have-gone-quiet",
-    "title": "Which classes have gone quiet",
-    "anchor": "insights-org-quiet",
-    "place": "node-insights",
-    "clips": [
-      "reading-insights"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "which-classes-practised-this-week",
-    "title": "Which classes practised this week",
-    "anchor": "insights-org-practising",
-    "place": "node-insights",
-    "clips": [
-      "reading-insights"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "why-the-insights-show-a-rate-not-a-total",
-    "title": "Why the insights show a rate, not a total",
-    "anchor": "insights-rate-widget",
-    "place": "node-insights",
-    "clips": [
-      "reading-insights"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
-  },
-  {
-    "id": "work-through-setup-at-your-own-pace",
-    "title": "Work through setup at your own pace",
-    "anchor": "setup-save-exit",
-    "place": "setup",
-    "clips": [
-      "work-through-setup"
-    ],
-    "error": "page.goto: Target page, context or browser has been closed",
-    "gotoError": "page.goto: Target page, context or browser has been closed"
   }
 ]
