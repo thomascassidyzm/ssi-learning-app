@@ -50,6 +50,24 @@ describe('SchoolsContainer legacy flat-view redirect (govt_admin with group)', (
     expect(source).not.toMatch(/query: \{ lens: 'teachers' \}/)
   })
 
+  // THE DASHBOARD FOLDED INTO MY CLASSES (Tom's ruling, 2026-09-16): for a
+  // teacher /schools was a greeting over a second copy of the classes table,
+  // so the greeting moved onto My Classes and the old route hands over to it.
+  // Red before the fold — nothing sent a teacher anywhere.
+  it('sends a teacher from the retired dashboard route to My Classes', () => {
+    expect(source).toMatch(/if \(ctx\.isTeacher\.value && routeName === 'schools-dashboard'\)/)
+    expect(source).toMatch(/router\.replace\('\/schools\/classes'\)/)
+  })
+
+  it('leaves every other role\'s dashboard alone — the leader cases return before it', () => {
+    const teacherAt = source.indexOf("ctx.isTeacher.value && routeName === 'schools-dashboard'")
+    const schoolAdminAt = source.indexOf('if (schoolId && ctx.isSchoolAdmin.value)')
+    expect(teacherAt).toBeGreaterThan(schoolAdminAt)
+    // The school_admin branch ends in a return, so a school-scoped leader
+    // never falls through into the teacher case.
+    expect(source.slice(schoolAdminAt, teacherAt)).toMatch(/\n {6}return\n/)
+  })
+
   it('is a watch on the resolving context, not a one-shot (group_id lands async after deep links)', () => {
     const block = source.match(/watch\(\s*\[\(\) => ctx\.currentUser\.value, \(\) => route\.name\][\s\S]*?\{ immediate: true \},?\s*\)/)
     expect(block, 'expected the currentUser+route watch with immediate: true').toBeTruthy()

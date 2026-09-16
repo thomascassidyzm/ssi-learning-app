@@ -1618,18 +1618,6 @@
         }
       }
     },
-    "play-as-class-from-your-dashboard": {
-      "title": "Play as class from your dashboard",
-      "steps": {
-        "0": {
-          "say": "**Play as class** on a class card starts a lesson straight from your dashboard, on the class's own account — the minutes and phrases land on the class, not on you."
-        },
-        "1": {
-          "say": "The player opens on the class's course, at the class's own place in it. While a platform admin is viewing your dashboard as you, this button is greyed out and does nothing.",
-          "terminal": "One tap from your dashboard, no need to open the class first. This tour started no lesson."
-        }
-      }
-    },
     "playing-as-yourself": {
       "title": "Told when you are playing as yourself",
       "steps": {
@@ -1646,7 +1634,7 @@
       "title": "Practice on your own account",
       "steps": {
         "0": {
-          "say": "This line appears under your classes only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
+          "say": "This line appears under your classes on My Classes, only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
           "terminal": "To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page."
         }
       }
@@ -2300,24 +2288,15 @@
         }
       }
     },
-    "your-classes-at-a-glance": {
-      "title": "Your classes at a glance",
+    "your-own-teaching-numbers": {
+      "title": "Your own teaching numbers",
       "steps": {
         "0": {
-          "say": "Every class you teach is here, one entry each, with its course beside it. Tap the class name to open its class page."
+          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front, every class you teach, whatever the table above is filtered to."
         },
         "1": {
-          "say": "This is the class's own week: the minutes it spent in the app with a lesson running, the phrases it practised, and how far it has travelled through the course. Those minutes come from the lessons you ran with **Play as class**. A class that has never played says **Not started** in words."
-        },
-        "2": {
-          "say": "Kept apart, and never added in, is what the pupils did on their own accounts this week. When there is nothing it says so in words, which is usual for a class taught from the front."
-        },
-        "3": {
-          "say": "Under your classes, one quiet line totals them: how many classes you teach, the minutes they spent in the app this week with a lesson running, pauses included, and the phrases they were prompted with. All of it is the classes' own play from the front."
-        },
-        "4": {
           "say": "The second line is the minutes your pupils spent on their own accounts this week, kept apart from the first and never added to it.",
-          "terminal": "The join code on each class is what you read out to get a new pupil in."
+          "terminal": "Both lines live on My Classes, under the table."
         }
       }
     }
