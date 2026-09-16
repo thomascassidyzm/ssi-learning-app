@@ -24,7 +24,11 @@ describe('DashboardView: create-class opens the modal in place (no two-hop)', ()
 
   it('every create CTA is a button that opens the modal', () => {
     const openers = src.match(/@click="isCreateModalOpen = true"/g) || []
-    // header + 2 teacher empty states + legacy admin header + legacy admin empty row
-    expect(openers.length).toBe(5)
+    // Legacy admin header + legacy admin empty row. The teacher's three CTAs
+    // left with the teacher block when the dashboard folded into My Classes
+    // (Tom's ruling, 2026-09-16) — that page's own "+ New class" is the one
+    // create door a teacher has, and TeacherDashboard keeps the same in-place
+    // modal rather than a hop.
+    expect(openers.length).toBe(2)
   })
 })

@@ -502,6 +502,16 @@ watch(
       } else if (routeName === 'analytics') {
         void router.replace(`/org/${schoolId}/insights`)
       }
+      return
+    }
+    // THE DASHBOARD AND MY CLASSES ARE ONE PAGE (Tom's ruling, 2026-09-16):
+    // for a teacher the old dashboard was a second copy of the classes table
+    // under a greeting, so the greeting and the week's summary moved onto
+    // My Classes and the dashboard route hands over to it. DashboardView
+    // still serves legacy no-school school_admin rows and no-group leaders,
+    // which is why this is a role case here and not a route-level redirect.
+    if (ctx.isTeacher.value && routeName === 'schools-dashboard') {
+      void router.replace('/schools/classes')
     }
   },
   { immediate: true },
