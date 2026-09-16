@@ -33,6 +33,13 @@ export interface WeekSide {
 
 export interface WeekBlock {
   window: string
+  /**
+   * The average's own denominator, in words, SERVER-SIDE (job #979b) — it
+   * names the right noun at every level: "all 34 classes on this course" for
+   * a class, "all 9 schools on this course" for a node. Rendering the count
+   * here instead got the noun wrong above class level.
+   */
+  cohortSizeLine?: string | null
   label: string
   rangeLabel: string
   timeZone?: string
@@ -70,6 +77,13 @@ function mins(n: number): string {
 
 const entity = computed(() => props.data.entity)
 const cohort = computed(() => props.data.cohort)
+
+/** The server's own sentence when it sent one, so the noun is right at every level. */
+const denominatorLine = computed(() => {
+  if (props.data.cohortSizeLine) return `${props.data.cohortSizeLine}, this one included`
+  const size = props.data.cohort?.size
+  return size ? `Average of all ${size} in this comparison, this one included` : null
+})
 
 const barsSpan = computed(() => {
   const w = props.data.bars.weeks
@@ -130,9 +144,7 @@ const hasBars = computed(() => props.data.bars.entity.some((v) => v > 0) || prop
             <dd class="wk-big">{{ Math.round(cohort.newPhrases) }}</dd>
           </div>
         </dl>
-        <p v-if="cohort.size" class="wk-denominator">
-          Average of all {{ cohort.size }} classes on this course, this one included.
-        </p>
+        <p v-if="denominatorLine" class="wk-denominator">{{ denominatorLine }}</p>
       </div>
     </div>
 

@@ -867,6 +867,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const alreadyScoped = / this course$| all courses$/.test(compareLabel)
     const cohortScopeNote = cohortCourse ? ' on this course' : ' across all courses'
     const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
+    // The week card says the same denominator in its own voice — the card
+    // already carries the cohort's NAME above the numbers, so this sentence
+    // only has to say how many and of what, with the right noun at every
+    // level: "all 34 classes on this course", "all 9 schools on this course".
+    if (weekBlock) weekBlock.cohortSizeLine = `Average of all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
