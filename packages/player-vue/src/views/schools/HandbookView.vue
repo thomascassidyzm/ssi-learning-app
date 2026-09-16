@@ -133,13 +133,20 @@ function walkFor(entry: HandbookEntry): Walk | null {
 // anchors, so the reader lands on their first class; with no class yet the
 // list is where they can make one. Before this the tap parked every teacher
 // on /schools/classes with the walk waiting for a page that never came.
+// Since job #999 there is ONE class page — the class node home — so a class
+// clip is a node-home walk of kind class, and the reader lands on /org/:id.
 const { classes, fetchClasses } = useClassesData()
 const firstClassId = computed(() => classes.value[0]?.id ?? null)
+
+function isClassWalk(walk: Walk): boolean {
+  const place: any = walk.place
+  return place.route === 'node-home' && Array.isArray(place.kinds) && place.kinds.includes('class')
+}
 
 function showMeTo(entry: HandbookEntry): string | null {
   const walk = walkFor(entry)
   if (!walk) return null
-  if (walk.place.route === 'class-detail' && firstClassId.value) return `/schools/classes/${firstClassId.value}`
+  if (isClassWalk(walk)) return firstClassId.value ? `/org/${firstClassId.value}` : '/schools/classes'
   return placeLink({ ...entry, place: walk.place }, nodeId.value)
 }
 
@@ -158,7 +165,7 @@ function caption(entry: HandbookEntry): string {
 
 onMounted(() => {
   const staff = persona.value === 'teacher' || persona.value === 'school_admin'
-  if (staff && !classes.value.length && all.some((e) => clipIds(e).some((id) => walkById(id)?.place.route === 'class-detail'))) {
+  if (staff && !classes.value.length && all.some((e) => clipIds(e).some((id) => { const w = walkById(id); return w ? isClassWalk(w) : false }))) {
     void fetchClasses()
   }
 })
