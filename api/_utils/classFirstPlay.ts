@@ -27,10 +27,24 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const RPC_CHUNK = 500
 
 /**
+ * A failed READ is not an absence of play (job #989 fix-up). Silently
+ * returning null for a class whose first-play could not be read would drop it
+ * from every denominator on the page and nobody would ever know — the average
+ * would just be over fewer classes than it says. So the read is LOUD: the
+ * error escapes as this, and the endpoint answers 500 with a plain reason
+ * rather than a quietly-shrunken cohort.
+ */
+export class ClassFirstPlayError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ClassFirstPlayError'
+  }
+}
+
+/**
  * class id → the ms of its first session, or null when it has never played.
- * Every requested id is present in the map; a missing/failed read is null,
- * i.e. treated as never-started, which keeps the class out of the denominator
- * rather than silently dragging the average down with a phantom zero.
+ * Every requested id is present in the map. A NULL here means one thing only:
+ * that class has never played. A failed read throws (see ClassFirstPlayError).
  */
 export async function loadClassFirstPlay(
   svc: SupabaseClient,
@@ -48,7 +62,7 @@ export async function loadClassFirstPlay(
     const { data, error } = await svc.rpc('class_first_play', { p_class_ids: batch })
     if (error) {
       console.error('[classFirstPlay] rpc error:', error.message)
-      return
+      throw new ClassFirstPlayError(error.message)
     }
     for (const r of (data ?? []) as { class_id: string; first_play: string | null }[]) {
       const t = r.first_play ? new Date(r.first_play).getTime() : NaN

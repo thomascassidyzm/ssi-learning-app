@@ -533,6 +533,13 @@ export function weekNumbersForClassIds(
  * It is viewer-independent by construction — nothing here reads who is asking.
  * The card, the weekly bars and the school series all call THIS; a second
  * definition anywhere is a bug, not an optimisation.
+ *
+ * `weekEndMs` is EXCLUSIVE, exactly as the session sums are (rangeMinutesByActor
+ * counts `t >= startMs && t < endMs`). A class whose very first play lands on
+ * the stroke of Monday 00:00 belongs to the week that is starting, not to the
+ * one that just closed: with `<=` it joined the PRECEDING week's denominator
+ * while contributing no minutes to it, quietly dragging that week's average
+ * down (job #989 fix-up).
  */
 export function cohortFor(
   candidateClassIds: string[],
@@ -541,7 +548,7 @@ export function cohortFor(
 ): string[] {
   return candidateClassIds.filter((id) => {
     const first = firstPlayByClass.get(id)
-    return typeof first === 'number' && first <= weekEndMs
+    return typeof first === 'number' && first < weekEndMs
   })
 }
 
