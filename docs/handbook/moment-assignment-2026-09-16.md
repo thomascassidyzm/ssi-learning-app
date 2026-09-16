@@ -1,22 +1,24 @@
 # Handbook — the moment each capability lives in
 
-Job #5, 2026-09-16. Tom's ruling: *"the whole list is a bit overwhelming"*. The Handbook's primary grouping is now WHEN you reach for a capability, not what it is about. Every one of the 122 entries carries exactly one moment, authored in its own HANDBOOK comment and gated by the compiler. The six topic sections survive as the compendium's index behind **Read the lot**.
+Job #5, 2026-09-16. Tom's ruling: *"the whole list is a bit overwhelming"*. The Handbook's primary grouping is now WHEN you reach for a capability, not what it is about. Every one of the 119 entries carries exactly one moment, authored in its own HANDBOOK comment and gated by the compiler. The six topic sections survive as the compendium's index behind **Read the lot**.
 
 **This table is for re-cutting by eye.** Disagree with a row and the repair is one line: change `moment:` in the HANDBOOK comment above that element, then `node tools/walkthrough/compile.mjs --reconfirm`.
 
 ## What each reader now opens on
 
-| Reader | Setting up | Every lesson | When something looks wrong | Total (was) |
+| Reader | Setting up | Every lesson | When something looks wrong | Their total |
 |---|---|---|---|---|
-| Teacher | 26 | **6** | 17 | 49 (49) |
-| School leader | 48 | **7** | 25 | 80 (80) |
-| Group leader | 26 | **3** | 17 | 46 (46) |
-| SSi admin | 28 | **5** | 11 | 44 (—) |
+| Teacher | 25 | **5** | 16 | 46 |
+| School leader | 48 | **7** | 24 | 79 |
+| Group leader | 26 | **3** | 17 | 46 |
+| SSi admin | 28 | **5** | 11 | 44 |
 
-Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is held by the assignment itself and asserted by a test, so a future author cannot quietly grow it.
+Before this, "Just what I can do" showed a teacher 49 rows in six topic sections, a group leader 46 and a school leader 80. Nothing has been taken away — the same rows are there, in three groups instead of six, and everybody else's are one tap away under **Read the lot**.
+
+Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is held by the assignment itself and asserted by a test, so a later author cannot quietly grow it.
 
 
-## Setting up — 76
+## Setting up — 75
 
 *Done once, at the start of a term or a school.*
 
@@ -69,7 +71,6 @@ Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is hel
 | Remove a teacher from your school | School admin | getting-people-in | schools |
 | Rename a class | Teacher | running-classes | schools |
 | Rename a school or group | SSi admin | your-school | schools |
-| Run your first class session | Teacher | running-classes | schools |
 | See and download your funder numbers | Leader, SSi admin | seeing-progress | schools |
 | See every school in your programme | Leader | seeing-progress | schools |
 | See what a funded organisation gives its learners | SSi admin | courses-and-content | schools |
@@ -99,7 +100,7 @@ Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is hel
 | Your class against the average | Teacher | seeing-progress | schools |
 | Your own teaching numbers | Teacher | seeing-progress | schools |
 
-## Every lesson — 14
+## Every lesson — 13
 
 *The handful you reach for with a class in front of you.*
 
@@ -115,12 +116,11 @@ Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is hel
 | What the nightly findings say about this question | SSi admin | seeing-progress | intel |
 | Where classes are in the course and where they stop | Leader, School admin | seeing-progress | schools |
 | Where in the world people are using us, and on what | SSi admin | seeing-progress | intel |
-| Where the class has got to | Teacher | seeing-progress | schools |
 | Which classes practised this week | Leader, School admin | seeing-progress | schools |
 | Which courses are worth attention | SSi admin | seeing-progress | intel |
 | Your classes at a glance | Teacher | seeing-progress | schools |
 
-## When something looks wrong — 32
+## When something looks wrong — 31
 
 *A number that surprises you, a link that never arrived, a class gone quiet.*
 
@@ -153,7 +153,6 @@ Tom's cap — *"the handful that matter — cap at ~6 for a teacher"* — is hel
 | Ways in — who can get in, and how to change it | SSi admin, Leader, School admin | getting-people-in | schools |
 | When an answer was fetched | SSi admin | seeing-progress | intel |
 | When more people join than you have seats | School admin, Leader | your-school | schools |
-| Where a class's practice is read | Teacher, School admin | seeing-progress | schools |
 | Whether the app is working right now | SSi admin | seeing-progress | intel |
 | Which bits of a course make people stumble | SSi admin | seeing-progress | intel |
 | Which classes have gone quiet | Leader, School admin | seeing-progress | schools |
