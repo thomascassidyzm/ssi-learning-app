@@ -986,6 +986,22 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     expect(all.body.average.value).toBeGreaterThanOrEqual(month.body.average.value)
   })
 
+  it('names the cohort scope once — a global rung carries it in its own label', async () => {
+    // Staging read "Global average · this course · all 6 classes on this
+    // course" before this (job #983): the label and the appended note both
+    // said it.
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.average.label).toBe('Global average · this course')
+    expect(res.body.cohortSizeLine).toBe('Global average · this course · all 4 classes')
+    // a scope whose label does NOT name the course still says which course
+    const res2 = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme' }), res2)
+    expect(res2.body.cohortSizeLine).toBe('IME Demo Programme average · all 3 classes on this course')
+  })
+
   it('a ladder from an ancestor default onto a global rung values peers OUTSIDE the prefetched scope', async () => {
     // Regression (job #983): the ancestor-default path prefetches session rows
     // for the ancestor SCOPE and reuses them for the final averaging. When the

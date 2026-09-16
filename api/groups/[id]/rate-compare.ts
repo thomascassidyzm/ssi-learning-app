@@ -860,8 +860,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // "active in this window": under the structural ruling the denominator no
     // longer moves with the window, and saying so is what stops a teacher
     // reading a changed average as a bug.
-    const cohortScopeNote = cohortCourse ? 'on this course' : 'across all courses'
-    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit} ${cohortScopeNote}`
+    // The global rungs already carry their scope in the label itself — "Global
+    // average · this course" — so appending it again read "Global average ·
+    // this course · all 6 classes on this course" on staging. Name the scope
+    // once, wherever it already lives.
+    const alreadyScoped = / this course$| all courses$/.test(compareLabel)
+    const cohortScopeNote = cohortCourse ? ' on this course' : ' across all courses'
+    const cohortSizeLine = `${compareLabel} · all ${cohortValues.length} ${cohortUnit}${alreadyScoped ? '' : cohortScopeNote}`
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
