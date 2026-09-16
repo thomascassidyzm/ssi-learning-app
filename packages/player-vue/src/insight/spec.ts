@@ -246,6 +246,15 @@ export interface RateComparisonData {
   subjectIsViewer?: boolean
   levelNoun?: string
   cohortLabel?: string
+  // ── Cohort size (job #979 — "school average" read as monotone-in-window
+  // before this: the denominator is the peers ACTIVE in the selected window,
+  // which grows with the window, so all-time can read lower than 30-day even
+  // though it's correct). Shown as "mean of N <unit> active in this window"
+  // so the average's own denominator is visible. Both optional: a caller
+  // (e.g. the schools lane) that hasn't wired cohortUnit yet still degrades
+  // to just the average, no cohort-size clause.
+  cohortSize?: number
+  cohortUnit?: string      // "classes" | "schools" — the noun for cohortSize
   // ── Time window (founder ruling 2026-07-19: the today/7d/30d/all-time ask
   // resolves as an explicit WINDOW selector, not a new lens). The chip sets the
   // period the rate is computed over AND the chart's x-span — headline and

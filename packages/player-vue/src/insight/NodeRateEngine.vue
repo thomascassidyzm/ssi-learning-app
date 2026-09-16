@@ -267,7 +267,11 @@ const metricDesc = computed(() => {
            3. Pick the **window** — the period the figure covers. A wider window never
               reads less practice than a narrower one, because practice minutes are the
               total inside the window, from pressing play to stopping.
-           4. Use **Compare to** to put an average alongside.
+           4. Use **Compare to** to put an average alongside. That average is the mean
+              of the other classes active in the selected window, so a wider window can
+              show a lower average than a narrower one if fewer classes were practising
+              back then — the figure under the average names how many classes it's a
+              mean of.
            5. **Overview** takes you back to the same place's home page.
            Worth knowing. Rate of progress is a per-week rate; practice minutes is a
            plain total. The chart is one bar per day, hour or month, and a bar with no
