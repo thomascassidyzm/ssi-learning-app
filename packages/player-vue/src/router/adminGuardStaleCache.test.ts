@@ -36,3 +36,37 @@ describe('/admin route guard and the localStorage role cache', () => {
     expect(router.currentRoute.value.fullPath).toBe('/admin/insights-lab')
   })
 })
+
+// Job #34, second defect: the guest hand-off (useAdminGate.deniedDestination)
+// sends an unplaceable visitor to /schools carrying ?next=<admin path>, and
+// SchoolsContainer replays it once the role resolves. An ssi_admin whose role
+// was ALREADY cached never reached that replay — memberSurfaceGuard ejected
+// them to /admin/structure first and the destination was lost. Reproduced on
+// staging from a phone context: /schools?next=/admin/insights-lab landed on
+// /admin/structure with the role cached, and on the lab with it cold.
+describe('the guest hand-off survives an admin whose role is already known', () => {
+  beforeEach(async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    useUserRole().clear()
+    await router.push('/')
+  })
+
+  it('sends an ssi_admin carrying ?next= to the page they asked for', async () => {
+    useUserRole().setAuthoritative('ssi_admin', null)
+    await router.push('/schools?next=/admin/insights-lab')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/insights-lab')
+  })
+
+  it('still ejects an ssi_admin with no next to the org tree', async () => {
+    useUserRole().setAuthoritative('ssi_admin', null)
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+  })
+
+  it('refuses a next that is not an in-app admin path', async () => {
+    useUserRole().setAuthoritative('ssi_admin', null)
+    await router.push('/schools?next=//evil.example/x')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+  })
+})
