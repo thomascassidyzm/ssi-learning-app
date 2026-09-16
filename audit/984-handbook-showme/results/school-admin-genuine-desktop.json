@@ -4324,5 +4324,548 @@
     "gotoHref": "/schools/classes",
     "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
     "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "subscribe-your-school",
+    "title": "Subscribe your school",
+    "anchor": "upgrade-subscribe-school",
+    "place": "upgrade",
+    "clips": [
+      "subscribe-your-school"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/upgrade",
+    "walkActiveAfterShowMe": "subscribe-your-school:0",
+    "walkId": "subscribe-your-school",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "upgrade-seats-actual",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "P",
+          "text": "3 teachers joined · subscribing for 3 seats",
+          "box": {
+            "x": 597.328125,
+            "y": 537.71875,
+            "w": 402,
+            "h": 20.390625
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "upgrade-subscribe-school",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Subscribe — £45/mo",
+          "box": {
+            "x": 597.328125,
+            "y": 516.109375,
+            "w": 402,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "upgrade-update-seats",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "upgrade-update-seats",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/upgrade",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/upgrade",
+    "anchorExistsAfterGoto": true
+  },
+  {
+    "id": "take-a-domain-or-address-off-your-school-s-list",
+    "title": "Take a domain or address off your school's list",
+    "anchor": "settings-identity-remove",
+    "place": "settings",
+    "clips": [
+      "school-identity-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/settings",
+    "walkActiveAfterShowMe": "school-identity-list:0",
+    "walkId": "school-identity-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "settings-identity-add-domain",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Add domain",
+          "box": {
+            "x": 1109.0625,
+            "y": 1102.875,
+            "w": 110.9375,
+            "h": 39.25
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "settings-identity-add-address",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Add address",
+          "box": {
+            "x": 1107.359375,
+            "y": 694.375,
+            "w": 112.640625,
+            "h": 39.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "settings-identity-remove",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "settings-identity-remove",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "take-a-teacher-off-a-class-or-move-them",
+    "title": "Take a teacher off a class, or move them",
+    "anchor": "assign-classes-modal",
+    "place": "teachers",
+    "clips": [
+      "take-a-teacher-off-a-class"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/teachers",
+    "walkActiveAfterShowMe": "take-a-teacher-off-a-class:0",
+    "walkId": "take-a-teacher-off-a-class",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "teacher-assign-classes",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Assign to a class",
+          "box": {
+            "x": 984.171875,
+            "y": 469.234375,
+            "w": 113.96875,
+            "h": 33
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "assign-classes-modal",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Assign Mr Tom Tester to classesTick every class Mr Tom Teste",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 800
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "assign-classes-list",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "UL",
+          "text": "Y7 WelshZZ Test — Year 7 Welshjoins as co-teacher",
+          "box": {
+            "x": 400,
+            "y": 381.125,
+            "w": 480,
+            "h": 81.25
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "assign-classes-save",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Save",
+          "box": {
+            "x": 816.40625,
+            "y": 491.375,
+            "w": 63.59375,
+            "h": 37.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "assign-classes-save",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Save",
+          "box": {
+            "x": 816.40625,
+            "y": 491.375,
+            "w": 63.59375,
+            "h": 37.5
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/teachers",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/teachers",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "take-your-lists-away-as-a-spreadsheet",
+    "title": "Take your lists away as a spreadsheet",
+    "anchor": "students-export",
+    "place": "students",
+    "clips": [
+      "find-a-student-or-export-the-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/students",
+    "walkActiveAfterShowMe": "find-a-student-or-export-the-list:0",
+    "walkId": "find-a-student-or-export-the-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "student-view-link",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "students-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "students-export",
+        "ringCount": 0,
+        "anchored": {
+          "exists": false
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/students",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/students",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "tell-us-about-something-that-went-wrong",
+    "title": "Tell us about something that went wrong",
+    "anchor": "report-bug-sheet",
+    "place": "settings",
+    "clips": [
+      "report-a-bug-from-settings"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/?screen=settings",
+    "walkActiveAfterShowMe": "report-a-bug-from-settings:0",
+    "walkId": "report-a-bug-from-settings",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "report-bug",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bugTell us what went wrong. We attach the details f",
+          "box": {
+            "x": 424,
+            "y": 418.90625,
+            "w": 432,
+            "h": 82
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "report-bug-sheet",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "Report a bug×Add a screenshot Send",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 800
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "report-bug-text",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TEXTAREA",
+          "text": "",
+          "box": {
+            "x": 376,
+            "y": 537,
+            "w": 528,
+            "h": 146
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "report-bug-send",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "BUTTON",
+          "text": "Send",
+          "box": {
+            "x": 376,
+            "y": 728,
+            "w": 528,
+            "h": 52
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/settings",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/settings",
+    "anchorExistsAfterGoto": false
+  },
+  {
+    "id": "the-classes-by-year-group",
+    "title": "The classes by year group",
+    "anchor": "classes-year-groups",
+    "place": "classes",
+    "clips": [
+      "reading-your-class-list"
+    ],
+    "entryVisibleInScope": true,
+    "showMeButtonPresent": true,
+    "urlAfterShowMe": "https://staging.saysomethingin.app/schools/classes",
+    "walkActiveAfterShowMe": "reading-your-class-list:0",
+    "walkId": "reading-your-class-list",
+    "steps": [
+      {
+        "idx": 0,
+        "anchorWanted": "classes-table",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TABLE",
+          "text": "ClassCourseBeltJourney, phrasesPlayed as class, this weekPhr",
+          "box": {
+            "x": 371,
+            "y": 718.9375,
+            "w": 848,
+            "h": 257.75
+          },
+          "inViewport": false
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 1,
+        "anchorWanted": "classes-filters",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "CourseAll coursesSort byTime in app",
+          "box": {
+            "x": 370,
+            "y": 397.9375,
+            "w": 850,
+            "h": 66
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 2,
+        "anchorWanted": "classes-year-groups",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "DIV",
+          "text": "By year groupY71 min1 of 1 classOther—none of 1 yet",
+          "box": {
+            "x": 370,
+            "y": 322.84375,
+            "w": 850,
+            "h": 154.09375
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 1,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "idx": 3,
+        "anchorWanted": "classes-row",
+        "ringCount": 0,
+        "anchored": {
+          "exists": true,
+          "tag": "TR",
+          "text": "Y7 WelshMPG-692Welsh (North)yellow14 / 6351 min2Copy link▶ P",
+          "box": {
+            "x": 371,
+            "y": 546.9375,
+            "w": 848,
+            "h": 84
+          },
+          "inViewport": true
+        },
+        "cardPresent": true
+      },
+      {
+        "note": "no active state — walk ended/lost"
+      }
+    ],
+    "gotoLinkPresent": true,
+    "gotoHref": "/schools/classes",
+    "urlAfterGoto": "https://staging.saysomethingin.app/schools/classes",
+    "anchorExistsAfterGoto": false
   }
 ]
