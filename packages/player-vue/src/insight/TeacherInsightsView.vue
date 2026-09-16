@@ -207,9 +207,6 @@ const requestedLearnerName = computed(() => {
           <span class="tiv-kicker">{{ t('insights.teacher.yourClassKicker', 'Your class') }}</span>
         </div>
         <h1 class="tiv-title">{{ headerTitle }}</h1>
-        <p class="tiv-sub">
-          {{ t('insights.teacher.subHeading', 'How your class is doing, compared with the average.') }}
-        </p>
         <p v-if="isLearnerDeepLink && requestedLearnerName" class="tiv-preview-note">
           {{ t('insights.teacher.learnerDeepLinkPreviewNote', "Opened for {name} — per-learner rates aren't available yet, so this shows the whole class instead.").replace('{name}', requestedLearnerName) }}
         </p>
@@ -222,21 +219,20 @@ const requestedLearnerName = computed(() => {
              roles: teacher
              place: analytics
              keywords: analytics, insights, rate, compare, average, class, pace, window
-             What it's for. The teacher's own insight tool: pick one of your classes
-             and see its pace set against the average, over the period and for the
-             measure you choose. It answers whether a class is moving well, which a
-             roster of totals cannot.
+             What it's for. The teacher's own insight: one card for one class, this
+             week or last, with the average beside it. It answers whether a class is
+             moving well, which a roster of totals cannot.
              Where it is. **Analytics** in the schools navigation.
              How you do it.
-             1. Open **Analytics**.
+             1. Open **Analytics**. The card is the first thing on the page.
              2. Pick the class you want from **Your classes** if you teach more than
                 one.
-             3. Pick the **measure** — the line underneath says exactly what it counts.
-             4. Pick the **window** the rate is computed over, and what to **compare
-                to**.
-             5. Read the comparison block for your class's rate beside that average.
-             Worth knowing. A class with too few sessions to compare honestly says so
-             rather than showing a number built from nothing.
+             3. Switch **This week** and **Last week**, and choose what to **compare
+                to** — the smallest group your class is part of is already chosen.
+             4. Read the three numbers with the average beside each.
+             Worth knowing. A class with nothing comparable yet still sees its own
+             week and its totals since it started; only the second column is missing,
+             and the card says why.
              checked: 6f6f8d61.9b5b0d86
         -->
         <label class="tiv-field tiv-field-wide" data-walk="teacher-insights-class">
@@ -379,13 +375,6 @@ const requestedLearnerName = computed(() => {
   letter-spacing: -0.015em;
   color: var(--ink-primary);
   margin: 4px 0 2px;
-}
-.tiv-sub {
-  font-size: 15px;
-  line-height: 1.55;
-  color: var(--ink-secondary);
-  max-width: 56ch;
-  margin: 0;
 }
 
 /* Deep-link preview note — a quiet honest line when arriving from a student's

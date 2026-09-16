@@ -1,5 +1,5 @@
 {
-  "version": "bd0dfae52ccd",
+  "version": "124a3fa2ecdd",
   "generatedAt": "2026-09-16",
   "walks": [
     {
@@ -1904,44 +1904,58 @@
         "minutes",
         "phrases",
         "total",
-        "practising",
+        "classes",
         "quiet",
-        "journey",
+        "not practised",
         "voice",
         "pause"
       ],
       "steps": [
         {
-          "anchor": "insights-measure",
-          "say": "This page counts time and new phrases, by week. There is nothing to pick here — the line under the pickers says exactly what the numbers mean.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
           "anchor": "insights-window",
-          "say": "The **window** is the school week. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two.",
+          "say": "**This week** or **Last week** — the school week, Monday to Sunday, and those are the only two. The card is the first thing on the page; this is the one thing you switch.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-compare",
-          "say": "**Compare to** decides whose average sits beside yours. It counts every class in that scope that has started on this course, this one included — a class that was set up and never played is in no average anywhere.",
+          "say": "**Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-rate-widget",
-          "say": "Three numbers for the week: time playing as a class, time students put in on their own accounts, and those two added together. Underneath, the new phrases the class reached for the first time this week. The school's same three sit beside them so you do the comparing yourself.",
+          "say": "One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-classes",
+          "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-not-practised",
+          "say": "**Who has not practised this week** lists the people on their own accounts who have not — by name, never by minutes. Tap it to open.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-more",
+          "say": "**More about this level** keeps the three four-week questions off the first screen. Tap it to open them.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-org-practising",
-          "say": "**Practising** answers whether your classes are doing it: how many practised together this week against last week, the phrases practised each day over four weeks, and which people practised on their own account and for how long.",
+          "say": "Open **More about this level** for the three questions over the last four weeks. **Practising** answers whether your classes are doing it: how many practised together this week against last week, and the phrases practised each day.",
           "advance": {
             "on": "next"
           }
@@ -1962,7 +1976,7 @@
         },
         {
           "anchor": "insights-voice-pause",
-          "say": "**Voice and pause** is what the microphone is giving us below this level. Read the uptake figure first — it is how many learners the rest is based on. A learner with no mic data is absent here, never a zero.",
+          "say": "**Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.",
           "advance": {
             "on": "next"
           }
@@ -2011,7 +2025,7 @@
           }
         },
         {
-          "anchor": "insights-window",
+          "anchor": "insights-window-legacy",
           "say": "Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.",
           "advance": {
             "on": "next"
@@ -3569,11 +3583,12 @@
       "keywords": [
         "analytics",
         "insights",
-        "rate",
+        "week",
         "compare",
         "average",
         "class",
-        "pace"
+        "phrases",
+        "minutes"
       ],
       "steps": [
         {
@@ -3584,26 +3599,40 @@
           }
         },
         {
-          "anchor": "insights-measure",
-          "say": "The **measure** is what is being counted — the line underneath says exactly what the current one means.",
-          "advance": {
-            "on": "next"
-          }
-        },
-        {
           "anchor": "insights-window",
-          "say": "The **window** is the period the rate is worked out over. Shorter windows react faster, longer ones smooth the noise.",
+          "say": "**This week** or **Last week** — the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.",
           "advance": {
             "on": "next"
           }
         },
         {
           "anchor": "insights-compare",
-          "say": "**Compare to** sets your class's rate beside an average. Everything here is a rate, not a raw total, so a class of eight and a class of thirty compare fairly.",
+          "say": "**Compare to** decides whose average sits beside your class. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-rate-widget",
+          "say": "Three numbers with the average beside each: time playing as a class, time students put in on their own, those two added together, and the new phrases reached this week. No score, no rank — you do the comparing. The thin line under the total is the last twelve weeks, and the line under the card is the class's totals since it started.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-all-time",
+          "say": "The last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. Totals only — nothing here is compared with anyone.",
+          "advance": {
+            "on": "next"
+          }
+        },
+        {
+          "anchor": "insights-class-tags",
+          "say": "Under the card, the year and department this class belongs to, guessed from its name and its course. A dotted underline is a guess; tap **confirm** if it is right or **change** to fix it. Once confirmed, **Compare to** can offer the year's own average.",
           "advance": {
             "on": "next"
           },
-          "terminal": "This answers whether a class is moving well, which a roster of totals cannot. A class with too few sessions to compare honestly says so rather than showing a number built from nothing."
+          "terminal": "A class with nothing comparable yet still sees its own week and its totals; only the second column is missing, and the card says why."
         }
       ]
     },
@@ -4628,6 +4657,46 @@
       "note": "It is a snapshot of the moment you press the button, not a live link. Download it again whenever you need current figures."
     },
     {
+      "id": "each-class-quietest-first",
+      "title": "Each class, quietest first",
+      "section": "seeing-progress",
+      "moment": "every-lesson",
+      "personas": [
+        "school_admin",
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "classes",
+        "quiet",
+        "last practised",
+        "not started",
+        "week",
+        "each class"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-classes",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/components/ClassWeekList.vue",
+      "routes": [
+        "/admin/classes/:id/insights",
+        "/admin/groups/:id/analytics",
+        "/admin/schools/:id/analytics",
+        "/org/:id/insights"
+      ],
+      "walk": "reading-insights",
+      "what": "Seeing every class under this level at a glance, the one that has gone longest without practising first, with its week beside its name.",
+      "where": "Under the card on a school's or a group's insights page.",
+      "how": [
+        "Read down the list. Each card says when that class last practised, then its total time and new phrases for the week.",
+        "Tap a class to open its own card, with the average beside it.",
+        "Classes that have not started yet are counted in one quiet line at the end; open it to see their names."
+      ],
+      "note": "This is not a league table. Nothing is ranked by minutes and nobody is scored. A class that has not practised shows the gap — \"not in the last 12 weeks\" — rather than a zero."
+    },
+    {
       "id": "email-someone-their-invite-again",
       "title": "Email someone their invite again",
       "section": "getting-people-in",
@@ -5565,6 +5634,45 @@
       "note": "A dash means this week's figures have not loaded — pull to refresh. It is never shown as a zero that is not real."
     },
     {
+      "id": "more-about-this-level",
+      "title": "More about this level",
+      "section": "seeing-progress",
+      "moment": "every-lesson",
+      "personas": [
+        "school_admin",
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "more",
+        "practising",
+        "quiet",
+        "journey",
+        "four weeks",
+        "questions"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-more",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeInsightsView.vue",
+      "routes": [
+        "/admin/classes/:id/insights",
+        "/admin/groups/:id/analytics",
+        "/admin/schools/:id/analytics",
+        "/org/:id/insights"
+      ],
+      "walk": null,
+      "what": "The three questions about this level — are they doing it, who has stopped, and where in the course each class has got to — kept off the first screen so the card and the class list can be read at a glance.",
+      "where": "**More about this level**, under the class list on any level's insights page. Tap it to open.",
+      "how": [
+        "Tap the line to open it.",
+        "Read the three questions, each answered in a sentence with its own small chart underneath."
+      ],
+      "note": "These count the last four weeks, not the school week the card above counts, and nothing in them compares you with anyone else."
+    },
+    {
       "id": "move-a-teacher-to-another-class",
       "title": "Move a teacher to another class",
       "section": "running-classes",
@@ -6076,7 +6184,8 @@
       "personas": [
         "admin",
         "leader",
-        "school_admin"
+        "school_admin",
+        "teacher"
       ],
       "keywords": [
         "insights",
@@ -6085,12 +6194,13 @@
         "compare",
         "minutes",
         "phrases",
-        "window"
+        "this week",
+        "last week"
       ],
       "place": {
         "route": "node-insights"
       },
-      "anchor": "insights-measure",
+      "anchor": "insights-window",
       "surface": "schools",
       "source": "packages/player-vue/src/insight/NodeRateEngine.vue",
       "routes": [
@@ -6106,17 +6216,16 @@
         "/tutors/dashboard/play"
       ],
       "walk": "reading-insights",
-      "what": "Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the school.",
-      "where": "The node's home page, **See insights**.",
+      "what": "Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the average you choose. One card, two columns, three numbers.",
+      "where": "The node's home page, **See insights**; for a teacher, **Analytics**.",
       "how": [
-        "Open the node's home page and tap **See insights**.",
-        "Pick the **window**. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.",
-        "Read the three numbers. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together.",
-        "**New phrases** is how much new ground was reached for the first time that week. A week spent going back over old ground reads zero there and a healthy pile of minutes, which is exactly what that week was.",
-        "Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope that has STARTED on this course, counted whether or not it practised this week, and the class you are looking at is one of them — so it reads the same number whichever class you open it from. The line under it says how many.",
-        "**Overview** takes you back to the same place's home page."
+        "Open the page. The card is the first thing on it.",
+        "Switch **This week** and **Last week** if you need to. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.",
+        "Read the three numbers down the left, with the average beside each one. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.",
+        "Use **Compare to** to choose whose average sits in the second column. It walks up from the smallest group your class is part of — a year, a department, the school, the district, and on up — and opens on the smallest one that holds more than one class.",
+        "The thin line under the total is the last twelve weeks: your class over a fainter line of the average. No axes; it is there to be glanced at."
       ],
-      "note": "A class that was set up and has never played is in no average anywhere — counting it would read your school as less busy than it is. A class joins the average in the week it first plays and never leaves, so a new class starting does not change last month's figures. The two columns are plain numbers side by side: no score, no percentage, you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored on your own clock. A week with no play is a bar of zero; a week before anyone had started is a gap, because there was nothing there to measure. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice."
+      "note": "Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest."
     },
     {
       "id": "remove-a-student-from-a-class",
@@ -7231,6 +7340,54 @@
       "note": "Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it."
     },
     {
+      "id": "tell-us-the-year-and-department",
+      "title": "Tell us the year and department",
+      "section": "seeing-progress",
+      "moment": "setting-up",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "year",
+        "department",
+        "tag",
+        "confirm",
+        "guess",
+        "compare",
+        "year average"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-class-tags",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/components/ClassTagsLine.vue",
+      "routes": [
+        "/",
+        "/admin/classes/:id/insights",
+        "/admin/groups/:id/analytics",
+        "/admin/schools/:id/analytics",
+        "/intel/*",
+        "/org/:id/insights",
+        "/schools/analytics",
+        "/schools/play",
+        "/teacher-insights",
+        "/tutors/dashboard/play"
+      ],
+      "walk": null,
+      "what": "Saying which year and which department a class belongs to, so it can be compared with the other classes in the same year or the same department. Both are guessed for you — the year from the class name, the department from the course — and a guess is shown as a guess until you confirm it.",
+      "where": "The line under the class card on the class's insights page.",
+      "how": [
+        "Read the guess. A dotted underline means it has not been confirmed.",
+        "Tap **confirm** if it is right, or **change** and type the right one.",
+        "Once confirmed, **Compare to** offers that year or department as an average, provided another confirmed class shares it."
+      ],
+      "note": "Nothing is required. A class with no year set is simply not compared at year level. A guess is never used for a comparison, because a misread name would move an average with no visible cause."
+    },
+    {
       "id": "the-classes-by-year-group",
       "title": "The classes by year group",
       "section": "running-classes",
@@ -7430,6 +7587,51 @@
       "note": "The line goes as soon as you pause or stop. Minutes already played on your own account are not moved by it; the copy tool on a class's tools page does that if you want it."
     },
     {
+      "id": "totals-since-the-class-started",
+      "title": "Totals since the class started",
+      "section": "seeing-progress",
+      "moment": "every-lesson",
+      "personas": [
+        "teacher",
+        "school_admin",
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "all time",
+        "total",
+        "since started",
+        "phrases reached",
+        "practice time"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-all-time",
+      "surface": "schools",
+      "source": "packages/player-vue/src/insight/components/WeekNumbersCard.vue",
+      "routes": [
+        "/",
+        "/admin/classes/:id/insights",
+        "/admin/groups/:id/analytics",
+        "/admin/schools/:id/analytics",
+        "/intel/*",
+        "/org/:id/insights",
+        "/schools/analytics",
+        "/schools/play",
+        "/teacher-insights",
+        "/tutors/dashboard/play"
+      ],
+      "walk": null,
+      "what": "Two totals for one class since the day it first pressed play: all its practice time, and how many phrases it has reached. Totals, on their own, with nothing to compare them to.",
+      "where": "The last line of the class card, under the week.",
+      "how": [
+        "Open the class's insights.",
+        "Read the line under the week: since when, how long, how far."
+      ],
+      "note": "This is never an average and never a rate. A class that has not started yet says so instead of showing zeros."
+    },
+    {
       "id": "voice-and-pause",
       "title": "Voice and pause",
       "section": "seeing-progress",
@@ -7463,10 +7665,10 @@
       ],
       "walk": null,
       "what": "What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.",
-      "where": "The **Voice and pause** section at the bottom of any level's insights page.",
+      "where": "**Voice and pause**, the last line on any level's insights page. Tap it to open.",
       "how": [
         "Open a level and tap **See insights**.",
-        "Scroll past the rate comparison to the voice section.",
+        "Tap **Voice and pause** at the bottom of the page.",
         "Read the uptake figure first — it is how many learners this is based on.",
         "Open a class or a learner within it to see the same reading at a smaller scope."
       ],
@@ -8036,6 +8238,46 @@
       "note": "Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off."
     },
     {
+      "id": "who-has-not-practised-this-week",
+      "title": "Who has not practised this week",
+      "section": "seeing-progress",
+      "moment": "something-wrong",
+      "personas": [
+        "school_admin",
+        "leader",
+        "admin"
+      ],
+      "keywords": [
+        "not practised",
+        "quiet",
+        "students",
+        "pupils",
+        "people",
+        "this week",
+        "names"
+      ],
+      "place": {
+        "route": "node-insights"
+      },
+      "anchor": "insights-not-practised",
+      "surface": "schools",
+      "source": "packages/player-vue/src/views/admin/NodeInsightsView.vue",
+      "routes": [
+        "/admin/classes/:id/insights",
+        "/admin/groups/:id/analytics",
+        "/admin/schools/:id/analytics",
+        "/org/:id/insights"
+      ],
+      "walk": null,
+      "what": "The names of the people on their own accounts who have not practised in the last seven days — the half you act on. By name, never by minutes: this is not a league table.",
+      "where": "**Who has not practised this week**, under the class list on a school's or group's insights page. Tap it to open.",
+      "how": [
+        "Tap the line to open it.",
+        "Read the names. The count beside the title says how many of how many."
+      ],
+      "note": "Someone who practised for a minute is not on this list. A school with no pupil accounts has nobody to list and says so."
+    },
+    {
       "id": "who-is-about-to-leave",
       "title": "Who is about to leave",
       "section": "seeing-progress",
@@ -8148,14 +8390,14 @@
       ],
       "walk": null,
       "what": "A school plans and reviews in weeks, so the insights page counts in weeks too — Monday morning to Sunday night, on your own clock. A rolling \"last seven days\" straddles two different weeks of teaching and cannot be talked about in a staff meeting.",
-      "where": "The block under the pickers on any level's insights page.",
+      "where": "The card at the top of any level's insights page.",
       "how": [
         "Open a level and tap **See insights**.",
-        "Read the line under the pickers — it says in words what the numbers count.",
-        "The block below puts this level's week beside the average's same week, as two columns of plain numbers.",
-        "Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old."
+        "The card puts this level's week beside the average's same week, as two columns of plain numbers, with a thin twelve-week line under the total.",
+        "Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.",
+        "Tap **why?** on the card for what the numbers count and why minutes and new phrases move apart."
       ],
-      "note": "The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week."
+      "note": "The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a rank, a target or a streak. A quiet week is allowed to read as a quiet week. Under the card, a class also shows its totals since it started — time practised and phrases reached — on their own, with nothing to compare them to."
     },
     {
       "id": "work-through-setup-at-your-own-pace",
@@ -8227,16 +8469,15 @@
         "/teacher-insights"
       ],
       "walk": null,
-      "what": "The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.",
+      "what": "The teacher's own insight: one card for one class, this week or last, with the average beside it. It answers whether a class is moving well, which a roster of totals cannot.",
       "where": "**Analytics** in the schools navigation.",
       "how": [
-        "Open **Analytics**.",
+        "Open **Analytics**. The card is the first thing on the page.",
         "Pick the class you want from **Your classes** if you teach more than one.",
-        "Pick the **measure** — the line underneath says exactly what it counts.",
-        "Pick the **window** the rate is computed over, and what to **compare to**.",
-        "Read the comparison block for your class's rate beside that average."
+        "Switch **This week** and **Last week**, and choose what to **compare to** — the smallest group your class is part of is already chosen.",
+        "Read the three numbers with the average beside each."
       ],
-      "note": "A class with too few sessions to compare honestly says so rather than showing a number built from nothing."
+      "note": "A class with nothing comparable yet still sees its own week and its totals since it started; only the second column is missing, and the card says why."
     },
     {
       "id": "your-own-teaching-numbers",

@@ -33,12 +33,12 @@
       "checked": "ccee3a01.82a1b9d9"
     },
     {
-      "anchor": "insights-window",
+      "anchor": "insights-window-legacy",
       "say": "Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.",
       "advance": {
         "on": "next"
       },
-      "checked": "e4bdf6b9.9f63b284"
+      "checked": "92cc795b.9f63b284"
     },
     {
       "anchor": "insights-measure",

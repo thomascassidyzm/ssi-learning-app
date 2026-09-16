@@ -18,6 +18,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useI18n } from '@/composables/useI18n'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
+import ClassWeekList from '@/insight/components/ClassWeekList.vue'
+import type { WeekClassRow } from '@/insight/components/WeekNumbersCard.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import LensTabs from '@/components/admin/LensTabs.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
@@ -64,6 +66,29 @@ watch(
 )
 
 const state = ref<EngineState | null>(null)
+
+// ─── THE LEADER'S PAGE (Tom via RBF, 2026-09-16): the card, then the same
+// card's numbers once per class, quietest first. The engine's one round trip
+// already carries `week.classes` for a node, off the same rows and the same
+// week as the card above — so the list costs no second read and cannot
+// disagree with the card. Everything else this page used to open on lives
+// behind a tap below. ───
+const weekClasses = ref<WeekClassRow[] | null>(null)
+const weekLabel = ref<string>('')
+function onEngineData(json: Record<string, unknown> | null): void {
+  const week = json?.week as { classes?: WeekClassRow[]; label?: string } | null | undefined
+  weekClasses.value = Array.isArray(week?.classes) ? week!.classes! : null
+  weekLabel.value = week?.label ? week.label.toLowerCase() : ''
+}
+const classLinkFor = (id: string): string => (member.value ? `/org/${id}/insights` : `/admin/classes/${id}/insights`)
+
+// Who has NOT practised this week, by name — never by minutes. The ranked
+// people table was dentist energy; this is the half a leader acts on.
+const notPractised = computed(() => {
+  const people = orgIntel.value?.people ?? []
+  return people.filter((p) => p.minutesThisWeek === 0).map((p) => p.name).sort((a, b) => a.localeCompare(b))
+})
+const peopleCount = computed(() => orgIntel.value?.people.length ?? 0)
 
 // ─── The node-home chrome: same rail + identity data, same endpoint the
 // node home reads. One light fetch per node; the org map doesn't churn, so
@@ -123,8 +148,8 @@ const labelWord = computed(() => {
 const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
 const subtitle = computed(() =>
   isClass.value
-    ? t('org.insights.subtitleClass', 'How this class is moving, compared with the average you choose.')
-    : t('org.insights.subtitleDefault', 'How everyone below this is moving, compared with the average you choose.'))
+    ? t('org.insights.subtitleClass', 'This class’s week, beside the average you choose.')
+    : t('org.insights.subtitleDefault', 'This week, then each class, quietest first.'))
 
 // An organisation with no class structure anywhere below it (the neutral
 // preset, derived from the same /home payload the node home reads). The
@@ -270,11 +295,8 @@ const homeLink = computed(() => {
           </div>
         </header>
 
-        <!-- THE GRAPH TOOL LEADS (Tom, 2026-09-14: "the graph tool should be
-             the leading thing") — window / course / measure / compare, the
-             headline figure, the over-time chart and where this sits. The
-             org questions follow it, then voice. Order only; neither block
-             was redesigned. -->
+        <!-- THE CARD LEADS. The answer is the first thing on the page: one
+             card, two columns, three numbers, one week toggle, one compare-to. -->
         <NodeRateEngine
           v-if="!classless"
           v-model:course="course"
@@ -284,25 +306,88 @@ const homeLink = computed(() => {
           :node-id="nodeId"
           :get-token="getAuthToken"
           @state="state = $event"
+          @data="onEngineData"
         />
 
-        <!-- THE ORG QUESTIONS — practising, quiet, journey. -->
-        <section class="org-intel-section">
-          <header class="vad-section-head">
-            <span class="schools-kicker">{{ t('org.intel.kicker', 'Attention · practice') }}</span>
-            <h2 class="vad-section-title arsenal">{{ t('org.intel.title', 'Are they doing it, who is not, and where do they stop') }}</h2>
-            <p class="vad-section-sub">{{ classless
-              ? t('org.intel.subOne', 'One question about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.')
-              : t('org.intel.sub', 'Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.') }}</p>
-          </header>
+        <!-- THE SAME CARD ONCE PER CLASS, quietest first — the page itself
+             above class level. A class node has no list: it IS the card. -->
+        <ClassWeekList
+          v-if="!classless && !isClass && weekClasses"
+          :classes="weekClasses"
+          :link-for="classLinkFor"
+          :window-label="weekLabel"
+        />
+
+        <!-- EVERYTHING ELSE IS BEHIND A TAP. Kept, reachable, never on the
+             first screen: the three org questions, who has not practised,
+             and voice & pause. -->
+        <!-- HANDBOOK Who has not practised this week
+             section: seeing-progress
+             moment: something-wrong
+             roles: school_admin, leader, admin
+             place: node-insights
+             keywords: not practised, quiet, students, pupils, people, this week, names
+             What it's for. The names of the people on their own accounts who have
+             not practised in the last seven days — the half you act on. By name,
+             never by minutes: this is not a league table.
+             Where it is. **Who has not practised this week**, under the class list on
+             a school's or group's insights page. Tap it to open.
+             How you do it.
+             1. Tap the line to open it.
+             2. Read the names. The count beside the title says how many of how many.
+             Worth knowing. Someone who practised for a minute is not on this list. A
+             school with no pupil accounts has nobody to list and says so.
+             checked: 340d2061.b0100a70
+        -->
+        <details v-if="!classless && !isClass" class="niv-more" data-walk="insights-not-practised">
+          <summary class="niv-more-sum">
+            <span class="niv-more-title">{{ t('org.insights.notPractisedTitle', 'Who has not practised this week') }}</span>
+            <span v-if="orgIntel" class="niv-more-count">{{ t('org.insights.notPractisedCount', '{n} of {total}').replace('{n}', String(notPractised.length)).replace('{total}', String(peopleCount)) }}</span>
+          </summary>
+          <p v-if="orgIntelLoading" class="niv-more-note">{{ t('org.intel.counting', 'Counting…') }}</p>
+          <p v-else-if="orgIntelError" class="niv-more-note">{{ orgIntelError }}</p>
+          <p v-else-if="peopleCount === 0" class="niv-more-note">{{ t('org.insights.noPeople', 'Nobody here practises on their own account yet.') }}</p>
+          <p v-else-if="notPractised.length === 0" class="niv-more-note">{{ t('org.insights.everyonePractised', 'Everyone has practised this week.') }}</p>
+          <ul v-else class="niv-names">
+            <li v-for="n in notPractised" :key="n">{{ n }}</li>
+          </ul>
+        </details>
+
+        <!-- HANDBOOK More about this level
+             section: seeing-progress
+             moment: every-lesson
+             roles: school_admin, leader, admin
+             place: node-insights
+             keywords: more, practising, quiet, journey, four weeks, questions
+             What it's for. The three questions about this level — are they doing it,
+             who has stopped, and where in the course each class has got to — kept off
+             the first screen so the card and the class list can be read at a glance.
+             Where it is. **More about this level**, under the class list on any
+             level's insights page. Tap it to open.
+             How you do it.
+             1. Tap the line to open it.
+             2. Read the three questions, each answered in a sentence with its own
+                small chart underneath.
+             Worth knowing. These count the last four weeks, not the school week the
+             card above counts, and nothing in them compares you with anyone else.
+             checked: 816d741d.7c288168
+        -->
+        <details class="niv-more" data-walk="insights-more">
+          <summary class="niv-more-sum">
+            <span class="niv-more-title">{{ t('org.insights.moreTitle', 'More about this level') }}</span>
+            <span class="niv-more-count">{{ classless
+              ? t('org.insights.moreSubOne', 'one question, the last four weeks')
+              : t('org.insights.moreSub', 'practising, quiet, journey — the last four weeks') }}</span>
+          </summary>
           <OrgIntelPanel
             :payload="orgIntel"
             :is-loading="orgIntelLoading"
             :error="orgIntelError"
             :member="member"
             :classless="classless"
+            :hide-people="true"
           />
-        </section>
+        </details>
 
         <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
              this node by the server. Uptake first, denominators everywhere:
@@ -317,11 +402,11 @@ const homeLink = computed(() => {
              how many learners have any mic-derived data at all, and for those who do,
              how the pause the app leaves them to speak in is settling, and how they
              sound when they speak.
-             Where it is. The **Voice and pause** section at the bottom of any level's
-             insights page.
+             Where it is. **Voice and pause**, the last line on any level's insights
+             page. Tap it to open.
              How you do it.
              1. Open a level and tap **See insights**.
-             2. Scroll past the rate comparison to the voice section.
+             2. Tap **Voice and pause** at the bottom of the page.
              3. Read the uptake figure first — it is how many learners this is based
                 on.
              4. Open a class or a learner within it to see the same reading at a
@@ -331,16 +416,13 @@ const homeLink = computed(() => {
              stated. A class that practises from the front counts as one learner,
              its own class account, so a school with no pupil accounts still has a
              roster here.
-             checked: e009121e.3bd624f8
+             checked: 1fb9e27f.4cca086b
         -->
-        <section class="vad-section" data-walk="insights-voice-pause">
-          <header class="vad-section-head">
-            <span class="schools-kicker">{{ t('org.insights.attentionVoice', 'Attention · voice') }}</span>
-            <h2 class="vad-section-title arsenal">{{ t('org.insights.voicePauseTitle', 'Voice & pause') }}</h2>
-            <p class="vad-section-sub">
-              {{ t('org.insights.voicePauseSub', 'What the microphone is actually giving us below this point — how many learners have mic-derived data at all, and for those who do, how the adaptive pause is settling and how they sound.') }}
-            </p>
-          </header>
+        <details class="niv-more" data-walk="insights-voice-pause">
+          <summary class="niv-more-sum">
+            <span class="niv-more-title">{{ t('org.insights.voicePauseTitle', 'Voice & pause') }}</span>
+            <span class="niv-more-count">{{ t('org.insights.voicePauseShort', 'what the microphone is giving us') }}</span>
+          </summary>
           <VadPanel
             :summary="vadSummary"
             :scope-label="vadScopeLabel"
@@ -353,7 +435,7 @@ const homeLink = computed(() => {
             :truncated="vad?.truncated"
             @open-learner="openVadLearner"
           />
-        </section>
+        </details>
       </div>
     </div>
   </div>
@@ -392,19 +474,32 @@ const homeLink = computed(() => {
   align-items: flex-end;
   gap: 8px;
 }
-/* ---- The org questions ---------------------------------------------------- */
-.org-intel-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-/* ---- Voice & pause section ---------------------------------------------- */
-.vad-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.vad-section-head { display: flex; flex-direction: column; gap: 4px; }
-.vad-section-title {
-  font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 26px); font-weight: 400;
-  line-height: 1.1; letter-spacing: -0.01em; color: var(--ink-primary, #2C2622); margin: 4px 0 0;
+/* ---- Behind a tap: the org questions, who has not practised, voice ------ */
+.niv-more {
+  background: var(--schools-card, #fff);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: 12px;
+  padding: 0 16px;
+  min-width: 0;
 }
-.vad-section-sub {
-  font-size: 14px; line-height: 1.55; color: var(--ink-secondary, #5b534c);
-  max-width: 60ch; margin: 0;
+.niv-more[open] { padding-bottom: 16px; }
+.niv-more-sum {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 14px 0; cursor: pointer; list-style: none;
 }
+.niv-more-sum::-webkit-details-marker { display: none; }
+.niv-more-sum::before { content: '›'; color: var(--ink-muted, #8A8078); transition: transform 0.15s; }
+.niv-more[open] > .niv-more-sum::before { transform: rotate(90deg); }
+.niv-more-title {
+  font-family: var(--font-display); font-size: 17px; font-weight: 400; color: var(--ink-primary, #2C2622);
+}
+.niv-more-count {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--ink-muted, #8A8078);
+}
+.niv-more-note { margin: 0; font-size: 13.5px; color: var(--ink-secondary, #5b534c); }
+.niv-names { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 24px; font-size: 14px; color: var(--ink-primary, #2C2622); }
+.niv-names li { break-inside: avoid; padding: 3px 0; }
+@media (max-width: 560px) { .niv-names { columns: 1; } }
 
 .verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .verb-btn {

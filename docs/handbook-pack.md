@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `bd0dfae52ccd` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `124a3fa2ecdd` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -381,6 +381,20 @@ Moment: setting-up · section: seeing-progress · roles: school_admin, teacher �
 
 **Worth knowing.** It is a snapshot of the moment you press the button, not a live link. Download it again whenever you need current figures.
 
+## Each class, quietest first
+
+Moment: every-lesson · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-classes` · in `packages/player-vue/src/insight/components/ClassWeekList.vue` · has a walk
+
+**What it's for.** Seeing every class under this level at a glance, the one that has gone longest without practising first, with its week beside its name.
+
+**Where it is.** Under the card on a school's or a group's insights page.
+
+1. Read down the list. Each card says when that class last practised, then its total time and new phrases for the week.
+2. Tap a class to open its own card, with the average beside it.
+3. Classes that have not started yet are counted in one quiet line at the end; open it to see their names.
+
+**Worth knowing.** This is not a league table. Nothing is ranked by minutes and nobody is scored. A class that has not practised shows the gap — "not in the last 12 weeks" — rather than a zero.
+
 ## Email someone their invite again
 
 Moment: something-wrong · section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-resend` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
@@ -741,6 +755,19 @@ Moment: every-lesson · section: seeing-progress · roles: school_admin · ancho
 
 **Worth knowing.** A dash means this week's figures have not loaded — pull to refresh. It is never shown as a zero that is not real.
 
+## More about this level
+
+Moment: every-lesson · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-more` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
+
+**What it's for.** The three questions about this level — are they doing it, who has stopped, and where in the course each class has got to — kept off the first screen so the card and the class list can be read at a glance.
+
+**Where it is.** **More about this level**, under the class list on any level's insights page. Tap it to open.
+
+1. Tap the line to open it.
+2. Read the three questions, each answered in a sentence with its own small chart underneath.
+
+**Worth knowing.** These count the last four weeks, not the school week the card above counts, and nothing in them compares you with anyone else.
+
 ## Move a teacher to another class
 
 Moment: setting-up · section: running-classes · roles: teacher · anchor: `class-teacher-other-classes` · in `packages/player-vue/src/views/schools/ClassDetail.vue` · has a walk
@@ -930,20 +957,19 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 
 ## Reading your insights
 
-Moment: every-lesson · section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-measure` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · has a walk
+Moment: every-lesson · section: seeing-progress · roles: admin, leader, school_admin, teacher · anchor: `insights-window` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · has a walk
 
-**What it's for.** Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the school.
+**What it's for.** Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the average you choose. One card, two columns, three numbers.
 
-**Where it is.** The node's home page, **See insights**.
+**Where it is.** The node's home page, **See insights**; for a teacher, **Analytics**.
 
-1. Open the node's home page and tap **See insights**.
-2. Pick the **window**. **This week** runs from Monday morning to right now; **Last week** is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
-3. Read the three numbers. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together.
-4. **New phrases** is how much new ground was reached for the first time that week. A week spent going back over old ground reads zero there and a healthy pile of minutes, which is exactly what that week was.
-5. Use **Compare to** to choose whose average sits in the second column. It is the mean of every class in that scope that has STARTED on this course, counted whether or not it practised this week, and the class you are looking at is one of them — so it reads the same number whichever class you open it from. The line under it says how many.
-6. **Overview** takes you back to the same place's home page.
+1. Open the page. The card is the first thing on it.
+2. Switch **This week** and **Last week** if you need to. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
+3. Read the three numbers down the left, with the average beside each one. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.
+4. Use **Compare to** to choose whose average sits in the second column. It walks up from the smallest group your class is part of — a year, a department, the school, the district, and on up — and opens on the smallest one that holds more than one class.
+5. The thin line under the total is the last twelve weeks: your class over a fainter line of the average. No axes; it is there to be glanced at.
 
-**Worth knowing.** A class that was set up and has never played is in no average anywhere — counting it would read your school as less busy than it is. A class joins the average in the week it first plays and never leaves, so a new class starting does not change last month's figures. The two columns are plain numbers side by side: no score, no percentage, you do the comparing yourself. The chart is one bar per week for the last twelve weeks, Monday-anchored on your own clock. A week with no play is a bar of zero; a week before anyone had started is a gap, because there was nothing there to measure. A class that practises from the front is counted through its own class account, so whole-class lessons show here the same as any other practice.
+**Worth knowing.** Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest.
 
 ## Remove a student from a class
 
@@ -1348,6 +1374,20 @@ Moment: something-wrong · section: your-own-account · roles: teacher, school_a
 
 **Worth knowing.** Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
 
+## Tell us the year and department
+
+Moment: setting-up · section: seeing-progress · roles: teacher, school_admin, leader, admin · anchor: `insights-class-tags` · in `packages/player-vue/src/insight/components/ClassTagsLine.vue`
+
+**What it's for.** Saying which year and which department a class belongs to, so it can be compared with the other classes in the same year or the same department. Both are guessed for you — the year from the class name, the department from the course — and a guess is shown as a guess until you confirm it.
+
+**Where it is.** The line under the class card on the class's insights page.
+
+1. Read the guess. A dotted underline means it has not been confirmed.
+2. Tap **confirm** if it is right, or **change** and type the right one.
+3. Once confirmed, **Compare to** offers that year or department as an average, provided another confirmed class shares it.
+
+**Worth knowing.** Nothing is required. A class with no year set is simply not compared at year level. A guess is never used for a comparison, because a misread name would move an average with no visible cause.
+
 ## The classes by year group
 
 Moment: setting-up · section: running-classes · roles: school_admin, teacher · anchor: `classes-year-groups` · in `packages/player-vue/src/views/schools/TeacherDashboard.vue`
@@ -1428,16 +1468,29 @@ Moment: something-wrong · section: running-classes · roles: teacher, school_ad
 
 **Worth knowing.** The line goes as soon as you pause or stop. Minutes already played on your own account are not moved by it; the copy tool on a class's tools page does that if you want it.
 
+## Totals since the class started
+
+Moment: every-lesson · section: seeing-progress · roles: teacher, school_admin, leader, admin · anchor: `insights-all-time` · in `packages/player-vue/src/insight/components/WeekNumbersCard.vue`
+
+**What it's for.** Two totals for one class since the day it first pressed play: all its practice time, and how many phrases it has reached. Totals, on their own, with nothing to compare them to.
+
+**Where it is.** The last line of the class card, under the week.
+
+1. Open the class's insights.
+2. Read the line under the week: since when, how long, how far.
+
+**Worth knowing.** This is never an average and never a rate. A class that has not started yet says so instead of showing zeros.
+
 ## Voice and pause
 
 Moment: setting-up · section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-voice-pause` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
 
 **What it's for.** What the microphone is actually giving us below this level: how many learners have any mic-derived data at all, and for those who do, how the pause the app leaves them to speak in is settling, and how they sound when they speak.
 
-**Where it is.** The **Voice and pause** section at the bottom of any level's insights page.
+**Where it is.** **Voice and pause**, the last line on any level's insights page. Tap it to open.
 
 1. Open a level and tap **See insights**.
-2. Scroll past the rate comparison to the voice section.
+2. Tap **Voice and pause** at the bottom of the page.
 3. Read the uptake figure first — it is how many learners this is based on.
 4. Open a class or a learner within it to see the same reading at a smaller scope.
 
@@ -1650,6 +1703,19 @@ Moment: every-lesson · section: seeing-progress · roles: admin · anchor: `que
 
 **Worth knowing.** Reaching the end means getting through nine tenths of the course. A course with no recorded length shows a dash there rather than a zero. Minutes are not shown: the stored counters are not reliable, and a number that might be wrong is left off.
 
+## Who has not practised this week
+
+Moment: something-wrong · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-not-practised` · in `packages/player-vue/src/views/admin/NodeInsightsView.vue`
+
+**What it's for.** The names of the people on their own accounts who have not practised in the last seven days — the half you act on. By name, never by minutes: this is not a league table.
+
+**Where it is.** **Who has not practised this week**, under the class list on a school's or group's insights page. Tap it to open.
+
+1. Tap the line to open it.
+2. Read the names. The count beside the title says how many of how many.
+
+**Worth knowing.** Someone who practised for a minute is not on this list. A school with no pupil accounts has nobody to list and says so.
+
 ## Who is about to leave
 
 Moment: something-wrong · section: seeing-progress · roles: admin · anchor: `question-leaving` · in `packages/player-vue/src/views/intel/LeavingView.vue`
@@ -1684,14 +1750,14 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 
 **What it's for.** A school plans and reviews in weeks, so the insights page counts in weeks too — Monday morning to Sunday night, on your own clock. A rolling "last seven days" straddles two different weeks of teaching and cannot be talked about in a staff meeting.
 
-**Where it is.** The block under the pickers on any level's insights page.
+**Where it is.** The card at the top of any level's insights page.
 
 1. Open a level and tap **See insights**.
-2. Read the line under the pickers — it says in words what the numbers count.
-3. The block below puts this level's week beside the average's same week, as two columns of plain numbers.
-4. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
+2. The card puts this level's week beside the average's same week, as two columns of plain numbers, with a thin twelve-week line under the total.
+3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
+4. Tap **why?** on the card for what the numbers count and why minutes and new phrases move apart.
 
-**Worth knowing.** The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a target or a streak. A quiet week is allowed to read as a quiet week.
+**Worth knowing.** The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a rank, a target or a streak. A quiet week is allowed to read as a quiet week. Under the card, a class also shows its totals since it started — time practised and phrases reached — on their own, with nothing to compare them to.
 
 ## Work through setup at your own pace
 
@@ -1713,17 +1779,16 @@ Moment: setting-up · section: your-school · roles: school_admin · anchor: `se
 
 Moment: setting-up · section: seeing-progress · roles: teacher · anchor: `teacher-insights-class` · in `packages/player-vue/src/insight/TeacherInsightsView.vue`
 
-**What it's for.** The teacher's own insight tool: pick one of your classes and see its pace set against the average, over the period and for the measure you choose. It answers whether a class is moving well, which a roster of totals cannot.
+**What it's for.** The teacher's own insight: one card for one class, this week or last, with the average beside it. It answers whether a class is moving well, which a roster of totals cannot.
 
 **Where it is.** **Analytics** in the schools navigation.
 
-1. Open **Analytics**.
+1. Open **Analytics**. The card is the first thing on the page.
 2. Pick the class you want from **Your classes** if you teach more than one.
-3. Pick the **measure** — the line underneath says exactly what it counts.
-4. Pick the **window** the rate is computed over, and what to **compare to**.
-5. Read the comparison block for your class's rate beside that average.
+3. Switch **This week** and **Last week**, and choose what to **compare to** — the smallest group your class is part of is already chosen.
+4. Read the three numbers with the average beside each.
 
-**Worth knowing.** A class with too few sessions to compare honestly says so rather than showing a number built from nothing.
+**Worth knowing.** A class with nothing comparable yet still sees its own week and its totals since it started; only the second column is missing, and the card says why.
 
 ## Your own teaching numbers
 
