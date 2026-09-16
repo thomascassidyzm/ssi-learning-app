@@ -1,9 +1,9 @@
 {
-  "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor \u2014 remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
+  "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor — remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
   "capabilities": {
     "obvious": {},
     "missing": {
-      "report-bug-thanks": "Backlog since 2026-09-15 (job #882): \"See that your report arrived\" \u2014 teacher/school_admin/leader on settings. The Got it, thank you line only mounts after a real Send, and a walk must never file a real bug report, so no honest step can anchor to it. The report-a-bug-from-settings walk describes it in its closing card instead."
+      "report-bug-thanks": "Backlog since 2026-09-15 (job #882): \"See that your report arrived\" — teacher/school_admin/leader on settings. The Got it, thank you line only mounts after a real Send, and a walk must never file a real bug report, so no honest step can anchor to it. The report-a-bug-from-settings walk describes it in its closing card instead."
     }
   },
   "pages": {
@@ -23,7 +23,8 @@
       "packages/player-vue/src/views/admin/AdminReleaseNotes.vue": "A reading page of release notes; nothing to operate.",
       "packages/player-vue/src/views/admin/AdminStatsView.vue": "Read-only tiles of numbers for SSi admins; nothing to operate.",
       "packages/player-vue/src/views/onboarding/Onboarding.vue": "The onboarding flow is itself a guided walk with one choice per screen.",
-      "packages/player-vue/src/views/marketing/PartnerDoor.vue": "A marketing door with one call to action."
+      "packages/player-vue/src/views/marketing/PartnerDoor.vue": "A marketing door with one call to action.",
+      "packages/player-vue/src/views/admin/InsightsLabView.vue": "An admin-only decision instrument, not a schools capability: twelve drawings of one set of numbers and three tap buttons under each."
     },
     "missing": {
       "packages/player-vue/src/views/me/InboxView.vue": "Learner inbox with reply to a support thread (job #821). No anchor, no clip. Named missing by Tom 2026-09-15.",
