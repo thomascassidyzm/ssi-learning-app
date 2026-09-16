@@ -11074,6 +11074,31 @@ ALTER TABLE public.insight_discoveries ALTER COLUMN id ADD GENERATED ALWAYS AS I
 
 
 --
+-- Name: insights_lab_verdicts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.insights_lab_verdicts (
+    id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    made_at timestamp with time zone NOT NULL,
+    admin_user_id text NOT NULL,
+    rendering text NOT NULL,
+    verdict text NOT NULL,
+    note text,
+    entity_id text NOT NULL,
+    entity_label text,
+    compare_to text NOT NULL,
+    compare_label text,
+    metric text NOT NULL,
+    window_id text NOT NULL,
+    week_label text,
+    build text,
+    screen jsonb,
+    CONSTRAINT insights_lab_verdicts_verdict_check CHECK ((verdict = ANY (ARRAY['like'::text, 'unsure'::text, 'no'::text])))
+);
+
+
+--
 -- Name: invite_codes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14889,6 +14914,14 @@ ALTER TABLE ONLY public.htw_copy_versions
 
 ALTER TABLE ONLY public.insight_discoveries
     ADD CONSTRAINT insight_discoveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: insights_lab_verdicts insights_lab_verdicts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insights_lab_verdicts
+    ADD CONSTRAINT insights_lab_verdicts_pkey PRIMARY KEY (id);
 
 
 --
@@ -20885,6 +20918,12 @@ ALTER TABLE public.htw_copy_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.insight_discoveries ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: insights_lab_verdicts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insights_lab_verdicts ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: invite_codes; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -24449,6 +24488,13 @@ GRANT ALL ON TABLE public.human_clip_speakers TO service_role;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO service_role;
+
+
+--
+-- Name: TABLE insights_lab_verdicts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.insights_lab_verdicts TO service_role;
 
 
 --
