@@ -78,6 +78,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { phraseCycleName } from '../../_utils/phraseCycleName'
 import { applyCors } from '../../_utils/cors'
 import { setEntitlementVary } from '../../_utils/entitlementVary'
 import { createClient } from '@supabase/supabase-js'
@@ -154,6 +155,12 @@ interface CourseLegoRow {
 }
 
 interface CoursePhraseRow {
+  /** The phrase's own row id (`cym_n_for_eng:S0042L03U05`) — the NAME its
+   *  cycle id carries. Projected by get_course_cycles_window since job #128;
+   *  absent on any window served before that, in which case the cycle id
+   *  falls back to the LEGO alone and the class brain resolves it to nothing
+   *  rather than to a wrong phrase. */
+  id?: string | null
   seed_number: number
   lego_index: number
   position: number | null
@@ -619,7 +626,7 @@ export default async function handler(
       const { data: reviewPhraseRows, error: reviewPhraseErr } = await supabase
         .from('course_practice_phrases')
         .select(
-          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, display_tiling, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms'
+          'id, seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, display_tiling, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms'
         )
         .eq('course_code', code)
         .eq('phrase_role', 'use')
@@ -1065,8 +1072,14 @@ function phraseToCycle(
   ordinal: number
 ): Cycle {
   const targets = pickTargets(p)
+  // The id NAMES the phrase — `S0042L03_use_05_build_2` — so the class brain
+  // can read back which sentence the learner actually heard. `ordinal` keeps
+  // it unique within the round; on its own it names nothing, which is why a
+  // phrase with no readable row id falls back to the LEGO and resolves to
+  // null rather than to a wrong phrase. See _utils/phraseCycleName.ts.
+  const name = phraseCycleName(p.id) ?? legoId
   const cycle: Cycle = {
-    id: `${legoId}_${cycleType}_${ordinal}`,
+    id: `${name}_${cycleType}_${ordinal}`,
     type: cycleType,
     lego_id: legoId,
     seed_number: seed,

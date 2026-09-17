@@ -15,6 +15,18 @@ consolidation uses, spaced review and both INF PLAY streams. The drained-SEED sa
 `_seed_rep` id, because it replays the whole parent sentence and there is no phrase for it to name;
 the brain now calls that a kind of its own rather than an unresolved blank.
 
+**All three minters, one rule.** The walk was not the only place a cycle id said nothing. The JIT
+`/cycles` endpoint stamped `S0008L01_build_1`, where the number is the SLOT the phrase filled in
+that round — it names nothing, and matched the brain's two-digit read by accident once it reached
+ten. And the bundle path stamped a phraseId COUNTED per role, which is wrong wherever a phrase row
+has since been deleted: 549 of deu_for_eng's 1,816 build/use rows sit past a gap, so a counted index
+names a phrase the class never heard. The rule is now the same in all three: the id carries the
+phrase ROW's own id, never a count. `get_course_cycles_window` projects `p.id` for it (migration
+`20260917_course_cycles_window_phrase_id.sql`, applied live 2026-09-17 — additive, read-only, and
+replaced from the LIVE definition because `supabase/schema.sql`'s copy of this function does not
+match what runs). `_utils/phraseCycleName.ts` is the one translation, `phraseCycleId` its twin in
+the player's walk.
+
 **What the brain reads.** `phraseIdFromCycleId` anchors the index: it must be followed by `_` or by
 the end of the id. Unanchored, a bare counter matched on its first two digits and named a phrase the
 class had never heard — the card's arcs and cloth were drawn from the wrong sentence, and its counts
