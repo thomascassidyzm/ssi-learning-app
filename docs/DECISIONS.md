@@ -4263,3 +4263,43 @@ materialised per-learner-per-day roll-up on the same rule, not a bigger cap and 
 **Not touched.** The Insights lens's `DEFAULT_WINDOW = '30d'` (`api/groups/[id]/rate-compare.ts`),
 which already offers All time in its own selector; the Course journey card; the year-group tiles and
 the tree's class rows, which stay on the week and say so.
+
+## 2026-09-17 — Schools Insights offers All time, and opens on it (job #127)
+
+**What was actually there, before anything was changed.** Schools Insights and ORG Insights are the
+SAME surface — `views/admin/NodeInsightsView.vue` over `insight/NodeRateEngine.vue` over
+`/api/groups/:id/rate-compare` — and both offered exactly two windows, **This week** and **Last
+week**, defaulting by the Monday/Tuesday rule. Verified live on staging as the real Chepstow leader:
+`options.windows` came back `[this_week, last_week]` at school scope and at class scope alike. The
+**Today / 7d / 30d / All time** set is NOT on any real org page: it lives only in
+`insight/data/demoRates.ts`, the seeded fixture behind the demo-only Rate compare board at
+`/admin/stats`. Job #989 took those windows off this endpoint on 2026-09-16, which is why the
+job brief's note about `DEFAULT_WINDOW = '30d'` was stale.
+
+**Decision.** `all_time` is a third window, listed first, and it is the DEFAULT; the two school weeks
+stay exactly as they were, selectable by name. Tom, 2026-09-17: "it must ALSO offer All time, and All
+time is the DEFAULT."
+
+**All time stays TOTALS**, per his ruling of 2026-09-16, which this does not disturb: "'All time'
+returns as a TOTAL, never an average." So under it the card has no second column, the bars carry no
+average line, the Compare-to picker is absent rather than inert, and the response says `totalsOnly`
+rather than borrowing `insufficientData` — which would have made the page say "not enough data to
+compare fairly yet" about a window that is not trying to compare. The numbers are the same functions
+over a wider range: `weekNumbersForClassIds` takes `[0, now)` exactly as it takes a week's bounds.
+
+**Cost, measured live against production, read-only.** All time is CHEAPER than a week here, because
+it draws no comparison and therefore reads the entity's own classes rather than the whole cohort:
+
+| read | all time | a week |
+|---|---|---|
+| `analytics_class_sessions_scoped`, Chepstow's 34 classes | 83 ms at 1,500 days | 77 ms at 7 days |
+| the same, Tredegar's 51 classes | 66 ms | 74 ms |
+| diary rows, every learner id of the largest real school | 4,727 rows in 712 ms | 262 rows in 85 ms |
+| the endpoint on staging, ZZ Test school | 1,141 ms at `?days=1500` | 1,217 ms at `?days=7` |
+
+`class_sessions` has had no writer since 2026-08-19, which is why the legacy RPC is flat whatever
+depth it is asked for. There is no heavy-query gap to report: the all-time default landed everywhere
+it was asked for, at class and at school level.
+
+**Not touched.** The Monday/Tuesday `defaultWeekWindow` rule stays in `_utils/schoolWeek.ts` with its
+tests; it simply no longer decides what the page opens on. `?days=` stays the only rolling path.
