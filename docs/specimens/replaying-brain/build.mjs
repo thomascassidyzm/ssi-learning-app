@@ -78,9 +78,8 @@ function brain(S){
   let g='';
   for(const[k,n]of[...S.edge].sort((p,q)=>p[1]-q[1])){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 1 '+x2+' '+Y+'" fill="none" stroke="'+INK+'" stroke-opacity="'+edgeOpacity(n).toFixed(2)+'" stroke-width="'+edgeWidth(n).toFixed(2)+'"/>'}
   g+='<line x1="'+X(0)+'" y1="'+Y+'" x2="'+X(N-1)+'" y2="'+Y+'" stroke="'+DIM+'" stroke-width="3"/>';
-  const nmax=Math.max(1,...S.node);let lastSeed=0;
+  const nmax=Math.max(1,...S.node);
   D.legos.forEach((l,i)=>{const n=S.node[i],x=X(i);
-    if(l.seed!==lastSeed){lastSeed=l.seed;g+='<text x="'+x+'" y="'+(Y+16)+'" font-size="9" fill="#a39b90" text-anchor="middle">'+l.seed+'</text>'}
     g+='<circle cx="'+x+'" cy="'+Y+'" r="'+(n?(3.5+4*lg(n,nmax)).toFixed(1):2.4)+'" fill="'+(n?INK:DIM)+'" stroke="'+(n?PAPER:'#c9c2b8')+'" stroke-width="1"/>';
     g+='<text transform="translate('+x+' '+(Y+26)+') rotate(58)" font-size="12" fill="'+(n?'#2a2723':'#c4bdb2')+'" font-weight="'+(n?600:400)+'">'+esc(l.t)+'</text>'});
   const last=S.last;if(last&&last.fires.length){const fs=last.fires.filter(f=>f<N);const cx=fs.reduce((s,f)=>s+X(f),0)/fs.length;g+='<text x="'+cx.toFixed(1)+'" y="34" font-size="13" fill="'+INK+'" text-anchor="middle">'+esc(last.phrase?D.phrases[last.phrase].t:D.legos[last.lego].t)+'</text><text x="'+cx.toFixed(1)+'" y="50" font-size="12" fill="#6b6459" text-anchor="middle">'+esc(last.phrase?D.phrases[last.phrase].k:D.legos[last.lego].k)+'</text>'}
@@ -94,7 +93,7 @@ function freq(S){const ids=[...S.ph.keys()].sort((a,b)=>orderKey(a)-orderKey(b))
 function statsFinal(){
   const S=stateAt(E.length);const seed=D.seeds[S.reach];
   const tile=(l,v,d)=>'<div class="stat"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="d">'+esc(d||'')+'</div></div>';
-  return tile('Final position',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('In-app minutes',D.totalMinutes,'across '+D.sittings.length+' sittings')+tile('Phrases played',S.ph.size+' distinct','')+tile('Chunks introduced',D.introducedCount,'');
+  return tile('Final position',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('In-app minutes',D.totalMinutes,'across '+D.sittings.length+' sittings')+tile('Phrases played',S.ph.size+' distinct','')+tile('Phrases introduced',D.introducedCount,'');
 }
 function fmt(t){return new Date(t).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
 // --- transport (the Zenjin idiom: one interval, rebuilt on speed change, stops itself at the end)
