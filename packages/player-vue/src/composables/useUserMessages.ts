@@ -14,7 +14,7 @@
 import { ref, computed, inject, type Ref } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 
-export type UserMessageActionKind = 'undo_class_play_copy' | 'open_support'
+export type UserMessageActionKind = 'undo_class_play_copy' | 'open_support' | 'acknowledge'
 
 export interface UserMessage {
   id: string
