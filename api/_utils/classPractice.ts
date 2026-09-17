@@ -52,12 +52,21 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
-import { inAppSecondsByLearner } from './inAppTime'
+import { inAppSecondsByLearner, inAppTimeByLearner } from './inAppTime'
 
 export const CLASS_PRACTICE_WINDOW_DAYS = 7
 /** PostgREST caps a single response at 1,000 rows; page the diary read. */
 const DIARY_PAGE = 1000
-const DIARY_MAX_PAGES = 20
+/**
+ * 50 pages = 50,000 phrase rows per read. Raised from 20 when the Overview
+ * started reading ALL TIME rather than a week (2026-09-17): the largest real
+ * school's whole history is 1,315 phrase rows, so the cap is far away — but
+ * the read is ordered oldest-first, so a truncation would drop the NEWEST
+ * phrases, which is the failure worth keeping the headroom for. The day a
+ * school approaches this, the answer is a per-learner-per-day roll-up on the
+ * same rule, not a bigger cap.
+ */
+const DIARY_MAX_PAGES = 50
 
 export interface ClassPracticeClass {
   id: string
@@ -69,8 +78,18 @@ export interface ClassPracticeFacts {
   lastPractisedAt: string | null
   /** Phrases spoken in the window: one per target2 clip under the class account. */
   phrases: number
+  /**
+   * Phrases spoken in the LAST SEVEN DAYS of the window — the week kept as a
+   * unit beside the total (Tom, 2026-09-17: "the weeks are good units, but I
+   * prefer the default to be All Time Totals"). Counted off the same rows in
+   * the same read, never a second query and never a second definition. When
+   * the window IS seven days this equals `phrases`.
+   */
+  phrasesRecent: number
   /** Per audio id, how many times that phrase came round in the window. */
   phraseCounts: Map<string, number>
+  /** The same, over the last seven days of the window — the week's phrase list. */
+  phraseCountsRecent: Map<string, number>
   /**
    * When each phrase in the window was spoken, epoch ms, in diary order — so a
    * caller can split one read into weeks or days by the same timestamp rule
@@ -94,7 +113,10 @@ export function practisedSince(facts: ClassPracticeFacts | undefined, since: num
  * Practice facts for every class given, keyed by CLASS id, over the last
  * `windowDays` (CLASS_PRACTICE_WINDOW_DAYS unless a caller asks for a longer
  * look-back — the org intelligence lens reads 28 days in one pass and splits
- * them by day). A class with no learner identity of its own (pre-re-anchor,
+ * them by day; `null` reads ALL TIME, which is what the Overview's headline
+ * totals are). Whatever the window, `phrasesRecent` and `phraseCountsRecent`
+ * carry its last seven days, so the week survives as a unit off one read.
+ * A class with no learner identity of its own (pre-re-anchor,
  * or never played) comes back empty rather than missing, so callers never
  * have to null-check.
  */
@@ -102,17 +124,23 @@ export async function loadClassPractice(
   svc: SupabaseClient,
   classes: ClassPracticeClass[],
   now: number = Date.now(),
-  windowDays: number = CLASS_PRACTICE_WINDOW_DAYS,
+  windowDays: number | null = CLASS_PRACTICE_WINDOW_DAYS,
 ): Promise<Map<string, ClassPracticeFacts>> {
   const out = new Map<string, ClassPracticeFacts>()
-  for (const c of classes) out.set(c.id, { lastPractisedAt: null, phrases: 0, phraseCounts: new Map(), phraseTimes: [] })
+  for (const c of classes) out.set(c.id, { lastPractisedAt: null, phrases: 0, phrasesRecent: 0, phraseCounts: new Map(), phraseCountsRecent: new Map(), phraseTimes: [] })
 
   const classIdByLearner = new Map<string, string>()
   for (const c of classes) if (c.class_learner_id) classIdByLearner.set(c.class_learner_id, c.id)
   const learnerIds = [...classIdByLearner.keys()]
   if (learnerIds.length === 0) return out
 
-  const sinceIso = new Date(now - windowDays * 86400000).toISOString()
+  // `windowDays: null` reads ALL TIME — the Overview's headline since Tom's
+  // ruling of 2026-09-17. The read is scoped to these learner ids, which is
+  // the cheap shape: measured live 2026-09-17, the whole diary of the largest
+  // real school came back in 712 ms, where the population-wide read times out
+  // past 30 days.
+  const sinceIso = windowDays === null ? new Date(0).toISOString() : new Date(now - windowDays * 86400000).toISOString()
+  const recentFrom = now - CLASS_PRACTICE_WINDOW_DAYS * 86400000
 
   const bump = (classId: string, at: string | null | undefined) => {
     if (!at) return
@@ -156,9 +184,15 @@ export async function loadClassPractice(
           facts.phrases += 1
           const at = String((r as any).occurred_at)
           bump(classId, at)
-          facts.phraseTimes.push(new Date(at).getTime())
+          const atMs = new Date(at).getTime()
+          facts.phraseTimes.push(atMs)
+          const recent = atMs >= recentFrom
+          if (recent) facts.phrasesRecent += 1
           const audioId = audioIdFromUrl((r as any).payload?.url)
-          if (audioId) facts.phraseCounts.set(audioId, (facts.phraseCounts.get(audioId) || 0) + 1)
+          if (audioId) {
+            facts.phraseCounts.set(audioId, (facts.phraseCounts.get(audioId) || 0) + 1)
+            if (recent) facts.phraseCountsRecent.set(audioId, (facts.phraseCountsRecent.get(audioId) || 0) + 1)
+          }
         }
         if (rows.length < DIARY_PAGE) break
       }
@@ -375,6 +409,71 @@ export async function inAppTimeSeconds(
     }
   }
   return { seconds, classSeconds, classSecondsByLearner }
+}
+
+export interface InAppTimeTotals {
+  /** Whole history, every learner id given, each once. */
+  seconds: number
+  classSeconds: number
+  /** Per class account, whole history. */
+  classSecondsByLearner: Map<string, number>
+  /** The last seven days of the same read — the week kept as a unit. */
+  recentSeconds: number
+  recentClassSeconds: number
+  /** Per class account, last seven days — what the year-group tiles and class rows show. */
+  recentClassSecondsByLearner: Map<string, number>
+}
+
+/**
+ * IN-APP TIME ALL TIME, and the last seven days of it, from ONE diary read.
+ *
+ * The Overview leads with totals since Tom's ruling of 2026-09-17 — this-week
+ * figures "give too much lumpiness to classes that might not do any Welsh from
+ * Monday to Wednesday, then do quite a lot on Thursday and Friday" — and the
+ * week stays as a unit beneath them. Both numbers are the SAME minute
+ * (_utils/inAppTime.ts, play to stop): the week is not a second query and not
+ * a second rule, it is this read's spans split by UTC day (spanSecondsByDay,
+ * the same split the class sparkline already uses) and summed over the last
+ * seven days.
+ *
+ * COST, measured live 2026-09-17 against production: the whole diary of the
+ * largest real school — 73 learner ids, 4,727 play rows — read in 712 ms,
+ * against 85 ms for its week. This read is scoped to learner ids, which is
+ * the shape that stays cheap; the population-wide window read is the one that
+ * times out past 30 days (job #634), and nothing here uses it.
+ */
+export async function inAppTimeTotals(
+  svc: SupabaseClient,
+  classLearnerIds: string[],
+  ownLearnerIds: string[],
+  now: number = Date.now(),
+): Promise<InAppTimeTotals> {
+  const classSet = new Set(classLearnerIds.filter(Boolean))
+  const ids = [...new Set([...classSet, ...ownLearnerIds])]
+  const empty: InAppTimeTotals = {
+    seconds: 0, classSeconds: 0, classSecondsByLearner: new Map(),
+    recentSeconds: 0, recentClassSeconds: 0, recentClassSecondsByLearner: new Map(),
+  }
+  if (ids.length === 0) return empty
+  const byLearner = await inAppTimeByLearner(svc, ids, new Date(0).toISOString())
+  const firstRecentDay = new Date(now - CLASS_PRACTICE_WINDOW_DAYS * 86400000).toISOString().slice(0, 10)
+  const out: InAppTimeTotals = {
+    seconds: 0, classSeconds: 0, classSecondsByLearner: new Map(),
+    recentSeconds: 0, recentClassSeconds: 0, recentClassSecondsByLearner: new Map(),
+  }
+  for (const [lid, t] of byLearner) {
+    let recent = 0
+    for (const [day, s] of Object.entries(t.secondsByDay)) if (day >= firstRecentDay) recent += s
+    out.seconds += t.seconds
+    out.recentSeconds += recent
+    if (classSet.has(lid)) {
+      out.classSeconds += t.seconds
+      out.recentClassSeconds += recent
+      out.classSecondsByLearner.set(lid, t.seconds)
+      out.recentClassSecondsByLearner.set(lid, recent)
+    }
+  }
+  return out
 }
 
 /**

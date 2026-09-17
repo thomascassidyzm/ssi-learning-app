@@ -426,8 +426,12 @@ describe('NodeHomeView — one grammar at every level', () => {
     // The in-app-session-time shape home.ts emits for a class since 25fe2f46d
     // (founder ruling 2026-09-10: minutes in the app are the headline, phrases
     // spoken beside them, audio-played demoted) — never session counts.
+    // ALL TIME leads since Tom's ruling of 2026-09-17; the week rides beneath
+    // it off the same read (NodeHomeView.allTimeTotals.test.ts pins both).
     ;(payload as any).classPractice = {
       windowDays: 7,
+      phrasesAllTime: 260,
+      inAppMinutesAllTime: 410,
       phrases7d: 42,
       inAppMinutes7d: 78,
       lastPractisedAt: new Date().toISOString(),
@@ -443,17 +447,18 @@ describe('NodeHomeView — one grammar at every level', () => {
     // then minutes in the app — before any people count, and never the
     // individual practice-hours figure or a session count.
     const statWords = wrapper.findAll('.stat-card .stat-word').map((w) => w.text())
-    expect(statWords.slice(0, 2)).toEqual(['Phrases practised this week', 'Minutes played as class this week'])
+    expect(statWords.slice(0, 2)).toEqual(['Phrases practised in total', 'Minutes played as class in total'])
     const statValues = wrapper.findAll('.stat-card .stat-value').map((v) => v.text())
-    expect(statValues.slice(0, 2)).toEqual(['42', '78'])
+    expect(statValues.slice(0, 2)).toEqual(['260', '410'])
     expect(text).not.toContain('Minutes practised')
     expect(text).not.toMatch(/sessions? this week/i)
     // The Class practice card renders FIRST among the class cards.
     const cards = wrapper.findAll('.class-card .schools-kicker').map((k) => k.text())
     expect(cards[0]).toBe('Class practice')
-    expect(text).toMatch(/42\s*phrases practised this week/)
+    expect(text).toMatch(/260\s*phrases practised in total/)
     expect(text).toContain('Last practised together')
-    expect(text).toContain('78 minutes in the app together this week')
+    expect(text).toContain('410 minutes in the app together altogether')
+    expect(text).toContain('In the last seven days: 42 phrases and 78 minutes.')
     // The phrase-by-count list — what the class actually said — sits in the card.
     expect(text).toContain('quiero')
     // Journey rides the CLASS's own play-as-class position (LEGO units).

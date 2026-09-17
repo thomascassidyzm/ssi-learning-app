@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `31543ced446d` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `f34f971d6e86` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1344,14 +1344,15 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 **Where it is.** Across the top of the page for a group, a school or a class, under the name.
 
 1. Open the level you want — a group, a school or a class.
-2. **Phrases practised this week** is how many phrases the classes beneath this level were prompted with in whole-class play over the last seven days. It is recorded as each phrase's turn begins, so it counts every phrase the lesson reached.
-3. **Classes practising this week** is how many of them played together in the last seven days, out of all the classes below.
-4. **Minutes in the app this week** is the time the classes beneath this level, and their staff and students on their own accounts, spent in the app over the last seven days, pauses included — the time they were in the lesson. The sentence under the row says how much of it was whole-class play and how much was audio playing.
+2. **Phrases practised in total** is how many phrases the classes beneath this level have been prompted with in whole-class play, from the first lesson to now. It is recorded as each phrase's turn begins, so it counts every phrase the lessons reached.
+3. **Classes that have practised** is how many of them have ever played together, out of all the classes below.
+4. **Minutes in the app in total** is all the time the classes beneath this level, and their staff and students on their own accounts, have spent in the app, pauses included — the time they were in the lesson. The first sentence under the row says how much of it was whole-class play.
 5. **Teachers** counts the staff below this level, each once however many classes they take.
-6. On a class the row switches to that class's own phrases practised this week, its minutes in the app, its students and its teachers.
-7. On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes practising opens it narrowed to the classes that played this week, and teachers opens the staff list.
+6. The second sentence under the row gives the same figures for the last seven days, so the week is still there to read.
+7. On a class the row switches to that class's own phrases practised in total, its minutes played as class, its journey and its teachers.
+8. On your own school every card is a link: phrases and minutes open the classes list with the classes in that order, classes that have practised opens it narrowed to the classes that played this week, and teachers opens the staff list.
 
-**Worth knowing.** An organisation that is not school-shaped sees minutes in the app this week, groups and learners instead. Every minute on this page is the same minute: from pressing play to stopping, over the last seven days, each account once. There is no all-time total here.
+**Worth knowing.** The figures are totals rather than a week because a week is lumpy — a class that does nothing until Thursday reads as idle on Wednesday. An organisation that is not school-shaped sees minutes in the app in total, groups and learners instead. Every minute on this page is the same minute: from pressing play to stopping, each account once.
 
 ## Told when you are playing as yourself
 
@@ -1515,16 +1516,16 @@ Moment: every-lesson · section: seeing-progress · roles: admin · anchor: `que
 
 Moment: setting-up · section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-practice` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** The headline card on a class: how many phrases the class was prompted with together in the last seven days, when it last practised, and the list of those phrases with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
+**What it's for.** The headline card on a class: how many phrases the class has been prompted with together altogether, when it last practised, and the phrases of the last seven days with how often each came round. Classes practising together is what a language programme lives on, so this leads over anything individual students do alone.
 
 **Where it is.** The **Class practice** card on a class page.
 
 1. Open a class from the tree or the map.
-2. Read the big figure for phrases practised this week.
-3. The line under it gives the time since the class last practised and its minutes in the app this week.
+2. Read the big figure for phrases practised in total.
+3. The line under it gives the time since the class last practised, its minutes in the app altogether, and then the phrases and minutes of the last seven days.
 4. The list beneath is the three phrases the class practised most this week and the number of times each came round; **Show all** under it opens the whole list.
 
-**Worth knowing.** The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
+**Worth knowing.** The headline is a total rather than a week because a week is lumpy — a class that does its Welsh on Thursday and Friday reads as idle for half of it. The minutes are time in the app with the lesson running, pauses included, so they are the time the class was in the lesson. A class that has never played together says so plainly and names the teacher's **Play as class** button as the thing that starts the first lesson.
 
 ## Whether the app is working right now
 
