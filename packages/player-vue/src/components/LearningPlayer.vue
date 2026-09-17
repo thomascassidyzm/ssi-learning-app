@@ -21538,9 +21538,27 @@ button.phase-segment:active:not(.is-active) {
 }
 
 /* Transient "Your course was updated" notice — rides the mode-tip shell,
-   sits above the nav like the tip, tap anywhere to dismiss (auto-hides). */
+   tap anywhere to dismiss (auto-hides). It carried the same bottom-strip
+   position as .mode-tip, which put it under the Easy/Fast control and the
+   belt pill on Tom's phone (2026-09-17) — the same collision
+   .belt-waiting-tip was moved out of on 2026-09-06, so it gets the same
+   position and layer rather than a fresh diagnosis. */
 .course-updated-notice {
+  top: max(38%, calc(96px + env(safe-area-inset-top, 0px)));
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  z-index: 3200;
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.35;
   cursor: default;
+  width: max-content;
+  max-width: min(
+    28rem,
+    calc(100vw - 2rem - max(0px, env(safe-area-inset-left, 0px)) - max(0px, env(safe-area-inset-right, 0px)))
+  );
 }
 
 /* "{belt} isn't on this device yet" — the ONE sentence a belt jump may show
