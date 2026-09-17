@@ -3829,6 +3829,7 @@
       "sentenceN": "sentence {n}",
       "statMinutes": "In-app minutes",
       "acrossSittings": "across {n} sittings",
+      "acrossOneSitting": "in one sitting",
       "statPractised": "Practised",
       "nPhrases": "{n} phrases",
       "heardNTimes": "heard {n} times",
