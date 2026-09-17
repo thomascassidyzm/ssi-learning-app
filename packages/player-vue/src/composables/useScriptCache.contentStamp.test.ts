@@ -97,12 +97,15 @@ describe('checkContentVersion — content_stamp lane (SWR)', () => {
     })
     // A-86: the audio stamp rides along, so a clip repair that does not move
     // content_stamp still refreshes the downloaded listening snapshot.
-    expect(refreshListeningMetaIfStale).toHaveBeenCalledWith(
-      expect.anything(), code, '2026-07-22T00:00:00Z', undefined)
+    // Job #119: both listening-meta jobs now run AFTER first paint rather than
+    // during the boot fetches, so they are awaited rather than asserted inline.
+    await vi.waitFor(() => expect(refreshListeningMetaIfStale).toHaveBeenCalledWith(
+      expect.anything(), code, '2026-07-22T00:00:00Z', undefined), { timeout: 3000 })
     // Job #379: a device that only ever had the automatic download-ahead must
     // still carry the listening snapshot, or airplane mode reads "Dialogues
     // aren't downloaded yet" with the pod audio already on the device.
-    expect(ensureListeningMetaSnapshot).toHaveBeenCalledWith(expect.anything(), code)
+    await vi.waitFor(() => expect(ensureListeningMetaSnapshot)
+      .toHaveBeenCalledWith(expect.anything(), code), { timeout: 3000 })
   })
 
   it('keeps-but-marks-stale an entry whose vintage differs from the live stamp', async () => {

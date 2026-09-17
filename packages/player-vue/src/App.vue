@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
 import { lastDashboardPath } from './router'
 import { createProgressStore, createSessionStore } from '@ssi/core'
+import { catalogueStampOf, decideCatalogueRead } from './utils/catalogueStamp'
 import { pickFirstOpenDefaultCourse } from './containers/firstOpenDefaultCourse'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, missingRequiredConfig } from './config/env'
@@ -570,6 +571,27 @@ const canAccessCourse = (course) => {
 // So every successful fetch writes the rows here, and an offline/failed boot
 // hydrates from this mirror instead of dead-ending (always-play invariant).
 const CATALOGUE_CACHE_KEY = 'ssi-courses-catalogue-v1'
+// The vintage the mirror above was written at, so a repeat boot can ask the
+// ONE cheap question — "has the catalogue moved?" — instead of re-downloading
+// it. Kept in its own key rather than wrapped around the rows, so a mirror
+// written by an older build still reads (it simply has no stamp, takes one
+// full fetch, and is stamped from then on).
+const CATALOGUE_STAMP_KEY = 'ssi-courses-catalogue-stamp-v1'
+const readCatalogueStamp = () => {
+  try {
+    return localStorage.getItem(CATALOGUE_STAMP_KEY) || null
+  } catch (e) {
+    return null
+  }
+}
+const writeCatalogueStamp = (stamp) => {
+  try {
+    if (stamp) localStorage.setItem(CATALOGUE_STAMP_KEY, stamp)
+    else localStorage.removeItem(CATALOGUE_STAMP_KEY)
+  } catch (e) {
+    // Storage full/blocked — next online boot just refetches.
+  }
+}
 const readCatalogueCache = () => {
   try {
     const raw = localStorage.getItem(CATALOGUE_CACHE_KEY)
@@ -647,12 +669,46 @@ const startCoursesQuery = (signal) => {
 }
 
 /**
+ * "Has the catalogue moved since we mirrored it?" — in about 200 bytes.
+ *
+ * The catalogue itself is 17.8 KB and used to go over the wire on EVERY load
+ * including repeats, which made it the largest single thing on a repeat visit
+ * (measured job #117, phone width on 4G). Nothing about it changes between two
+ * visits a minute apart, so a repeat boot asks this instead, and only refetches
+ * the rows when the answer differs from the stamp beside the mirror.
+ *
+ * The stamp is `<row count>:<newest updated_at>` over the same live/beta filter
+ * the catalogue read uses. Both halves are needed and neither is enough alone:
+ * editing a course moves its `updated_at`, so the newest one moves; publishing
+ * or withdrawing one changes the COUNT even in the case where the row that left
+ * was not the newest. Compared for equality, never for order — a withdrawal can
+ * move the newest `updated_at` backwards, and that is still a change.
+ */
+const startCatalogueStampQuery = (signal) => {
+  let q = supabaseClient.value
+    .from('courses')
+    .select('updated_at', { count: 'exact' })
+    .in('new_app_status', ['live', 'beta'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+  if (signal) q = q.abortSignal(signal)
+  return Promise.resolve(q)
+}
+
+/**
  * Boot's head start on that read. `await auth.initialize()` costs ~600ms on a
  * cold boot and the catalogue fetch used to queue behind it, one after the
  * other, before any course could be named. Started alongside instead, claimed
  * once by the first fetchEnrolledCourses.
  */
 let prefetchedCoursesQuery = null
+
+/**
+ * The same head start, for the cheap revalidation question. A boot that has a
+ * stamped mirror starts THIS instead of the full catalogue read; only a stamp
+ * that has moved (or no mirror at all) pays for the rows.
+ */
+let prefetchedCatalogueStampQuery = null
 
 /**
  * Is the learner watching a blank screen because the catalogue has not landed?
@@ -665,6 +721,12 @@ const catalogueSlow = ref(false)
 
 const fetchEnrolledCourses = async () => {
   let data = null
+  // Was `data` served by the offline mirror rather than fetched? A mirror does
+  // not need re-writing, and must not be re-stamped with a vintage it was not
+  // read at.
+  let catalogueFromMirror = false
+  // The live stamp, when the refetch below is happening BECAUSE it moved.
+  let catalogueLiveStamp = null
   if (supabaseClient.value) {
     try {
       // Get courses available for this app (live or beta)
@@ -681,17 +743,43 @@ const fetchEnrolledCourses = async () => {
       // Boot may already have this in flight (see startCoursesQuery) — claim
       // it once. Every later caller (PlayerContainer's refresh) finds the slot
       // empty and issues its own, so a refresh is never served stale.
-      const coursesQuery = prefetchedCoursesQuery || startCoursesQuery()
+      // LOCAL FIRST. A returning learner already holds every row of this
+      // catalogue, stamped with the vintage it was written at. Ask the one
+      // cheap question — "has it moved?" — and serve the mirror when it has
+      // not. Refetching the rows is then what a MOVED stamp means, not what
+      // every boot does. (Job #119; the 17.8 KB this skips was the biggest
+      // thing on the wire on a repeat visit, measured job #117.)
+      const mirroredRows = readCatalogueCache()
+      const mirroredStamp = readCatalogueStamp()
+      if (mirroredRows && mirroredStamp) {
+        const stampQuery = prefetchedCatalogueStampQuery || startCatalogueStampQuery()
+        prefetchedCatalogueStampQuery = null
+        const stampRes = await withNetworkTimeout(stampQuery).catch(() => null)
+        const liveStamp = catalogueStampOf(stampRes === NETWORK_TIMEOUT ? null : stampRes)
+        if (decideCatalogueRead({ hasMirror: true, mirroredStamp, liveStamp }) === 'mirror') {
+          // Unchanged, or unreachable — either way the mirror is what we have
+          // and what we want. An unreachable stamp is the offline case, which
+          // already served the mirror before this existed.
+          catalogueFromMirror = true
+          data = mirroredRows
+        } else {
+          console.log(`[App] Catalogue stamp moved (${mirroredStamp} → ${liveStamp}) — refetching the rows`)
+          catalogueLiveStamp = liveStamp
+        }
+      }
+      const coursesQuery = data
+        ? null
+        : (prefetchedCoursesQuery || startCoursesQuery())
       prefetchedCoursesQuery = null
       // supabase-js reports transport failures as `res.error` rather than
       // rejecting — but if it ever does reject, a first-time visitor must
       // still reach the waiter below instead of falling out to the catch and
       // dead-ending on a blank screen, which is the whole bug being closed.
-      let res = await withNetworkTimeout(coursesQuery).catch((err) => {
+      let res = coursesQuery === null ? null : await withNetworkTimeout(coursesQuery).catch((err) => {
         console.error('[App] Courses fetch threw:', err)
         return null
       })
-      if (!usableCatalogue(res) && !readCatalogueCache()) {
+      if (coursesQuery !== null && !usableCatalogue(res) && !readCatalogueCache()) {
         // The offline mirror is the right fallback for a RETURNING learner.
         // A FIRST-TIME visitor has never written one, so there is nothing here
         // to fall back TO — and giving up at a deadline would just trade a
@@ -709,7 +797,9 @@ const fetchEnrolledCourses = async () => {
           onRetry: (n) => console.warn(`[App] No catalogue and no offline mirror — still trying (attempt ${n}).`),
         })
       }
-      if (res === NETWORK_TIMEOUT) {
+      if (coursesQuery === null) {
+        // Served from the mirror above — no rows were asked for.
+      } else if (res === NETWORK_TIMEOUT) {
         console.warn('[App] Courses fetch exceeded its budget — falling back to the offline catalogue mirror.')
       } else if (res?.error) {
         console.error('[App] Failed to fetch courses:', res.error)
@@ -721,9 +811,21 @@ const fetchEnrolledCourses = async () => {
     }
   }
 
-  if (data && data.length > 0) {
+  if (data && data.length > 0 && !catalogueFromMirror) {
     writeCatalogueCache(data)
-  } else {
+    // Stamp the mirror with the vintage it was fetched at. When the refetch was
+    // triggered BY a moved stamp we already hold that value; otherwise (first
+    // ever fetch, or a mirror written by an older build) ask for it now, in the
+    // background — an unstamped mirror is simply one that refetches next boot,
+    // never a broken one.
+    if (catalogueLiveStamp) {
+      writeCatalogueStamp(catalogueLiveStamp)
+    } else {
+      void startCatalogueStampQuery()
+        .then((res) => writeCatalogueStamp(catalogueStampOf(res === NETWORK_TIMEOUT ? null : res)))
+        .catch(() => {})
+    }
+  } else if (!data || data.length === 0) {
     // Offline / query failed — serve the last known catalogue so the saved
     // course resolves and the player boots into its cached-content paths.
     data = readCatalogueCache()
@@ -915,8 +1017,13 @@ onMounted(async () => {
 
       // Catalogue read goes out NOW, in parallel with auth init, rather than
       // waiting its turn behind it. Errors are handled where it is awaited.
-      prefetchedCoursesQuery = startCoursesQuery()
-      void prefetchedCoursesQuery.catch(() => {})
+      if (readCatalogueCache() && readCatalogueStamp()) {
+        prefetchedCatalogueStampQuery = startCatalogueStampQuery()
+        void prefetchedCatalogueStampQuery.catch(() => {})
+      } else {
+        prefetchedCoursesQuery = startCoursesQuery()
+        void prefetchedCoursesQuery.catch(() => {})
+      }
 
       // Initialize auth with Supabase client (for learner management). Its
       // completion — including the "staff on a fresh browser lands on the
