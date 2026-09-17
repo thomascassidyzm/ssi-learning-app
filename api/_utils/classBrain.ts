@@ -111,7 +111,7 @@ export function deriveSkipDestinations(
     })
 }
 
-export type CycleKind = 'intro' | 'debut' | 'build' | 'use' | 'component' | 'practice' | 'eternal_eligible' | 'legacy' | 'unresolved'
+export type CycleKind = 'intro' | 'debut' | 'build' | 'use' | 'component' | 'practice' | 'eternal_eligible' | 'seed_rep' | 'legacy' | 'unresolved'
 
 export interface BrainPhrase {
   /** target text */
@@ -191,10 +191,20 @@ export interface BuiltBrain {
   phraseText: Record<string, BrainPhrase>
 }
 
-/** `S0042L03_use_05_something` -> `<course>:S0042L03U05`. Null when the cycle id is not a phrase. */
+/**
+ * `S0042L03_use_05_review_7` -> `<course>:S0042L03U05`. Null when the cycle id
+ * does not NAME a phrase.
+ *
+ * The index is ANCHORED — it has to be followed by `_` or by the end of the id.
+ * Without that anchor a bare script counter matched on its first two digits:
+ * `S0042L03_build_11827` read as BUILD 11 and named a phrase the class had
+ * never heard, so the card drew its arcs and its cloth from the wrong sentence.
+ * Anchored, an unindexed id resolves to null — honest — and the card counts
+ * only the phrases it can really name. See docs/DECISIONS.md, 2026-09-17.
+ */
 export function phraseIdFromCycleId(cycleId: string | null, courseCode: string): string | null {
   if (!cycleId) return null
-  const m = /^(S\d{4}L\d{2})_(build|use)_(\d{2})/.exec(cycleId)
+  const m = /^(S\d{4}L\d{2})_(build|use)_(\d{2})(?:_|$)/.exec(cycleId)
   return m ? `${courseCode}:${m[1]}${m[2] === 'use' ? 'U' : 'B'}${m[3]}` : null
 }
 
@@ -272,6 +282,10 @@ export function buildBrain(input: BuildBrainInput): BuiltBrain {
     let fires = [lego]
     if (/_intro/.test(p.cycle_id || '')) kind = 'intro'
     else if (/_debut/.test(p.cycle_id || '')) kind = 'debut'
+    // The drained-seed sandwich replays the whole PARENT SENTENCE, not any one
+    // phrase, so there is no phrase for it to name. It is a kind of its own
+    // rather than an unresolved id.
+    else if (/_seed_?rep/.test(p.cycle_id || '')) kind = 'seed_rep'
     else {
       const id = phraseIdFromCycleId(p.cycle_id, courseCode)
       const row = id ? phrases.get(id) : undefined

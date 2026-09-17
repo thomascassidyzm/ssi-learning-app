@@ -25,7 +25,7 @@ import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { resolveVisibleScope } from '../../_utils/schoolScope'
 import { applyCors } from '../../_utils/cors'
 import { inAppSecondsByLearner, secondsToMinutesUp } from '../../_utils/inAppTime'
-import { buildBrain, chooseAxis, type PlayRow, type PhraseRow } from '../../_utils/classBrain'
+import { buildBrain, chooseAxis, phraseIdFromCycleId, type PlayRow, type PhraseRow } from '../../_utils/classBrain'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -72,7 +72,15 @@ async function readAllLegos(svc: SupabaseClient, courseCode: string): Promise<{ 
 /** A diary row as the brain reads it: the play fields, plus a belt_skip's own destination. */
 interface DiaryRow extends PlayRow { target_seed: number | null }
 
-async function readDiary(svc: SupabaseClient, learnerId: string, sinceIso: string): Promise<DiaryRow[]> {
+/**
+ * The class's diary, NEWEST-FIRST and capped — then handed back in time order.
+ *
+ * The cap is real: a class deeper than 12,000 rows has to lose something. It
+ * loses its PAST, never its frontier. Reading ascending lost the opposite end
+ * — the deepest real class carries 30,482 rows, so the card was drawn from its
+ * first fortnight and showed nothing of where it is now.
+ */
+export async function readDiary(svc: SupabaseClient, learnerId: string, sinceIso: string): Promise<DiaryRow[]> {
   const out: DiaryRow[] = []
   for (let page = 0; page < MAX_PAGES; page++) {
     const { data } = await svc
@@ -81,7 +89,7 @@ async function readDiary(svc: SupabaseClient, learnerId: string, sinceIso: strin
       .eq('learner_id', learnerId)
       .in('event_type', ['audio_play', 'audio_failed', 'belt_skip', 'lego_skip'])
       .gte('occurred_at', sinceIso)
-      .order('occurred_at', { ascending: true })
+      .order('occurred_at', { ascending: false })
       .range(page * PAGE, page * PAGE + PAGE - 1)
     const rows = data ?? []
     for (const r of rows) {
@@ -97,6 +105,9 @@ async function readDiary(svc: SupabaseClient, learnerId: string, sinceIso: strin
     }
     if (rows.length < PAGE) break
   }
+  // Back into time order: the brain pairs each target1 with the target2 that
+  // follows it, and reads its sittings off the run.
+  out.reverse()
   return out
 }
 
@@ -168,9 +179,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cycleIds = new Set<string>()
     for (const r of diary) if (r.cycle_id) cycleIds.add(r.cycle_id)
     const phraseIds = new Set<string>()
+    // One parser, shared with the brain — so the rows read here and the rows
+    // the brain looks up can never be a different set.
     for (const c of cycleIds) {
-      const m = /^(S\d{4}L\d{2})_(build|use)_(\d{2})/.exec(c)
-      if (m) phraseIds.add(`${courseCode}:${m[1]}${m[2] === 'use' ? 'U' : 'B'}${m[3]}`)
+      const id = phraseIdFromCycleId(c, courseCode)
+      if (id) phraseIds.add(id)
     }
     const phrases = new Map<string, PhraseRow>()
     const ids = [...phraseIds]

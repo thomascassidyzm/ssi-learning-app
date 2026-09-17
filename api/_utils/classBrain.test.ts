@@ -178,7 +178,32 @@ describe('the class brain', () => {
 
   it('reads a phrase id out of a cycle id, and nothing out of an intro', () => {
     expect(phraseIdFromCycleId('S0042L03_use_05_abc', 'fra_for_eng')).toBe('fra_for_eng:S0042L03U05')
+    expect(phraseIdFromCycleId('S0042L03_use_05', 'fra_for_eng')).toBe('fra_for_eng:S0042L03U05')
     expect(phraseIdFromCycleId('S0042L03_intro', 'fra_for_eng')).toBeNull()
+  })
+
+  /**
+   * Job #128. The walk used to stamp a BARE SCRIPT COUNTER after `_build_`,
+   * and the parser read its first two digits as a phrase index — so
+   * `_build_11827` named BUILD 11, a phrase the class may never have heard.
+   * An unindexed id must resolve to NOTHING rather than to the wrong sentence.
+   */
+  it('refuses a bare script counter rather than naming the wrong phrase', () => {
+    expect(phraseIdFromCycleId('S0001L01_build_12345', 'fra_for_eng')).toBeNull()
+    expect(phraseIdFromCycleId('S0001L01_build_1', 'fra_for_eng')).toBeNull()
+    expect(phraseIdFromCycleId('S0274L01_spaced_rep_11838', 'fra_for_eng')).toBeNull()
+    // …while the indexed forms the player now stamps still resolve.
+    expect(phraseIdFromCycleId('S0001L01_build_03_build_12345', 'fra_for_eng')).toBe('fra_for_eng:S0001L01B03')
+    expect(phraseIdFromCycleId('S0001L01_use_02_review_9', 'fra_for_eng')).toBe('fra_for_eng:S0001L01U02')
+  })
+
+  /** The drained-seed sandwich plays the whole sentence — a kind, not a blank. */
+  it('names the seed sandwich as its own kind', () => {
+    clock = Date.parse('2026-09-16T09:00:00.000Z')
+    const rows = cycle('S0002L01', 'S0002L01_seed_rep_11813')
+    const brain = buildBrain({ courseCode: COURSE, rows, skips: [], ordinalOf, seedOf, phrases })
+    expect(brain.events[0].kind).toBe('seed_rep')
+    expect(buildBrain({ courseCode: COURSE, rows: cycle('S0002L01', 'S0002L01_seedrep'), skips: [], ordinalOf, seedOf, phrases }).events[0].kind).toBe('seed_rep')
   })
 })
 
