@@ -621,7 +621,8 @@ function closeDelete(): void {
            moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
-           keywords: invite, person, link, join, leader, learner
+           parts: invite-form-role
+           keywords: invite, person, link, join, leader, learner, role, teacher, permissions
            walk: invite-first-person
            What it's for. Bringing anyone into this part of the tree — a leader, a
            teacher or a learner — with a personal link that is their login.
@@ -630,11 +631,14 @@ function closeDelete(): void {
            How you do it.
            1. Open the group, school or organisation you want them to belong to.
            2. Tap **Invite a person**.
-           3. Pick the role they arrive as.
+           3. Pick the role they arrive as from the dropdown on the left of the form. Teacher
+              sees their own classes, group leader sees everything below their node, learner
+              just learns.
            4. Type their name and submit.
            5. Copy the minted link and send it.
-           Worth knowing. Nothing is created until you submit. Every link you mint lands
-           in **Ways in**.
+           Worth knowing. Nothing is created until you submit. The place matters as much as
+           the role: a group leader invited on a group leads that group and everything under
+           it. Every link you mint lands in **Ways in**.
            checked: 2886d113.52963dcb
       -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">{{ t('org.ui.nodeActionBar.inviteAPerson', 'Invite a person') }}</button>
@@ -810,28 +814,6 @@ function closeDelete(): void {
     <!-- Inline forms (one at a time) -->
     <div v-if="openForm === 'person'" class="verb-form-block">
       <div class="verb-form">
-        <!-- HANDBOOK Choose what role someone arrives as
-             section: getting-people-in
-             moment: setting-up
-             roles: admin, leader, school_admin
-             place: node-home
-             keywords: role, teacher, leader, learner, invite, permissions
-             What it's for. The role you pick on an invite is the role the person lands
-             in, and it travels with the link rather than being set afterwards. Teacher
-             sees their own classes, group leader sees everything below their node,
-             learner just learns.
-             Where it is. Any node's home page, **Invite a person**, the role dropdown
-             on the left of the form.
-             How you do it.
-             1. Tap **Invite a person** on the node you want them to belong to.
-             2. Open the role dropdown.
-             3. Pick the role they should hold in this place.
-             4. Fill in their name and submit.
-             Worth knowing. The place matters as much as the role — a group leader
-             invited on a group leads that group and everything under it, so invite
-             people on the node whose shape you actually mean.
-             checked: 27dfbb12.215b02bb
-        -->
         <FrostSelect v-if="!classMode" v-model="personRole" class="frost-pick" data-walk="invite-form-role" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? t('org.ui.nodeActionBar.studentsName', 'Student\'s name') : t('org.ui.nodeActionBar.theirName', 'Their name')" @keyup.enter="submitPerson" />
         <input v-model="personEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.theirEmailWeSend', 'Their email — we\'ll send the invite')" />

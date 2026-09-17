@@ -57,6 +57,15 @@ const ALLOWED_METHODS = [
   'endSession',
   'bumpSpeakingOpportunities',
   'recordLegoPairings',
+  'getPodRatchet',
+  'persistPodRatchet',
+  'resetPodRatchet',
+  'loadPodState',
+  'upsertPodState',
+  'deletePodState',
+  'getMetaCommentaryState',
+  'saveMetaCommentaryState',
+  'touchLastPracticed',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
 
@@ -64,6 +73,10 @@ type Method = typeof ALLOWED_METHODS[number]
 // an abuse bound, not a product limit, and the tally is rebuilt each flush.
 const MAX_PAIRINGS_PER_CALL = 5000
 const MAX_FIRE_COUNT_PER_CALL = 100000
+
+// A pod lap debuts one cohort — a handful of sentences — so a flush is tiny.
+// The cap is an abuse bound, not a product limit.
+const MAX_POD_STATE_ROWS_PER_CALL = 2000
 
 interface ClassProgressBody {
   classId?: string
@@ -409,6 +422,145 @@ async function recordLegoPairings(
   if (error) throw new Error(`recordLegoPairings failed: ${error.message}`)
 }
 
+/**
+ * Listening-pod persistence for the CLASS account (job #61 census → this job).
+ * Three writes that own-row RLS refuses for a class entity, all confirmed live
+ * 2026-09-17: `learner_pod_state` held 2,160 rows for individuals and ZERO for
+ * any class, ever; `course_enrollments.completed_pod_rounds` reached 327 for
+ * individuals while all 199 class enrollment rows sat at exactly 0; and
+ * `learner_meta_commentary_state`'s 24 class rows all carried one backfill
+ * timestamp (2026-07-24 01:30:20), nothing organic.
+ *
+ * The READS matter as much as the writes here: RLS hides rows rather than
+ * erroring, so a class that wrote its ratchet through this door and then read
+ * it back through the browser would still see null and restart at zero. Both
+ * directions come through the endpoint.
+ */
+async function getPodRatchet(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { data, error } = await svc
+    .from('course_enrollments')
+    .select('rounds_since_pod, completed_pod_rounds')
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+    .maybeSingle()
+  if (error) throw new Error(`getPodRatchet failed: ${error.message}`)
+  return data ?? null
+}
+
+async function persistPodRatchet(
+  svc: SupabaseClient, learnerId: string, courseId: string,
+  completedPodRounds: unknown, roundsSincePod: unknown,
+) {
+  const nonNeg = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({
+      completed_pod_rounds: nonNeg(completedPodRounds),
+      rounds_since_pod: nonNeg(roundsSincePod),
+    })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`persistPodRatchet failed: ${error.message}`)
+}
+
+async function resetPodRatchet(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({ completed_pod_rounds: 0, rounds_since_pod: 0 })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`resetPodRatchet failed: ${error.message}`)
+}
+
+async function loadPodState(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { data, error } = await svc
+    .from('learner_pod_state')
+    .select('sentence_id, exposures')
+    .eq('learner_id', learnerId)
+    .eq('course_code', courseId)
+  if (error) throw new Error(`loadPodState failed: ${error.message}`)
+  return data ?? []
+}
+
+async function upsertPodState(svc: SupabaseClient, learnerId: string, courseId: string, rows: unknown) {
+  if (!Array.isArray(rows) || rows.length === 0) return
+  const safe: Array<{ learner_id: string; course_code: string; sentence_id: string; exposures: number }> = []
+  for (const r of rows) {
+    if (safe.length >= MAX_POD_STATE_ROWS_PER_CALL) break
+    const sentenceId = (r as any)?.sentence_id
+    if (typeof sentenceId !== 'string' || !sentenceId) continue
+    // learner_id / course_code from the client are IGNORED — always the
+    // server-resolved class learner and course, like every method here.
+    safe.push({
+      learner_id: learnerId,
+      course_code: courseId,
+      sentence_id: sentenceId,
+      exposures: Math.max(0, Math.floor(Number((r as any).exposures) || 0)),
+    })
+  }
+  if (safe.length === 0) return
+  const { error } = await svc
+    .from('learner_pod_state')
+    .upsert(safe, { onConflict: 'learner_id,course_code,sentence_id' })
+  if (error) throw new Error(`upsertPodState failed: ${error.message}`)
+}
+
+async function deletePodState(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('learner_pod_state')
+    .delete()
+    .eq('learner_id', learnerId)
+    .eq('course_code', courseId)
+  if (error) throw new Error(`deletePodState failed: ${error.message}`)
+}
+
+/**
+ * Instruction-exposure progress (`learner_meta_commentary_state`) for the
+ * CLASS account. The row is per LEARNER, not per course — instruction progress
+ * carries across every course a learner touches — so no course filter here.
+ */
+async function getMetaCommentaryState(svc: SupabaseClient, learnerId: string) {
+  const { data, error } = await svc
+    .from('learner_meta_commentary_state')
+    .select('instruction_index, instructions_complete')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  if (error) throw new Error(`getMetaCommentaryState failed: ${error.message}`)
+  return data ?? null
+}
+
+async function saveMetaCommentaryState(
+  svc: SupabaseClient, learnerId: string, instructionIndex: unknown, instructionsComplete: unknown,
+) {
+  const { error } = await svc
+    .from('learner_meta_commentary_state')
+    .upsert({
+      learner_id: learnerId,
+      instruction_index: Math.max(0, Math.floor(Number(instructionIndex) || 0)),
+      instructions_complete: !!instructionsComplete,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'learner_id' })
+  if (error) throw new Error(`saveMetaCommentaryState failed: ${error.message}`)
+}
+
+/**
+ * The belt sync's `last_practiced_at` touch (useBeltProgress.syncToRemote).
+ * Refused for a class like everything else, but MASKED — setLivePosition and
+ * updateEnrollmentActivity re-stamp the same column on every real class
+ * progress event — so this is routed for cleanliness, not to recover data.
+ * Deliberately narrower than the client upsert it replaces: it never CREATES
+ * an enrollment row (createEnrollment owns that), it only touches an existing
+ * one.
+ */
+async function touchLastPracticed(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({ last_practiced_at: new Date().toISOString() })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`touchLastPracticed failed: ${error.message}`)
+}
+
 async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, courseId: string, cycleIndex: number) {
   const { error } = await svc
     .from('course_enrollments')
@@ -583,6 +735,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'recordLegoPairings':
         await recordLegoPairings(svc, learnerId, courseId, a[0], a[1])
+        break
+      case 'getPodRatchet':
+        result = await getPodRatchet(svc, learnerId, courseId)
+        break
+      case 'persistPodRatchet':
+        await persistPodRatchet(svc, learnerId, courseId, a[0], a[1])
+        break
+      case 'resetPodRatchet':
+        await resetPodRatchet(svc, learnerId, courseId)
+        break
+      case 'loadPodState':
+        result = await loadPodState(svc, learnerId, courseId)
+        break
+      case 'upsertPodState':
+        await upsertPodState(svc, learnerId, courseId, a[0])
+        break
+      case 'deletePodState':
+        await deletePodState(svc, learnerId, courseId)
+        break
+      case 'getMetaCommentaryState':
+        result = await getMetaCommentaryState(svc, learnerId)
+        break
+      case 'saveMetaCommentaryState':
+        await saveMetaCommentaryState(svc, learnerId, a[0], a[1])
+        break
+      case 'touchLastPracticed':
+        await touchLastPracticed(svc, learnerId, courseId)
         break
       case 'updateCurrentCycle':
         await updateCurrentCycle(svc, learnerId, courseId, a[0])

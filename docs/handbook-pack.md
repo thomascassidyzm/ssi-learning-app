@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `40fd0f32c50a` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `fcc425771530` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -120,11 +120,11 @@ Moment: setting-up · section: getting-people-in · roles: admin, leader, school
 
 1. Open the group, school or organisation you want them to belong to.
 2. Tap **Invite a person**.
-3. Pick the role they arrive as.
+3. Pick the role they arrive as from the dropdown on the left of the form. Teacher sees their own classes, group leader sees everything below their node, learner just learns.
 4. Type their name and submit.
 5. Copy the minted link and send it.
 
-**Worth knowing.** Nothing is created until you submit. Every link you mint lands in **Ways in**.
+**Worth knowing.** Nothing is created until you submit. The place matters as much as the role: a group leader invited on a group leads that group and everything under it. Every link you mint lands in **Ways in**.
 
 ## Change how many seats you pay for
 
@@ -170,21 +170,6 @@ Moment: setting-up · section: courses-and-content · roles: school_admin, teach
 4. Finish creating the class.
 
 **Worth knowing.** The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact. A school on a free trial is held to the one language it signed up for until it subscribes.
-
-## Choose what role someone arrives as
-
-Moment: setting-up · section: getting-people-in · roles: admin, leader, school_admin · anchor: `invite-form-role` · in `packages/player-vue/src/components/admin/NodeActionBar.vue`
-
-**What it's for.** The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.
-
-**Where it is.** Any node's home page, **Invite a person**, the role dropdown on the left of the form.
-
-1. Tap **Invite a person** on the node you want them to belong to.
-2. Open the role dropdown.
-3. Pick the role they should hold in this place.
-4. Fill in their name and submit.
-
-**Worth knowing.** The place matters as much as the role — a group leader invited on a group leads that group and everything under it, so invite people on the node whose shape you actually mean.
 
 ## Choose which courses a school can use
 
@@ -826,21 +811,6 @@ Moment: every-lesson · section: running-classes · roles: school_admin, teacher
 
 **Worth knowing.** The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class.
 
-## Open the folded ledger
-
-Moment: something-wrong · section: getting-people-in · roles: admin, leader, school_admin · anchor: `ways-in-show-all` · in `packages/player-vue/src/components/admin/WaysInLedger.vue`
-
-**What it's for.** Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.
-
-**Where it is.** The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.
-
-1. Scroll to **Ways in** on the node's home page.
-2. Tap **Show all**.
-3. The ledger opens with its filter chips and every link's row.
-4. Tap **Show fewer** at the bottom to fold it back.
-
-**Worth knowing.** Nothing is ever hidden for good: every link is one tap away.
-
 ## Open your inbox
 
 Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-inbox-menu` · in `packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue`
@@ -1035,54 +1005,33 @@ Moment: setting-up · section: your-school · roles: admin · anchor: `verb-rena
 
 Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug` · in `packages/player-vue/src/components/SettingsScreen.vue`
 
-**What it's for.** Opening the report sheet when something in the app has gone wrong.
+**What it's for.** Telling us when the app misbehaves, with the details of your course and device attached for you.
 
-**Where it is.** **Settings**, under **Tools**, the **Report a bug** row.
+**Where it is.** **Settings**, under **Tools**, the **Report a bug** row, and the sheet it opens.
 
-1. Open **Settings**.
-2. Tap **Report a bug**.
-3. Describe what happened on the sheet that opens and tap **Send**.
+1. Open **Settings** and tap **Report a bug**.
+2. Write what happened in the **What happened?** box. **Send** stays off until you have written something, and the box holds 2,000 characters.
+3. Add a screenshot if you have one.
+4. Tap **Send**. It reads **Sending…** while it goes.
+5. Read **Got it, thank you** where the form was. The sheet closes on its own a moment later, or tap the line to close it now.
 
-**Worth knowing.** The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+**Worth knowing.** The row is there whether or not you are signed in. Tapping outside the sheet closes it without sending. That line is the whole reply: there is no ticket number and nobody replies through the app. If the screenshot cannot upload the note still goes without it, and if the note itself does not send the sheet says so and you can tap **Send** again.
 
 ## Report a bug from the dashboard
 
 Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug` · in `packages/player-vue/src/components/schools/shared/SchoolsTopBar.vue`
 
-**What it's for.** Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.
+**What it's for.** Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on, your school, your role and your account are attached for you.
 
-**Where it is.** **Report a bug** in the account menu at the top right, under your name.
+**Where it is.** **Report a bug** in the account menu at the top right, under your name, and the window it opens.
 
 1. Tap your name at the top right, then **Report a bug**.
-2. Write what happened, add a screenshot if you have one, and tap **Send**.
+2. Write what happened in the **What happened?** box, and what you expected if that helps. **Send** stays off until you have written something, and the box holds 2,000 characters.
+3. Add a screenshot if you have one.
+4. Tap **Send**. It reads **Sending…** while it goes.
+5. Read **Got it, thank you** at the top of the page.
 
-**Worth knowing.** Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
-
-## Say what happened
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-text` · in `packages/player-vue/src/components/ReportBugSheet.vue`
-
-**What it's for.** The box where you describe the problem in your own words.
-
-**Where it is.** The **What happened?** box on the report sheet.
-
-1. Tap into the box and write what you saw.
-2. Keep it under 2,000 characters. Send stays off until you have written something.
-
-**Worth knowing.** Your course and device details are added for you, so you only need to describe what went wrong.
-
-## Say what happened on the dashboard
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug-happened` · in `packages/player-vue/src/components/schools/ReportBugModal.vue`
-
-**What it's for.** The box where you describe the bug, or the thing you would like, in your own words.
-
-**Where it is.** The **What happened?** box on the Report a bug window that opens from the account menu.
-
-1. Tap into the box and write what you saw.
-2. Keep it under 2,000 characters. Send stays off until you have written something.
-
-**Worth knowing.** The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong.
+**Worth knowing.** That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
 
 ## See and download your funder numbers
 
@@ -1116,19 +1065,6 @@ Moment: setting-up · section: seeing-progress · roles: leader · anchor: `scho
 
 **Worth knowing.** The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current.
 
-## See that your report arrived
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-thanks` · in `packages/player-vue/src/components/ReportBugSheet.vue`
-
-**What it's for.** Confirming the note reached us.
-
-**Where it is.** The **Got it, thank you** line that replaces the form once it has sent.
-
-1. Tap **Send** on the report sheet.
-2. Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now.
-
-**Worth knowing.** That line is the whole reply. There is no ticket number and no message back.
-
 ## See what a funded organisation gives its learners
 
 Moment: setting-up · section: courses-and-content · roles: admin · anchor: `org-enrolment-courses` · in `packages/player-vue/src/components/schools/NodeEntitlementControl.vue` · has a walk
@@ -1157,32 +1093,6 @@ Moment: setting-up · section: your-school · roles: school_admin · anchor: `se
 4. Tap **Billing & invoices** to reach invoices, change the card, or cancel.
 
 **Worth knowing.** Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running.
-
-## Send a dashboard bug report
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `schools-report-bug-send` · in `packages/player-vue/src/components/schools/ReportBugModal.vue`
-
-**What it's for.** Sending your note, and your screenshot if you added one, to us.
-
-**Where it is.** The **Send** button at the foot of the Report a bug window.
-
-1. Write what happened, and what you expected if that helps.
-2. Tap **Send**. It reads **Sending…** while it goes.
-
-**Worth knowing.** A **Got it, thank you** line appears at the top of the page and that is the whole reply. Nobody answers through the app. If the screenshot cannot upload, the note still goes without it.
-
-## Send the report
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-send` · in `packages/player-vue/src/components/ReportBugSheet.vue`
-
-**What it's for.** Sending your note, and your screenshot if you added one, to us.
-
-**Where it is.** The **Send** button at the foot of the report sheet.
-
-1. Write what happened.
-2. Tap **Send**. It reads **Sending…** while it goes.
-
-**Worth knowing.** If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again.
 
 ## Set or change your password
 
@@ -1360,19 +1270,6 @@ Moment: setting-up · section: seeing-progress · roles: admin, school_admin, te
 4. Open it in whatever spreadsheet you use.
 
 **Worth knowing.** The export follows your filters, not the whole school — so a filtered list gives you a filtered file. Clear the filters first if you want everybody.
-
-## Tell us about something that went wrong
-
-Moment: something-wrong · section: your-own-account · roles: teacher, school_admin, leader · anchor: `report-bug-sheet` · in `packages/player-vue/src/components/ReportBugSheet.vue`
-
-**What it's for.** Sending us a note when the app misbehaves, with the details of your course and device attached for you.
-
-**Where it is.** The sheet that opens from **Report a bug** in **Settings**.
-
-1. Tap **Report a bug** in Settings.
-2. Write what happened, add a screenshot if you have one, and tap **Send**.
-
-**Worth knowing.** Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it.
 
 ## Tell us the year and department
 

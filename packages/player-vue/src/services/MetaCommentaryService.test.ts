@@ -397,3 +397,74 @@ describe('backfillInstructionState (spec for 20260724 gated migration)', () => {
     expect(r.instructionIndex).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// The class door (job #61 census → this job)
+//
+// A class's own learner_meta_commentary_state row is unwritable from the
+// browser: own-row RLS resolves to the driving STAFF member's row, so every
+// class save was refused and only console.warned. Live 2026-09-17 the 24 class
+// rows all carried one backfill timestamp and nothing organic ever landed — a
+// class replayed the science bits from the top every session.
+// ---------------------------------------------------------------------------
+describe('class route for instruction exposure', () => {
+  const CLASS_UUID = '99999999-8888-7777-6666-555555555555'
+
+  function fakeClassRoute(store: { instruction_index: number; instructions_complete: boolean } | null) {
+    const calls: string[] = []
+    return {
+      calls,
+      route: {
+        getMetaCommentaryState: async () => { calls.push('get'); return store },
+        saveMetaCommentaryState: async (i: number, complete: boolean) => {
+          calls.push('save')
+          store = { instruction_index: i, instructions_complete: complete }
+        },
+      },
+      read: () => store,
+    }
+  }
+
+  it('saves through the class door, never through the browser', async () => {
+    const supabaseStore = new Map<string, any>()
+    const rt = fakeClassRoute(null)
+    const svc = new MetaCommentaryService(
+      fakeProvider(3), CLASS_UUID, fakeSupabase(supabaseStore), () => rt.route,
+    )
+    await svc.initialize()
+    playUntilFire(svc)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(rt.calls).toContain('save')
+    expect(rt.read()!.instruction_index).toBeGreaterThan(0)
+    // The write RLS refuses must not have been attempted.
+    expect(supabaseStore.size).toBe(0)
+  })
+
+  it('adopts the class\'s server progress rather than replaying from zero', async () => {
+    const rt = fakeClassRoute({ instruction_index: 2, instructions_complete: false })
+    const svc = new MetaCommentaryService(fakeProvider(5), 'demo-learner', null, () => rt.route)
+    await svc.initialize()
+    svc.setLearnerId(CLASS_UUID)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(rt.calls).toContain('get')
+    expect(svc.getInstructionProgress().current).toBe(2)
+  })
+
+  it('works with NO supabase client at all — the class door is the only door', async () => {
+    const rt = fakeClassRoute({ instruction_index: 1, instructions_complete: false })
+    const svc = new MetaCommentaryService(fakeProvider(3), CLASS_UUID, null, () => rt.route)
+    await svc.initialize()
+    playUntilFire(svc)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(rt.calls).toContain('save')
+  })
+
+  it('WITHOUT a class route the individual path is unchanged', async () => {
+    const store = new Map<string, any>()
+    const svc = new MetaCommentaryService(fakeProvider(3), LEARNER_UUID, fakeSupabase(store))
+    await svc.initialize()
+    playUntilFire(svc)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(store.get(LEARNER_UUID)!.instruction_index).toBeGreaterThan(0)
+  })
+})

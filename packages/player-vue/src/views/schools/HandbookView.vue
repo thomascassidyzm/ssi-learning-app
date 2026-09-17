@@ -25,8 +25,18 @@
  * supersedes the 2026-09-07 reading of "Just what I can do" as never the
  * default: everything is still one tap away, and the tap is now the long way
  * round rather than the short one.
+ *
+ * SHUT, SEARCHABLE, AND YOU CAN ALWAYS GET BACK TO THE TOP (Tom on staging,
+ * 2026-09-17: "search shouldn't go to an expanded view of the clips; the
+ * clips themselves should be better grouped rather than being a whole long
+ * list; I can never get back to the top"). So: the search bar sticks to the
+ * top of the page once you have scrolled past it, with a chip per section
+ * under it that jumps to that section and opens it; every section is shut by
+ * default showing its count; typing NARROWS the rows without expanding any of
+ * them, because Show me stays on the closed row and reading the words is a
+ * deliberate tap; and a back-to-top button appears once you are down the page.
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useI18n } from '@/composables/useI18n'
@@ -55,6 +65,33 @@ const query = ref('')
 const theLot = ref(false)
 const mineOnly = computed(() => !theLot.value)
 const open = ref<Set<string>>(new Set())
+// SECTIONS ARE SHUT UNTIL YOU ASK (Tom on staging, 2026-09-17: "the clips
+// themselves should be better grouped rather than being a whole long list").
+// A closed section is one line and a count, so the whole page is six lines
+// and Your next three. A search opens every section that has a hit — the
+// reader asked for those rows — but never opens a ROW: filtering narrows the
+// list, and expanding is a deliberate tap on the row itself.
+const openGroups = ref<Set<string>>(new Set())
+const searching = computed(() => Boolean(query.value.trim()))
+function groupOpen(id: string): boolean {
+  return searching.value || openGroups.value.has(id)
+}
+function toggleGroup(id: string): void {
+  const next = new Set(openGroups.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  openGroups.value = next
+}
+function openGroup(id: string): void {
+  openGroups.value = new Set([...openGroups.value, id])
+}
+// A chip under the search jumps to its section and opens it.
+function jumpToGroup(id: string): void {
+  openGroup(id)
+  requestAnimationFrame(() => {
+    document.getElementById(`hb-sec-${id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  })
+}
 // The words under a clip entry, folded by default: "Written out" unfolds them.
 const prose = ref<Set<string>>(new Set())
 
@@ -69,11 +106,24 @@ const moments = computed(() => handbookMoments(visible.value))
 const groups = computed(() => (theLot.value ? sections.value : moments.value))
 
 
-// A search that finds something opens what it found — the reader asked.
-watch(matched, (list) => {
-  if (!query.value.trim()) return
-  open.value = new Set(list.map((e) => e.id))
+// WHICH SECTION AN ENTRY IS IN, under whichever grouping is showing — so a
+// jump from Your next three or a deep link opens the section the row lives in
+// rather than scrolling to a row inside a shut one.
+function groupOf(id: string): string | null {
+  return groups.value.find((g) => g.entries.some((e) => e.id === id))?.id ?? null
+}
+
+// BACK TO THE TOP. The schools surface scrolls inside .schools-container, not
+// the window, so both the offer and the scroll read that element.
+const scrolled = ref(false)
+let root: HTMLElement | null = null
+function onScroll(): void { scrolled.value = (root?.scrollTop ?? 0) > 320 }
+function toTop(): void { root?.scrollTo({ top: 0, behavior: 'smooth' }) }
+onMounted(() => {
+  root = document.querySelector('.schools-container')
+  root?.addEventListener('scroll', onScroll, { passive: true })
 })
+onBeforeUnmount(() => root?.removeEventListener('scroll', onScroll))
 
 function toggle(id: string): void {
   const next = new Set(open.value)
@@ -101,9 +151,12 @@ function toggleProse(id: string): void {
 function setScope(lot: boolean): void {
   if (theLot.value === lot) return
   theLot.value = lot
-  const ids = lot ? visible.value.map((e) => e.id) : []
-  open.value = new Set(ids)
-  prose.value = new Set(ids)
+  // Shut, both ways. Before the sections collapsed, this opened all 112 rows
+  // and unfolded every word — the long list Tom could never get back to the
+  // top of. The compendium is now the same page with more in it.
+  open.value = new Set()
+  prose.value = new Set()
+  openGroups.value = new Set()
 }
 
 // Deep link from a page's Handbook chip: /schools/handbook?entry=<id> opens
@@ -115,6 +168,8 @@ onMounted(() => {
   const entry = all.find((e) => e.id === wanted || e.section === wanted)
   if (!entry) return
   open.value = new Set([entry.id])
+  const g = groupOf(entry.id)
+  if (g) openGroup(g)
   requestAnimationFrame(() => {
     document.getElementById(`hb-${entry.id}`)?.scrollIntoView({ block: 'center' })
   })
@@ -203,6 +258,8 @@ async function showMe(entry: HandbookEntry): Promise<void> {
 // the real row keeps one copy of every capability on the page.
 function openFromNext(entry: HandbookEntry): void {
   open.value = new Set([...open.value, entry.id])
+  const g = groupOf(entry.id)
+  if (g) openGroup(g)
   requestAnimationFrame(() => {
     document.getElementById(`hb-${entry.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   })
@@ -243,6 +300,10 @@ onMounted(() => {
       </ol>
     </section>
 
+    <!-- The search sticks to the top of the scroller once you pass it, so it
+         is never something you have to scroll back up to find. The chips are
+         the sections, with their counts: one tap jumps to a section and opens
+         it. -->
     <div class="schools-card schools-card-pad handbook-controls">
       <input
         v-model="query"
@@ -251,6 +312,12 @@ onMounted(() => {
         :placeholder="t('schools.handbookPage.searchPlaceholder', 'Search the handbook')"
         :aria-label="t('schools.handbookPage.searchAriaLabel', 'Search the handbook')"
       />
+      <nav class="handbook-chips" :aria-label="t('schools.handbookPage.sectionsAriaLabel', 'Jump to a section')">
+        <button
+          v-for="g in groups" :key="g.id" type="button" class="handbook-chip"
+          :class="{ 'is-open': groupOpen(g.id) }" @click="jumpToGroup(g.id)"
+        >{{ g.title }}<span class="chip-count">{{ g.entries.length }}</span></button>
+      </nav>
       <div class="handbook-toggles" role="group" :aria-label="t('schools.handbookPage.scopeAriaLabel', 'Which capabilities to show')">
         <button
           type="button"
@@ -273,10 +340,14 @@ onMounted(() => {
       {{ t('schools.handbookPage.emptyState', 'Nothing in the handbook matches that yet.') }}
     </p>
 
-    <section v-for="s in groups" :key="s.id" class="schools-card schools-card-pad handbook-section">
-      <h2 class="arsenal section-title">{{ s.title }}</h2>
+    <section v-for="s in groups" :id="`hb-sec-${s.id}`" :key="s.id" class="schools-card schools-card-pad handbook-section">
+      <button type="button" class="section-head" :aria-expanded="groupOpen(s.id)" @click="toggleGroup(s.id)">
+        <h2 class="arsenal section-title">{{ s.title }}</h2>
+        <span class="section-count">{{ s.entries.length }}</span>
+        <span class="section-chev" aria-hidden="true">{{ groupOpen(s.id) ? '−' : '+' }}</span>
+      </button>
       <p v-if="'blurb' in s" class="section-blurb">{{ s.blurb }}</p>
-      <div class="entry-list">
+      <div v-if="groupOpen(s.id)" class="entry-list">
         <article v-for="e in s.entries" :id="`hb-${e.id}`" :key="e.id" class="entry" :class="{ 'is-open': open.has(e.id) }">
           <button type="button" class="entry-head" :aria-expanded="open.has(e.id)" @click="toggle(e.id)">
             <span class="entry-title">{{ e.title }}</span>
@@ -331,6 +402,11 @@ onMounted(() => {
         </article>
       </div>
     </section>
+
+    <!-- Back to the top, once you are down the page. -->
+    <button v-if="scrolled" type="button" class="handbook-totop" @click="toTop">
+      <span aria-hidden="true">↑</span> {{ t('schools.handbookPage.backToTop', 'Back to the top') }}
+    </button>
   </main>
 </template>
 
@@ -344,7 +420,45 @@ onMounted(() => {
 .page-title { margin: 0; }
 .handbook-lede { margin: 0; color: var(--schools-fg-2, #555); font-size: var(--text-sm); }
 
-.handbook-controls { display: flex; flex-direction: column; gap: var(--space-3); }
+.handbook-controls {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  /* The schools surface scrolls inside .schools-container, so sticky here
+     pins to the top of that scroller once the reader passes it. */
+  position: sticky; top: 0; z-index: 20;
+}
+.handbook-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.handbook-chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 5px 11px; border-radius: 999px; font: inherit; font-size: var(--text-xs);
+  border: 1px solid var(--schools-border-strong, rgba(15,18,18,.18));
+  background: var(--schools-card, #fff); color: var(--schools-fg-2, #555);
+}
+.handbook-chip.is-open { border-color: var(--schools-red, #DB1E17); color: var(--schools-red, #DB1E17); }
+.chip-count { color: var(--schools-fg-3, #8A8078); font-variant-numeric: tabular-nums; }
+.handbook-chip.is-open .chip-count { color: inherit; }
+/* PHONE (390px): six chips wrapping turns the sticky bar into a third of the
+   screen, so they run in one scrolling row instead. */
+@media (max-width: 559px) {
+  .handbook-controls { gap: var(--space-2); padding-top: var(--space-3); padding-bottom: var(--space-3); }
+  .handbook-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 calc(var(--space-3) * -1); padding: 0 var(--space-3); }
+  .handbook-chips::-webkit-scrollbar { display: none; }
+  .handbook-chip { flex: none; }
+}
+.section-head {
+  width: 100%; display: flex; align-items: center; gap: var(--space-3);
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left; font: inherit;
+}
+.section-count {
+  flex: 1; color: var(--schools-fg-3, #8A8078); font-size: var(--text-xs); font-variant-numeric: tabular-nums;
+}
+.section-chev { color: var(--schools-fg-3, #6b6b6b); font-size: var(--text-sm); width: 1em; text-align: center; }
+.handbook-totop {
+  position: sticky; bottom: var(--space-3); align-self: center; cursor: pointer;
+  padding: 8px 16px; border-radius: 999px; font: inherit; font-size: var(--text-xs);
+  border: 1px solid var(--schools-border-strong, rgba(15,18,18,.18));
+  background: var(--schools-card, #fff); color: var(--schools-fg, #0F1212);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
 .handbook-search {
   width: 100%; padding: 10px 12px; font: inherit;
   border: 1px solid var(--schools-border-strong, rgba(15,18,18,.18)); border-radius: 10px;
