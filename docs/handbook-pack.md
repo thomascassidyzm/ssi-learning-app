@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `f34f971d6e86` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `c54ddd71af17` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -930,17 +930,17 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 
 Moment: every-lesson · section: seeing-progress · roles: admin, leader, school_admin, teacher · anchor: `insights-window` · in `packages/player-vue/src/insight/NodeRateEngine.vue` · has a walk
 
-**What it's for.** Reading a week of learning at this level — how much time was spent, how much new ground was covered, and how that sits beside the average you choose. One card, two columns, three numbers.
+**What it's for.** Reading the learning at this level — how much time has been spent, how much ground has been covered, and, for a week, how that sits beside the average you choose. One card, three numbers.
 
 **Where it is.** The node's home page, **See insights**; for a teacher, **Analytics**.
 
-1. Open the page. The card is the first thing on it.
-2. Switch **This week** and **Last week** if you need to. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two, because a school works in weeks.
-3. Read the three numbers down the left, with the average beside each one. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.
+1. Open the page. The card is the first thing on it, and it opens on **All time**: everything since this level first pressed play.
+2. Switch to **This week** or **Last week** for a week instead. This week runs from Monday morning to right now; last week is the Monday to Sunday just gone. Those are the only two weeks, because a school works in weeks.
+3. Read the three numbers down the left, with the average beside each one on a week. **All time** has no second column: totals stand on their own. **Play as class** is time on the class's own account, the lesson from the front. **Students on their own** is time on their own accounts. **Total learning time** is those two added together. **New phrases** is how much new ground was reached for the first time that week.
 4. Use **Compare to** to choose whose average sits in the second column. It walks up from the smallest group your class is part of — a year, a department, the school, the district, and on up — and opens on the smallest one that holds more than one class.
 5. Under the numbers, the last twelve weeks as bars: one bar a week for this level, the newest one solid, with the average drawn across them as a faint line. No axes; it is there to be glanced at.
 
-**Worth knowing.** Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest.
+**Worth knowing.** Nothing here is a score, a rank or a percentage — two columns of plain numbers, and you do the comparing. Totals are never compared at all: a whole school's history has nothing fair to sit beside. A class that was set up and has never played is in no average anywhere. The average counts every class in that scope that has started this course, including the one you are looking at, so it reads the same number whichever class you open it from. The line under the second column says how many. A week spent going back over old ground reads zero new phrases and a healthy pile of minutes, which is exactly what that week was; tap **why?** on the card for the rest.
 
 ## Remove a student from a class
 
@@ -1373,10 +1373,10 @@ Moment: every-lesson · section: seeing-progress · roles: teacher, school_admin
 
 **What it's for.** Two totals for one class since the day it first pressed play: all its practice time, and how many phrases it has reached. Totals, on their own, with nothing to compare them to.
 
-**Where it is.** The last line of the class card, under the week.
+**Where it is.** The last line of the class card, under the week — on **This week** and **Last week** only. On **All time**, which is what the page opens on, the card itself is those totals and the line is not repeated.
 
 1. Open the class's insights.
-2. Read the line under the week: since when, how long, how far.
+2. Switch to a week, and read the line under it: since when, how long, how far.
 
 **Worth knowing.** This is never an average and never a rate. A class that has not started yet says so instead of showing zeros.
 
@@ -1616,16 +1616,16 @@ Moment: setting-up · section: seeing-progress · roles: admin · anchor: `popul
 
 Moment: setting-up · section: seeing-progress · roles: admin, leader, school_admin · anchor: `insights-rate-widget` · in `packages/player-vue/src/insight/NodeRateEngine.vue`
 
-**What it's for.** A school plans and reviews in weeks, so the insights page counts in weeks too — Monday morning to Sunday night, on your own clock. A rolling "last seven days" straddles two different weeks of teaching and cannot be talked about in a staff meeting.
+**What it's for.** The page opens on the totals — everything since this level started — because a week on its own is lumpy: a class that does its Welsh on Thursday and Friday reads as idle on a Wednesday. When you do want a week, a school plans and reviews in weeks, so the two week options are real weeks — Monday morning to Sunday night, on your own clock. A rolling "last seven days" straddles two different weeks of teaching and cannot be talked about in a staff meeting.
 
 **Where it is.** The card at the top of any level's insights page.
 
 1. Open a level and tap **See insights**.
-2. The card puts this level's week beside the average's same week, as two columns of plain numbers, with twelve weekly bars under them and the average as a faint line across the bars.
-3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the page opens on last week, because the week in progress is barely a lesson old.
+2. On **All time** the card gives this level's totals on their own, with the date it started beside them and twelve weekly bars under them.
+3. On **This week** or **Last week** the card puts this level's week beside the average's same week, as two columns of plain numbers, with the average drawn as a faint line across the bars.
 4. Tap **why?** on the card for what the numbers count and why minutes and new phrases move apart.
 
-**Worth knowing.** The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a rank, a target or a streak. A quiet week is allowed to read as a quiet week. Under the card, a class also shows its totals since it started — time practised and phrases reached — on their own, with nothing to compare them to.
+**Worth knowing.** The week runs Monday 00:00 to Sunday night on UK time, so a Monday-morning lesson belongs to the week it was taught in. Nothing here is a score, a rank, a target or a streak. A quiet week is allowed to read as a quiet week. On a week, a class also shows its totals since it started on a line under the card; on **All time** that line is gone, because the card is already saying it.
 
 ## Work through setup at your own pace
 

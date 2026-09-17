@@ -28,19 +28,19 @@
     },
     {
       "anchor": "insights-window",
-      "say": "**This week** or **Last week** — the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.",
+      "say": "**All time** is where the page opens — your class's totals since the day it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.",
       "advance": {
         "on": "next"
       },
-      "checked": "0f907df5.3dfa2618"
+      "checked": "40c97618.ee93fe92"
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** decides whose average sits beside your class. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.",
+      "say": "**Compare to** decides whose average sits beside your class, and it appears once you pick a week — the totals stand on their own. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.",
       "advance": {
         "on": "next"
       },
-      "checked": "dcff4a14.4eb6f2b4"
+      "checked": "0d9945c9.29142e30"
     },
     {
       "anchor": "insights-rate-widget",
@@ -52,7 +52,7 @@
     },
     {
       "anchor": "insights-all-time",
-      "say": "The last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. Totals only — nothing here is compared with anyone.",
+      "say": "On a week, the last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. On **All time** the card is already saying exactly that, so the line is not repeated. Totals only — nothing here is compared with anyone.",
       "advance": {
         "on": "next"
       },

@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `f34f971d6e86` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `c54ddd71af17` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -393,8 +393,8 @@ Personas: admin · place: intel
 
 Personas: admin, leader, school_admin · place: node-insights
 
-1. [`insights-window` · next] **This week** or **Last week** — the school week, Monday to Sunday, and those are the only two. The card is the first thing on the page; this is the one thing you switch.
-2. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.
+1. [`insights-window` · next] **All time** is where the page opens — everything this level has done since it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday, and those are the only two weeks. The card is the first thing on the page; this is the one thing you switch.
+2. [`insights-compare` · next] **Compare to** decides whose average sits beside yours, and it appears once you pick a week — totals have nothing beside them on purpose. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.
 3. [`insights-rate-widget` · next] One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.
 4. [`insights-classes` · next] Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.
 5. [`insights-more` · next] **More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview.
@@ -717,10 +717,10 @@ Personas: teacher, school_admin, leader · place: player-settings
 Personas: teacher · place: analytics
 
 1. [`teacher-insights-class` · next] **Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.
-2. [`insights-window` · next] **This week** or **Last week** — the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.
-3. [`insights-compare` · next] **Compare to** decides whose average sits beside your class. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.
+2. [`insights-window` · next] **All time** is where the page opens — your class's totals since the day it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.
+3. [`insights-compare` · next] **Compare to** decides whose average sits beside your class, and it appears once you pick a week — the totals stand on their own. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.
 4. [`insights-rate-widget` · next] Three numbers with the average beside each: time playing as a class, time students put in on their own, those two added together, and the new phrases reached this week. No score, no rank — you do the comparing. The thin line under the total is the last twelve weeks, and the line under the card is the class's totals since it started.
-5. [`insights-all-time` · next] The last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. Totals only — nothing here is compared with anyone.
+5. [`insights-all-time` · next] On a week, the last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. On **All time** the card is already saying exactly that, so the line is not repeated. Totals only — nothing here is compared with anyone.
 6. [`insights-class-tags` · next] Under the card, the year and department this class belongs to, guessed from its name and its course. A dotted underline is a guess; tap **confirm** if it is right or **change** to fix it. Once confirmed, **Compare to** can offer the year's own average.
    - terminal: A class with nothing comparable yet still sees its own week and its totals; only the second column is missing, and the card says why.
 

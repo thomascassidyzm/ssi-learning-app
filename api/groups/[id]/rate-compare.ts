@@ -98,7 +98,6 @@ import {
 } from '../../_utils/rateCompare'
 import {
   DEFAULT_TIME_ZONE,
-  defaultWeekWindow,
   fetchDaysForWeeks,
   weekBuckets,
   weekLabel,
@@ -118,12 +117,18 @@ const MAX_COHORT_IDS = 2000
  */
 const PUPIL_CLASS_CAP = 400
 
-// ─── Windows: THE SCHOOL WEEK, and only the school week (Tom, 2026-09-16 —
-// "today / 7 days / 30 days is the wrong primitive for schools who work in
-// week-units"). Exactly two: This week (Monday 00:00 local to now) and Last
-// week (the previous complete Monday–Sunday). No sliding windows, and no
-// all-time selector — all-time totals already live in the Course Journey
-// card, and two places telling the same total is how they disagree.
+// ─── Windows: ALL TIME, and THE SCHOOL WEEK (Tom, 2026-09-16 — "today /
+// 7 days / 30 days is the wrong primitive for schools who work in week-units"
+// — and 2026-09-17, which widened the Overview's ruling to here: "it must
+// ALSO offer All time, and All time is the DEFAULT"). Exactly three: All time
+// (first play to now), This week (Monday 00:00 local to now) and Last week
+// (the previous complete Monday–Sunday). No sliding windows.
+//
+// ALL TIME IS TOTALS ONLY (Tom, 2026-09-16, unchanged by the widening): "'All
+// time' returns as a TOTAL, never an average: since the class started, total
+// practice time and phrases reached, shown on their own with no comparison
+// figure". So the card's second column is absent under it, the faint average
+// line is absent from the bars, and the response says `totalsOnly`.
 // Monday-anchoring and the DST-safe boundary maths are in _utils/schoolWeek.ts.
 interface WindowConfig {
   value: string
@@ -136,15 +141,24 @@ interface WindowConfig {
   weekId?: WeekWindowId
 }
 const TREND_WEEKS = 12
+const ALL_TIME_WINDOW = 'all_time'
+/**
+ * How far back "all time" reads. The oldest play row in production is
+ * 2026-04-20, so this is years of headroom; it exists so a corrupt future
+ * timestamp cannot turn one page load into a full-table scan.
+ */
+const ALL_TIME_MAX_DAYS = 1500
 const WINDOW_OPTIONS = [
+  { value: ALL_TIME_WINDOW, label: 'All time' },
   { value: 'this_week', label: 'This week' },
   { value: 'last_week', label: 'Last week' },
 ]
 // Every old chip value lives in somebody's bookmark. They all mean "recent
-// practice", so they land on a week rather than 404ing.
+// practice", so they land on a week rather than 404ing — except `all`, which
+// meant all time before job #989 removed it and means it again.
 const WINDOW_ALIASES: Record<string, string> = {
   week: 'this_week', today: 'this_week', '7d': 'this_week',
-  '4w': 'last_week', '30d': 'this_week', term: 'this_week', all: 'this_week',
+  '4w': 'last_week', '30d': 'this_week', term: 'this_week', all: ALL_TIME_WINDOW,
 }
 // Legacy trend shape (unchanged) for callers that pass ?days= without ?window=.
 const LEGACY_TREND_WEEKS = 8
@@ -299,13 +313,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   let windowConfig: WindowConfig
   let appliedWindowValue: string | null
   let weekWindowId: WeekWindowId | null = null
-  if (requestedWindow === 'this_week' || requestedWindow === 'last_week') {
+  // ALL TIME IS THE DEFAULT (Tom, 2026-09-17). The Monday/Tuesday rule that
+  // used to pick which week the page opened on (`defaultWeekWindow`) no
+  // longer decides anything here — a week is now something a reader asks
+  // for by name — so it is no longer read. It stays in _utils/schoolWeek.ts
+  // with its tests; nothing else about the school week changed.
+  let allTimeMode = false
+  if (requestedWindow === ALL_TIME_WINDOW) {
+    allTimeMode = true
+  } else if (requestedWindow === 'this_week' || requestedWindow === 'last_week') {
     weekWindowId = requestedWindow
   } else if (requestedDaysRaw === null) {
-    weekWindowId = defaultWeekWindow(nowMs, timeZone)
+    allTimeMode = true
   }
   let currentWeek = { startMs: 0, endMs: 0 }
-  if (weekWindowId) {
+  if (allTimeMode) {
+    // The whole history, as one range. `weekNumbersForClassIds` and the
+    // per-class rows below take these bounds exactly as they take a week's,
+    // so a total and a week are the same function over a different range —
+    // never a second aggregation.
+    currentWeek = { startMs: 0, endMs: nowMs }
+    windowConfig = {
+      value: ALL_TIME_WINDOW,
+      label: 'All time',
+      days: ALL_TIME_MAX_DAYS,
+      periods: TREND_WEEKS,
+      periodDays: 7,
+      trendLabel: `Weekly · last ${TREND_WEEKS} weeks`,
+    }
+    appliedWindowValue = ALL_TIME_WINDOW
+  } else if (weekWindowId) {
     currentWeek = weekRange(weekWindowId, nowMs, timeZone)
     windowConfig = {
       value: weekWindowId,
@@ -330,9 +367,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const days = windowConfig.days
   // Week windows fetch the whole 12-week trend span, Monday-anchored, so the
   // oldest bar is a real week rather than a truncated one.
-  const fetchDays = weekWindowId
-    ? fetchDaysForWeeks(nowMs, timeZone, TREND_WEEKS)
-    : Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
+  // A week window fetches the whole 12-week trend span, Monday-anchored, so
+  // the oldest bar is a real week rather than a truncated one. All time
+  // fetches the lot — measured live 2026-09-17 against production: the whole
+  // history of the largest real school, 73 learner ids over 34 classes and
+  // 4,727 play rows, reads in 712 ms, and the legacy analytics RPC answers a
+  // 1,500-day request in 83 ms because `class_sessions` has been dead since
+  // 2026-08-19. It is also a NARROWER read than a week's: all time shows no
+  // comparison, so only the entity's own classes are read, never the cohort's.
+  const fetchDays = allTimeMode
+    ? ALL_TIME_MAX_DAYS
+    : weekWindowId
+      ? fetchDaysForWeeks(nowMs, timeZone, TREND_WEEKS)
+      : Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
 
   try {
     // ─── One opening wave: auth + every :id interpretation + the forest map.
@@ -577,7 +624,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // count itself), 'minutes' is one of the three already, and
     // 'active_classes' never applied at class level. The dropdown goes rather
     // than standing there offering the same number three ways.
-    const availableMeasures = weekWindowId
+    const availableMeasures = (weekWindowId || allTimeMode)
       ? []
       : MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
     const requestedMeasureRaw = String(req.query.measure || '').trim()
@@ -855,10 +902,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // not started by the end of the selected window still owns bars in the
     // weeks after it did start, and those bars are drawn from these rows.
     // ONE read, for the entity and the rung that won — never the whole tree.
-    const allClassIds = [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+    // All time draws no comparison, so it reads the ENTITY's classes only —
+    // the whole history of one school rather than twelve weeks of every peer.
+    const allClassIds = (allTimeMode
+      ? [...new Set(entityClassIds)]
+      : [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])]
+    ).slice(0, MAX_COHORT_IDS)
     const { data: rawRows, error } = await loadScopedSessionRows(
       svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
-      { includePupils: Boolean(weekWindowId) && allClassIds.length <= PUPIL_CLASS_CAP })
+      { includePupils: Boolean(weekWindowId || allTimeMode) && allClassIds.length <= PUPIL_CLASS_CAP })
     if (error) {
       console.error('[node-rate-compare] session rows error:', error.message)
       res.status(500).json({ error: 'Failed to load rate data' })
@@ -905,14 +957,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cohortNoun = (n: number): string =>
       classRow ? (n === 1 ? 'class' : 'classes') : (n === 1 ? 'school' : 'schools')
 
+    // Since when the entity has been playing at all — the range line under
+    // "All time", and the honest answer to "totals since when?".
+    let entityFirstPlayMs: number | null = null
+    for (const id of entityClassIds) {
+      const t = firstPlay.get(id)
+      if (typeof t === 'number' && (entityFirstPlayMs === null || t < entityFirstPlayMs)) entityFirstPlayMs = t
+    }
+
     let weekBlock: Record<string, unknown> | null = null
-    if (weekWindowId) {
+    if (weekWindowId || allTimeMode) {
       const buckets = weekBuckets(nowMs, timeZone, TREND_WEEKS)
       const entityWeek = weekNumbersForClassIds(rows, entityClassIds, currentWeek.startMs, currentWeek.endMs)
       // The cohort, evaluated at the end of the window for the card and
       // AGAIN at the end of each bucket for the bars — one function, three
-      // callers, so a bar and the number above it can never disagree.
-      const windowCohort = cohortUnitsAt(currentWeek.endMs)
+      // callers, so a bar and the number above it can never disagree. Under
+      // ALL TIME there is no cohort at all: totals stand on their own.
+      const windowCohort = allTimeMode ? [] : cohortUnitsAt(currentWeek.endMs)
       const cohortWeek = meanWeekNumbers(
         windowCohort.map((u) => weekNumbersForClassIds(rows, u.classIds, currentWeek.startMs, currentWeek.endMs)))
       // The entity's OWN series: the sum of ITS classes that had started by
@@ -929,19 +990,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // and the cohort bar is the mean of those, never the mean of bare
       // classes. Mean-of-schools and mean-of-classes are different numbers
       // whenever schools differ in size, and the caption says schools.
-      const cohortBars = meanBars(cohortUnits.map((u) =>
-        weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      const cohortBars = allTimeMode
+        ? buckets.map(() => null)
+        : meanBars(cohortUnits.map((u) =>
+          weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
       // The phrases twin of both series (job #26, the display lab): same
       // buckets, same cohortFor, so a phrases bar and the newPhrases number
       // above it are one function. Additive — the minutes fields are untouched.
       const entityPhrasesBars = weeklyPhrasesBars(rows, entityClassIds, buckets,
         (end) => cohortFor(entityClassIds, firstPlay, end))
-      const cohortPhrasesBars = meanBars(cohortUnits.map((u) =>
-        weeklyPhrasesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      const cohortPhrasesBars = allTimeMode
+        ? buckets.map(() => null)
+        : meanBars(cohortUnits.map((u) =>
+          weeklyPhrasesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
       weekBlock = {
-        window: weekWindowId,
+        window: appliedWindowValue,
         label: windowConfig.label,
-        rangeLabel: weekLabel(currentWeek, timeZone),
+        rangeLabel: allTimeMode
+          ? (entityFirstPlayMs === null
+            ? 'Not started yet'
+            : `Since ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(new Date(entityFirstPlayMs))}`)
+          : weekLabel(currentWeek, timeZone),
         timeZone,
         entity: {
           label: nodeMeta.name,
@@ -991,7 +1060,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // leader's page: the mean over THIS node's own classes, week by week,
         // so a class reads against the level it actually sits in. Sent once,
         // not once per class — 27 identical copies is payload, not meaning.
-        classesNormal: classRow ? undefined : meanBars(entityAllClasses
+        // Absent under All time: a "normal" line is an average, and All time
+        // carries no comparison figure of any kind.
+        classesNormal: classRow || allTimeMode ? undefined : meanBars(entityAllClasses
           .filter((c) => c.course_code === courseCode)
           .map((c) => weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)))),
         classes: classRow ? undefined : entityAllClasses
@@ -1027,6 +1098,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             return at - bt || a.name.localeCompare(b.name)
           }),
       }
+    }
+
+    // ─── ALL TIME ENDS HERE — totals, and nothing to measure them against
+    // (Tom, 2026-09-16). Everything below this line computes the entity's
+    // measure against a cohort, and under All time no cohort was read, so
+    // running it would put a comparison in the payload that no data backs.
+    // `totalsOnly` names the state rather than borrowing `insufficientData`,
+    // which would make the page say "not enough data to compare fairly yet"
+    // about a window that is not trying to compare. ───
+    if (allTimeMode) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({
+        ...baseBody,
+        totalsOnly: true,
+        week: weekBlock,
+        // The all-time LINE under the week card would repeat the card's own
+        // numbers here, so it is absent: the card IS the totals.
+        allTime: null,
+        startedAt: entityFirstPlayMs === null ? null : new Date(entityFirstPlayMs).toISOString(),
+        levelNoun: nodeMeta.kind === 'class' ? 'class' : (nodeMeta.label || 'group'),
+        tags: classTags,
+      })
+      return
     }
 
     // ─── ALL TIME, totals only (Tom, 2026-09-16: "'All time' returns as a
