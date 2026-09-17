@@ -6141,7 +6141,7 @@ CREATE FUNCTION public.record_lego_pairings_backfill(
 ) RETURNS void
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF _pairs IS NULL OR array_length(_pairs, 1) IS NULL OR _tag IS NULL THEN
