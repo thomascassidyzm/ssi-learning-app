@@ -62,7 +62,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { resolveVadCaller, resolveVadScope, isDenied } from '../_utils/vadVisibility'
 import { fetchProsodyAggs, type ProsodyAgg } from '../_utils/vadProsody'
-import { summariseVad, type VadSummary, type MetricRow } from '../../packages/player-vue/src/insight/data/vadUptake'
+// NOT from packages/player-vue: that package declares "type": "module", and a
+// serverless function that traces a file inside it dies with
+// FUNCTION_INVOCATION_FAILED on every request. Core is the shared home a
+// dozen other routes already import from (job #32, seen live on staging).
+import { summariseVad, type VadSummary, type MetricRow } from '../../packages/core/src/audio/vadSummary'
 import { chunk } from '../_utils/schoolScope'
 import { applyCors } from '../_utils/cors'
 

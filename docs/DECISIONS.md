@@ -1,3 +1,34 @@
+## 2026-09-16 — Insights receives no pupil, and no panel answers a different question from the card (job #32, fixing up #22)
+
+**What the cold cross-family check found, and what held.** All four claims held against the live
+code and against staging as the Pune leader. The voice panel's endpoint delivered 86 learner names
+and 537 learner-keyed metric rows to a leader's browser; so, unreported, did the org-questions
+endpoint, with 90 named pupils. The expanded panels read a rolling seven days across every course
+while the card read one Monday week and one course. The why? text said "the mean of every class"
+above a denominator of three schools. "Classes, furthest first" dates from 2026-09-10, six days
+before the rebuild, and appears nowhere in the rebuild's brief.
+
+**The privacy fix is at the boundary, not in the template.** Tom's ruling of 16:31Z is that nothing
+in Insights names a pupil; a row that is hidden after it arrives is still a row that arrived. So
+the Insights page calls `GET /api/org/vad?aggregate=1`, which answers with the summary alone — the
+same `summariseVad` the admin board's client runs, so there is one analysis behind two doors — and
+`GET /api/org/intel?questions=journey`, which never reads the people ledger at all. The admin board
+keeps its named read. Both are pinned by tests that assert no name and no learner id appears
+anywhere in the serialised body, seen red on the pre-fix handlers.
+
+**Two of the three org questions were the page asked twice.** Practising duplicated the card and
+Quiet duplicated the class list, both measured off a four-week diary read rather than the card's
+week rows — which is exactly why the panel could say no practice in fourteen days under a card
+showing recorded minutes: the demo school's practice lives in seeded `class_sessions` rows that
+`rate-compare` unions in and `classPractice` does not. Reconciling two measurement pipelines would
+have left two definitions of a week; removing the duplicate leaves one. The journey question
+remains, narrowed to the card's course, and an organisation with no classes still gets the people
+question, because there is no card there to disagree with.
+
+**No ordering by progress.** The furthest-first table is the league table the rank pills were cut
+for. The funnel answers where classes stop without ranking anybody, and the page's own class list
+is ordered quietest first, which is care rather than competition.
+
 ## 2026-09-16 — Both held fixes re-land, and the ceiling only ratchets down by hand (job #998)
 
 **Tom's ruling (11:59Z).** GO on both fixes held on 2026-09-14 for a diagnosis first: the player
