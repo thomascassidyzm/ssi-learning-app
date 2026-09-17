@@ -26,6 +26,7 @@ import { resolveVisibleScope } from '../../_utils/schoolScope'
 import { applyCors } from '../../_utils/cors'
 import { inAppSecondsByLearner, secondsToMinutesUp } from '../../_utils/inAppTime'
 import { buildBrain, chooseAxis, phraseIdFromCycleId, type PlayRow, type PhraseRow } from '../../_utils/classBrain'
+import { beltProgress, type BeltProgress } from '../../_utils/beltBands'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -159,6 +160,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       minutes: 0,
       reachedSeed: 0,
       reachedSeedText: null as { t: string; k: string } | null,
+      reachedLegoText: null as { t: string; k: string } | null,
+      beltProgress: null as BeltProgress | null,
       seedsTotal: 0,
       windowDays: BRAIN_WINDOW_DAYS,
     }
@@ -205,6 +208,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // chunk to just past its frontier. The rules are in chooseAxis.
     const { axisFrom, axisTo, reachOrd } = chooseAxis(legos.length, brain.events, MAX_AXIS)
     const reachedSeed = reachOrd >= 0 ? (legos[reachOrd]?.seed ?? 0) : 0
+    // THE LAST NEW PHRASE, AND HOW FAR THROUGH THE BELT IT IS (Tom,
+    // 2026-09-17). The tile speaks the phrase itself rather than a seed
+    // ordinal, and the belt figure is counted here because only the server has
+    // the whole course: the card is sent the stretch the class has reached, so
+    // it cannot see what the band still holds ahead of the frontier.
+    const reached = reachOrd >= 0 ? legos[reachOrd] : null
+    const reachedLegoText = reached ? { t: reached.t, k: reached.k } : null
+    const belt = beltProgress(legos.map((l) => l.seed), reachOrd)
 
     let minutes = 0
     try {
@@ -243,6 +254,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       minutes,
       reachedSeed,
       reachedSeedText,
+      reachedLegoText,
+      beltProgress: belt,
       seedsTotal: legos.length ? legos[legos.length - 1].seed : 0,
       windowDays: BRAIN_WINDOW_DAYS,
     })
