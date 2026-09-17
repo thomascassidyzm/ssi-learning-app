@@ -457,7 +457,7 @@ describe('NodeHomeView — one grammar at every level', () => {
     // The phrase-by-count list — what the class actually said — sits in the card.
     expect(text).toContain('quiero')
     // Journey rides the CLASS's own play-as-class position (LEGO units).
-    expect(text).toContain('The class has travelled 238 of 320 phrases together')
+    expect(text).toContain('The class has travelled 238 of 320 new phrases together')
     // Belt comes from the class's play position (seed 60 → green → Blue next).
     expect(text).toContain('Blue belt')
     // Students remain below, in the same flat row grammar (the bonus layer).
