@@ -243,7 +243,7 @@ ${phraseTable(phrasesThisWeek, 'ph-week')}<p class="ask">Does this look wrong?</
 
 const journeyBarCard = `<div class="schools-card class-card"><span class="kicker-red">Course journey</span>
 <div><div class="journey-head"><span>Course journey</span><span>${journeyDone}/${D.legosTotal}</span></div><div class="journey-track"><div class="journey-fill" style="width:${(100 * journeyDone / D.legosTotal).toFixed(1)}%"></div></div></div>
-<p class="class-card-note">The class has travelled ${journeyDone} of ${D.legosTotal} phrases together.<br>${nextBelt ? `${nextBelt[1] - seedReached} more to ${nextBelt[0]} belt.` : 'Reached Black belt.'}</p></div>`
+<p class="class-card-note">The class has travelled ${journeyDone} of ${D.legosTotal} new phrases together.<br>${nextBelt ? `${nextBelt[1] - seedReached} more to ${nextBelt[0]} belt.` : 'Reached Black belt.'}</p></div>`
 
 const brainJourneyCard = `<div class="schools-card class-card wide"><span class="kicker-red">Course journey</span>
 <div class="brain" id="brain"></div>${BRAIN_CAP}${STRIP}
