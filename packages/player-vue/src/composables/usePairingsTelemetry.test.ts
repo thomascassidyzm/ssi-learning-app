@@ -4,11 +4,11 @@ import { mount } from '@vue/test-utils'
 import { usePairingsTelemetry } from './usePairingsTelemetry'
 import { useUserRole } from '@/composables/useUserRole'
 
-function host() {
+function host(classRoute?: any) {
   const rpc = vi.fn(async (_fn: string, _args?: Record<string, unknown>) => ({ error: null }))
   let tel!: ReturnType<typeof usePairingsTelemetry>
   const Host = defineComponent({
-    setup() { tel = usePairingsTelemetry(); return () => h('div') },
+    setup() { tel = usePairingsTelemetry(classRoute); return () => h('div') },
   })
   mount(Host, { global: { provide: { supabase: ref({ rpc }) } } })
   return { rpc, tel }
@@ -53,5 +53,34 @@ describe('usePairingsTelemetry under view-as', () => {
     }
     await tel.flush()
     expect(rpc).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * job #52 — while playing AS A CLASS the tally belongs to the class's own
+ * learner id, which `record_lego_pairings` can never write: SECURITY INVOKER
+ * against own-row RLS, so the insert is refused and only console.warned.
+ * Class mode must flush through the class-aware store instead.
+ */
+describe('usePairingsTelemetry in class mode', () => {
+  it('flushes through the class route and never touches the RPC', async () => {
+    const recordLegoPairings = vi.fn(async () => true)
+    const { rpc, tel } = host(ref({ recordLegoPairings }))
+    tel.recordCyclePlay({ learnerId: 'class-learner-1', courseCode: 'cym_for_eng', legoIds: ['S0002L01', 'S0001L01'] })
+    await tel.flush()
+    expect(recordLegoPairings).toHaveBeenCalledTimes(1)
+    expect(recordLegoPairings).toHaveBeenCalledWith(
+      'class-learner-1', 'cym_for_eng', [['S0001L01', 'S0002L01']], [1],
+    )
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('falls through to the RPC when the route declines — an own account playing normally', async () => {
+    const recordLegoPairings = vi.fn(async () => false)
+    const { rpc, tel } = host(ref({ recordLegoPairings }))
+    tel.recordCyclePlay({ learnerId: 'L', courseCode: 'spa_for_eng', legoIds: ['S0001L01', 'S0001L02'] })
+    await tel.flush()
+    expect(recordLegoPairings).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledTimes(1)
   })
 })
