@@ -27,6 +27,18 @@
  *     classes, never the whole school. (Their staff list stays school-wide:
  *     it carries no pupil data and it is what the co-teacher picker needs.)
  *
+ *   GET /api/school/roster?part=school
+ *     The SCHOOL'S OWN TOTALS AND NOTHING ELSE — one `school_summary` row,
+ *     which is counts and hours, no identity of any kind. Added for job #32:
+ *     `useSchoolData` only ever reads `.school`, but it was receiving the
+ *     whole school's teachers and pupils BY NAME with it, on every page the
+ *     schools shell wraps — including the Insights pages, whose ruling (Tom,
+ *     2026-09-16 16:31Z) is that nothing in them names a pupil. It is also
+ *     the cheap read: no class, staff, vouch or pupil query runs at all.
+ *     `teachers` and `students` come back EMPTY with `part: 'school'` beside
+ *     them, so an empty array here reads as "not asked for" rather than as
+ *     "this school has nobody".
+ *
  *   GET /api/school/roster?class_id=<uuid>
  *     Teacher-lookup mode for the co-teacher panel (ClassDetail.vue). Returns
  *     the NAMES of the teachers who could be added to that class — nothing
@@ -96,6 +108,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (!schoolId) {
       res.status(200).json({ school: null, teachers: [], students: [] })
+      return
+    }
+
+    // ?part=school — the totals alone. Nothing below this line runs, so no
+    // name is read, let alone sent.
+    if (typeof req.query?.part === 'string' && req.query.part.trim() === 'school') {
+      const { data: summary, error: summaryErr } = await svc
+        .from('school_summary').select('*').eq('school_id', schoolId).maybeSingle()
+      if (summaryErr) throw summaryErr
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({ school: summary ?? null, teachers: [], students: [], part: 'school' })
       return
     }
 

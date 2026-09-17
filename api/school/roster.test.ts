@@ -144,6 +144,24 @@ describe('GET /api/school/roster', () => {
     expect(res.body.students).toHaveLength(3)
   })
 
+  // ── job #32, 2026-09-17 ──────────────────────────────────────────────
+  it('?part=school answers the totals ALONE — no teacher, no pupil, no name', async () => {
+    const res = makeRes()
+    await handler(makeReq({ part: 'school' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.school.school_id).toBe('s1')
+    // Absence, said out loud: empty because it was not asked for.
+    expect(res.body.part).toBe('school')
+    expect(res.body.teachers).toEqual([])
+    expect(res.body.students).toEqual([])
+    // The pin that matters: not one name of a real person on the wire. Seen
+    // RED before the mode existed, when this call answered the full roster.
+    const wire = JSON.stringify(res.body)
+    for (const name of ['Alice', 'Bob', 'Cai', 'Zara Teacher', 'Supply Teacher']) {
+      expect(wire, name).not.toContain(name)
+    }
+  })
+
   it('includes a class-only teacher (CLASS: tag, no SCHOOL: tag) on the school roster', async () => {
     const req = makeReq()
     const res = makeRes()
