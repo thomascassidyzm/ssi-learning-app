@@ -17,7 +17,7 @@
  * as useLearningSession's speaking_opportunities.
  */
 
-import { inject } from 'vue'
+import { inject, type Ref } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -67,7 +67,24 @@ export function buildPairs(legoIds: string[]): string[][] {
   return pairs
 }
 
-export function usePairingsTelemetry() {
+/**
+ * The class route (job #52). While playing AS A CLASS the tally belongs to the
+ * class's own learner id, and `record_lego_pairings` can never write it: the
+ * function is SECURITY INVOKER and `learner_lego_pairings` carries own-row RLS,
+ * so the class insert is refused ("new row violates row-level security policy")
+ * and was only ever console.warned — the table held one row for every class in
+ * every school. Class mode flushes through the teacher-authorised
+ * /api/school/class-progress endpoint instead, exactly like every other
+ * class-entity write. Returns false outside class mode, so own accounts keep
+ * using the RPC untouched.
+ */
+export interface PairingsClassRoute {
+  recordLegoPairings?: (
+    learnerId: string, courseId: string, pairs: string[][], counts: number[],
+  ) => Promise<boolean>
+}
+
+export function usePairingsTelemetry(classRoute?: Ref<PairingsClassRoute | null | undefined>) {
   const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 
   // Local co-fire tally, keyed by canonicalised pair (lego_a < lego_b). Value
@@ -121,6 +138,8 @@ export function usePairingsTelemetry() {
     const _pairs = entries.map(e => [e.a, e.b])
     const _counts = entries.map(e => e.count)
     try {
+      const viaClass = classRoute?.value?.recordLegoPairings
+      if (viaClass && (await viaClass(learnerId, courseCode, _pairs, _counts))) return
       const { error } = await supabase.rpc('record_lego_pairings', {
         _learner_id: learnerId,
         _course_code: courseCode,

@@ -56,6 +56,20 @@ interface MinimalProgressStore {
   bumpSpeakingOpportunities?: (
     learnerId: string, courseId: string, oppsDelta: number, secondsDelta: number, phrasesDelta: number,
   ) => Promise<boolean>
+  /**
+   * LEGO co-firing (`learner_lego_pairings`) for the CLASS account (job #52).
+   * Same shape and same reason as bumpSpeakingOpportunities: the base store
+   * has no such method — own accounts write it through the
+   * `record_lego_pairings` RPC in usePairingsTelemetry, which is SECURITY
+   * INVOKER against an own-row policy the class account can never satisfy
+   * (its user_id is the literal `class-learner:<classId>`, nobody's login),
+   * so every class flush was refused and only console.warned. Resolves `true`
+   * when the class route handled the write, `false` outside class mode so the
+   * caller falls through to the RPC.
+   */
+  recordLegoPairings?: (
+    learnerId: string, courseId: string, pairs: string[][], counts: number[],
+  ) => Promise<boolean>
 }
 
 export interface ClassContextForProgress {
@@ -133,6 +147,11 @@ export function createClassAwareProgressStore(
     async bumpSpeakingOpportunities(_learnerId, _courseId, oppsDelta, secondsDelta, phrasesDelta) {
       if (!inClass()) return false
       await call('bumpSpeakingOpportunities', [oppsDelta, secondsDelta, phrasesDelta])
+      return true
+    },
+    async recordLegoPairings(_learnerId, _courseId, pairs, counts) {
+      if (!inClass()) return false
+      await call('recordLegoPairings', [pairs, counts])
       return true
     },
     async updateCurrentCycle(learnerId, courseId, cycleIndex) {

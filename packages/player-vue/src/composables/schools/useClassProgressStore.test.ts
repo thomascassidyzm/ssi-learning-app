@@ -161,3 +161,25 @@ describe('createClassAwareProgressStore — bumpSpeakingOpportunities (job #778)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+// Job #52: LEGO co-firing rides the same route, for the same reason — the
+// `record_lego_pairings` RPC is SECURITY INVOKER against own-row RLS, so the
+// class's own learner id is refused and every class flush was lost.
+describe('createClassAwareProgressStore — recordLegoPairings (job #52)', () => {
+  it('in class mode posts the pairs to the class route and reports them handled', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('staff-tok')))
+    const handled = await store.recordLegoPairings!('class-learner-id', 'course-1', [['S0001L01', 'S0002L01']], [3])
+    expect(handled).toBe(true)
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
+    expect(body).toEqual({ classId: 'class-1', method: 'recordLegoPairings', args: [[['S0001L01', 'S0002L01']], [3]] })
+  })
+
+  it('outside class mode reports NOT handled and touches nothing — the caller keeps its own RPC', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref(null), ref(makeSupabase('tok')))
+    const handled = await store.recordLegoPairings!('learner-1', 'course-1', [['S0001L01', 'S0002L01']], [1])
+    expect(handled).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

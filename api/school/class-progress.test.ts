@@ -67,8 +67,16 @@ function makeChainable(table: string) {
   return builder
 }
 
+// The class route for learner_lego_pairings reuses the existing
+// `record_lego_pairings` RPC under the service role, so the fake client needs
+// an rpc() — captured rather than executed.
+let rpcCalls: Array<{ name: string; args: any }>
+
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ from: (table: string) => makeChainable(table) }),
+  createClient: () => ({
+    from: (table: string) => makeChainable(table),
+    rpc: async (name: string, args: any) => { rpcCalls.push({ name, args }); return { data: null, error: null } },
+  }),
 }))
 
 function makeReq(body: any): VercelRequest {
@@ -95,6 +103,7 @@ beforeEach(async () => {
     sessions: [],
     learner_speaking_opportunities: [],
   }
+  rpcCalls = []
   scope = { role: 'teacher', classIds: ['class-1'], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null, learnerId: 'staff-learner-a' }
 })
 
@@ -265,5 +274,59 @@ describe('POST /api/school/class-progress — bumpSpeakingOpportunities (job #77
     await handler(makeReq({ classId: 'class-1', method: 'bumpSpeakingOpportunities', args: [3, 72, 0] }), res)
     expect(res.statusCode).toBe(403)
     expect(DB.learner_speaking_opportunities).toHaveLength(0)
+  })
+})
+
+/**
+ * job #52 — LEGO co-firing for the CLASS account. `record_lego_pairings` is
+ * SECURITY INVOKER and learner_lego_pairings carries own-row RLS, so a class
+ * flush from the browser is refused ("new row violates row-level security
+ * policy", reproduced live 2026-09-17) and the player only console.warned it.
+ * These fail against the pre-fix handler, whose allowlist has no such method.
+ */
+describe('POST /api/school/class-progress — recordLegoPairings (job #52)', () => {
+  it('runs the RPC under the service role against the CLASS learner id and course', async () => {
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'recordLegoPairings',
+      args: [[['S0002L01', 'S0001L01'], ['S0001L01', 'S0003L02']], [4, 1]],
+    }), res)
+    expect(res.statusCode).toBe(200)
+    expect(rpcCalls).toHaveLength(1)
+    expect(rpcCalls[0].name).toBe('record_lego_pairings')
+    expect(rpcCalls[0].args).toMatchObject({
+      _learner_id: 'class-learner-1',
+      _course_code: 'cym_for_eng',
+      _pairs: [['S0002L01', 'S0001L01'], ['S0001L01', 'S0003L02']],
+      _counts: [4, 1],
+    })
+  })
+
+  it('drops malformed pairs and floors missing or junk counts at 1', async () => {
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'recordLegoPairings',
+      args: [[['S0001L01'], ['S0001L01', 'S0001L01'], ['S0001L01', 'S0004L01'], [null, 'S0005L01']], [9, 9, 'nope']],
+    }), res)
+    expect(res.statusCode).toBe(200)
+    expect(rpcCalls[0].args._pairs).toEqual([['S0001L01', 'S0004L01']])
+    expect(rpcCalls[0].args._counts).toEqual([1])
+  })
+
+  it('writes nothing when there are no usable pairs', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'recordLegoPairings', args: [[], []] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(rpcCalls).toHaveLength(0)
+  })
+
+  it('is scope-gated like every other op: a caller outside the class is refused', async () => {
+    scope.classIds = ['some-other-class']
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'recordLegoPairings', args: [[['S0001L01', 'S0002L01']], [1]],
+    }), res)
+    expect(res.statusCode).toBe(403)
+    expect(rpcCalls).toHaveLength(0)
   })
 })

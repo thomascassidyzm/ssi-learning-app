@@ -1746,9 +1746,13 @@ const simplePlayer = useSimplePlayer()
 // thicker synapses + mastery tier. Skipped cycles never fire
 // `cycle_completed`, so we automatically only count what the learner
 // heard.
-// Agent A's composable takes no args — pulls supabase via inject. We pass
-// learnerId + courseCode per call at the recordCyclePlay site below.
-const pairingsTelemetry = usePairingsTelemetry()
+// Agent A's composable pulls supabase via inject. We pass learnerId +
+// courseCode per call at the recordCyclePlay site below, and hand it the
+// class-aware store so a PLAY-AS-CLASS flush goes through the server-mediated
+// /api/school/class-progress route: the `record_lego_pairings` RPC is SECURITY
+// INVOKER against an own-row policy, so the class's own learner id is refused
+// by RLS and every class flush was silently lost (job #52).
+const pairingsTelemetry = usePairingsTelemetry(activeProgressStore as unknown as Ref<any>)
 
 // DB-01: throttle the mid-round cursor write to ~60s + flush on lifecycle
 // boundaries. Per-cycle writes were ~5-6/min/learner; only same-sitting (<5min)

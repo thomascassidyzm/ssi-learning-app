@@ -56,8 +56,14 @@ const ALLOWED_METHODS = [
   'checkpointSession',
   'endSession',
   'bumpSpeakingOpportunities',
+  'recordLegoPairings',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
+
+// A 30-minute class session flushes a few hundred distinct pairs; the cap is
+// an abuse bound, not a product limit, and the tally is rebuilt each flush.
+const MAX_PAIRINGS_PER_CALL = 5000
+const MAX_FIRE_COUNT_PER_CALL = 100000
 
 interface ClassProgressBody {
   classId?: string
@@ -362,6 +368,47 @@ async function bumpSpeakingOpportunities(
   if (error) throw new Error(`bumpSpeakingOpportunities insert failed: ${error.message}`)
 }
 
+/**
+ * LEGO co-firing for the CLASS account (job #52·B). `record_lego_pairings` is
+ * SECURITY INVOKER and `learner_lego_pairings` carries own-row RLS
+ * (`learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text)`),
+ * so every class-mode flush raised "new row violates row-level security
+ * policy" and the player only console.warned it: the table held ONE row for
+ * any class account against 5,432 class audio_play events (verified live
+ * 2026-09-17). Individual learners were never affected — their own-row insert
+ * passes the same policy.
+ *
+ * Same RPC, same semantics; it just runs under the service role here, on the
+ * server-resolved class learner id. The exact twin of bumpSpeakingOpportunities
+ * above.
+ */
+async function recordLegoPairings(
+  svc: SupabaseClient, learnerId: string, courseId: string,
+  pairs: unknown, counts: unknown,
+) {
+  if (!Array.isArray(pairs) || pairs.length === 0) return
+  const countsIn = Array.isArray(counts) ? counts : []
+  const safePairs: string[][] = []
+  const safeCounts: number[] = []
+  for (let i = 0; i < pairs.length && safePairs.length < MAX_PAIRINGS_PER_CALL; i++) {
+    const pair = pairs[i]
+    if (!Array.isArray(pair) || pair.length !== 2) continue
+    const a = typeof pair[0] === 'string' ? safeIdToken(pair[0]) : ''
+    const b = typeof pair[1] === 'string' ? safeIdToken(pair[1]) : ''
+    if (!a || !b || a === b) continue
+    safePairs.push([a, b])
+    safeCounts.push(Math.min(MAX_FIRE_COUNT_PER_CALL, Math.max(1, Math.floor(Number(countsIn[i]) || 1))))
+  }
+  if (safePairs.length === 0) return
+  const { error } = await svc.rpc('record_lego_pairings', {
+    _learner_id: learnerId,
+    _course_code: courseId,
+    _pairs: safePairs,
+    _counts: safeCounts,
+  })
+  if (error) throw new Error(`recordLegoPairings failed: ${error.message}`)
+}
+
 async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, courseId: string, cycleIndex: number) {
   const { error } = await svc
     .from('course_enrollments')
@@ -533,6 +580,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'bumpSpeakingOpportunities':
         await bumpSpeakingOpportunities(svc, learnerId, courseId, a[0], a[1], a[2])
+        break
+      case 'recordLegoPairings':
+        await recordLegoPairings(svc, learnerId, courseId, a[0], a[1])
         break
       case 'updateCurrentCycle':
         await updateCurrentCycle(svc, learnerId, courseId, a[0])
