@@ -9,7 +9,7 @@
  *     was never introduced, so it lights nothing and counts in nothing.
  */
 import { describe, it, expect } from 'vitest'
-import { buildBrain, findAbandonedDetours, phraseIdFromCycleId, type PlayRow, type PhraseRow } from './classBrain'
+import { buildBrain, chooseAxis, findAbandonedDetours, phraseIdFromCycleId, AXIS_LEADIN, AXIS_HEADROOM, AXIS_MIN, type PlayRow, type PhraseRow } from './classBrain'
 
 const COURSE = 'cym_s_for_eng'
 const LEGOS = [
@@ -179,5 +179,51 @@ describe('the class brain', () => {
   it('reads a phrase id out of a cycle id, and nothing out of an intro', () => {
     expect(phraseIdFromCycleId('S0042L03_use_05_abc', 'fra_for_eng')).toBe('fra_for_eng:S0042L03U05')
     expect(phraseIdFromCycleId('S0042L03_intro', 'fra_for_eng')).toBeNull()
+  })
+})
+
+/**
+ * Job #126. A class that did some of the course last year does not start at
+ * chunk 1, and the fold compresses by AGE rather than by whether a chunk was
+ * ever met — so an axis that always started at chunk 0 spent most of the card
+ * on untouched grey. The axis anchors on first light.
+ */
+describe('chooseAxis', () => {
+  const ev = (...fires: number[]): { fires: number[] } => ({ fires })
+
+  it('anchors on the first lit chunk, not on chunk 0', () => {
+    // A class resuming at chunk 150 and playing 24 chunks this term.
+    const { axisFrom, axisTo, reachOrd } = chooseAxis(1000, [ev(150), ev(160, 155), ev(173)], 2000)
+    expect(reachOrd).toBe(173)
+    expect(axisFrom).toBe(150 - AXIS_LEADIN)
+    expect(axisTo).toBe(173 + 1 + AXIS_HEADROOM)
+    // The whole drawn axis is the class's own stretch plus a few chunks of
+    // context, not 150 chunks of never-met course.
+    expect(axisTo - axisFrom).toBe(24 + AXIS_LEADIN + AXIS_HEADROOM)
+  })
+
+  it('still starts at chunk 0 for a class that started at the beginning', () => {
+    const { axisFrom, axisTo } = chooseAxis(1000, [ev(0), ev(40, 2), ev(90)], 2000)
+    expect(axisFrom).toBe(0)
+    expect(axisTo).toBe(94)
+  })
+
+  it('keeps a minimum axis for a class one sitting in, wherever it started', () => {
+    const { axisFrom, axisTo } = chooseAxis(1000, [ev(400), ev(402)], 2000)
+    expect(axisTo - axisFrom).toBeGreaterThanOrEqual(AXIS_MIN)
+    expect(axisFrom).toBeLessThanOrEqual(400 - AXIS_LEADIN)
+  })
+
+  it('has nothing to anchor on when the class has played nothing', () => {
+    const { axisFrom, axisTo, reachOrd } = chooseAxis(1000, [], 2000)
+    expect(reachOrd).toBe(-1)
+    expect(axisFrom).toBe(0)
+    expect(axisTo).toBe(AXIS_MIN)
+  })
+
+  it('gives way at the oldest end when the axis would exceed the ceiling', () => {
+    const { axisFrom, axisTo } = chooseAxis(5000, [ev(0), ev(3000)], 2000)
+    expect(axisTo).toBe(3004)
+    expect(axisTo - axisFrom).toBe(2000)
   })
 })

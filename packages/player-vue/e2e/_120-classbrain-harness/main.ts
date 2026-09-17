@@ -10,13 +10,20 @@
 import { createApp, h } from 'vue'
 import ClassBrain from '../../src/components/schools/shared/ClassBrain.vue'
 import fixture from './fixture-300.json'
+import fixtureReal from './fixture-real.json'
+import fixtureRealMid from './fixture-real-mid.json'
+import fixtureRealShallow from './fixture-real-shallow.json'
 import '../../src/styles/design-tokens.css'
 import '../../src/styles/schools-tokens.css'
 import '../../src/styles/schools-design.css'
 
 const params = new URLSearchParams(location.search)
 const mode = params.get('mode') || 'full'
-const p = JSON.parse(JSON.stringify(fixture)) as Record<string, any>
+// ?fixture=real draws a REAL learner's diary (job #126); real-mid is the same
+// diary with its first 220 chunks dropped, a DERIVED mid-course start.
+const which = params.get('fixture') || 'synthetic'
+const source = which === 'real' ? fixtureReal : which === 'real-mid' ? fixtureRealMid : which === 'real-shallow' ? fixtureRealShallow : fixture
+const p = JSON.parse(JSON.stringify(source)) as Record<string, any>
 
 // A class in its first term: the axis is short, so nothing is folded and the
 // card must look exactly as it always has.
