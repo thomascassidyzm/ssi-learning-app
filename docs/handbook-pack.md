@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `3ae8e7b9b833` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `fcc425771530` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1031,7 +1031,7 @@ Moment: something-wrong · section: your-own-account · roles: teacher, school_a
 4. Tap **Send**. It reads **Sending…** while it goes.
 5. Read **Got it, thank you** at the top of the page.
 
-**Worth knowing.** That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. The item is not shown while a platform admin is viewing the dashboard as someone else.
+**Worth knowing.** That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
 
 ## See and download your funder numbers
 
