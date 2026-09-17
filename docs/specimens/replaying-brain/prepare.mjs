@@ -1,8 +1,10 @@
 // Replaying brain, specimen v2 — step 1: distil the live pull into data.json (class-level only).
 // Input: $CS_SCRATCH/{plays,legos,seeds,phrases,classes}.json pulled live 2026-09-17 from the
-// learner-app Supabase (player_events audio_play rows for every Chepstow class entity, cym_s_for_eng
-// course tables). Output: data.json beside this file. No pupil exists in any input: the class
-// entity is the only learner behind a class's plays.
+// learner-app Supabase (player_events audio_play rows for every class entity at St Alban's RC
+// High School, Pontypool — the busiest real class estate-wide, per a school-agnostic
+// class-grouped query over player_events/classes/schools — cym_s_for_eng course tables).
+// Output: data.json beside this file. No pupil exists in any input: the class entity is the
+// only learner behind a class's plays.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const S = process.argv[2] || process.env.CS_SCRATCH
 const R = f => JSON.parse(readFileSync(join(S, f)))
 const plays = R('plays.json'), legos = R('legos.json'), seeds = R('seeds.json'), phrases = R('phrases.json')
-const CLASS = '8H', COURSE = 'cym_s_for_eng', SHOW_SEEDS = 11
+const CLASS = '9b/KW LJ', COURSE = 'cym_s_for_eng', SHOW_SEEDS = 11
 
 const ord = new Map(legos.map((l, i) => [l.lego_id, i]))
 const pById = new Map(phrases.map(p => [p.id, p]))
@@ -46,7 +48,7 @@ const classPhrases = new Set(classEvents.map(e => e.phrase).filter(Boolean))
 const P = {}; for (const id of usedPhrases) { const p = pById.get(id); P[id] = { t: p.target_text, k: p.known_text, lego: ord.get(p.lego_id), role: p.phrase_role, pos: p.position, n: (p.decomposition || []).length, seed: p.seed_number } }
 const schoolClasses = new Set(plays.map(p => p.class_name)).size
 const out = {
-  school: 'Ysgol Cas-gwent Chepstow School', className: CLASS, course: 'Welsh, southern, for English speakers', courseCode: COURSE,
+  school: "St Alban's RC High School, Pontypool", className: CLASS, course: 'Welsh, southern, for English speakers', courseCode: COURSE,
   pulledAt: '2026-09-17', legosTotal: legos.length, seedsTotal: Math.max(...legos.map(l => l.seed_number)), showSeeds: SHOW_SEEDS,
   legos: legos.filter(l => l.seed_number <= SHOW_SEEDS).map(l => ({ id: l.lego_id, seed: l.seed_number, t: l.target_text, k: l.known_text })),
   seeds: Object.fromEntries(seeds.filter(s => s.seed_number <= 40).map(s => [s.seed_number, { t: s.target_text, k: s.known_text }])),
@@ -54,6 +56,14 @@ const out = {
   classPhraseCount: classPhrases.size,
   tally, schoolClasses, schoolCycles: schoolEvents.length, schoolFirst: schoolEvents[0]?.t.slice(0, 10), schoolLast: schoolEvents.at(-1)?.t.slice(0, 10),
   knownOnly: plays.filter(p => p.class_name === CLASS && p.role === 'known').length,
+  // Estate-wide, class-grouped over player_events JOIN classes JOIN schools, target1 audio_play,
+  // cym_s_for_eng, excluding is_demo/is_test schools. Pulled live 2026-09-17 — the query behind
+  // "why this class" below; the single source of truth for which class is busiest estate-wide.
+  topClassesEstate: [
+    { school: "St Alban's RC High School, Pontypool", className: '9b/KW LJ', cycles: 83 },
+    { school: 'Ysgol Gyfun Tredegar', className: 'Blwyddyn 10 6', cycles: 66 },
+    { school: "St Alban's RC High School, Pontypool", className: '9a/AB LJ', cycles: 61 },
+  ],
 }
 writeFileSync(join(here, 'data.json'), JSON.stringify(out))
 console.log(tally, 'sittings', days, 'school events', schoolEvents.length, 'phrases used (class)', classPhrases.size, 'phrases used (all)', usedPhrases.size, 'bytes', JSON.stringify(out).length)
