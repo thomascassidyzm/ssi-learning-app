@@ -1,3 +1,38 @@
+## 2026-09-17 — The course journey folds rather than forgets (job #120)
+
+Tom's ruling: "I think log-fold plus cloth sounds perfect". A class three hundred chunks into a
+course had no honest drawing. The server kept the card readable by sending only the last sixty
+chunks, which bought legibility by throwing away the read the card exists for — how far into the
+course the class has got — and with the whole axis sent, the linear mapping put every dot 1.7 units
+apart and the arcs collapsed into one blue smear.
+
+**The axis folds.** The frontier keeps the spacing a sixty-chunk course gets; course-order distance
+compresses logarithmically going back, so chunk 3 and chunk 290 both stand on one screen. The fold
+constant is not hand-tuned: it is SOLVED per axis length, by bisection, as the lambda that makes the
+newest gap exactly the gap a sixty-chunk axis would give it. So the curve follows the class rather
+than a number somebody picked, an axis of sixty or fewer is drawn dead straight because nothing
+needs folding, and there is no threshold to re-tune when a course gets longer.
+
+**The old ink turns to cloth.** Where the fold has squeezed chunks closer than a dot is wide, an arc
+between two of them cannot be a legible line, so those arcs become a density field — a woven band
+whose height follows both how far the old recombination reaches over each column and how hard the
+class has worked it. An arc with one end still at the legible frontier is ALWAYS a line however old
+its other end is, and so is the pair the replay is drawing at that instant: the course reaching back
+for material from months ago is the point of the picture, and a replay with no moving ink is not a
+replay.
+
+**The expand keeps the truth.** The card shows the lens; the full-screen overlay keeps the unfolded
+line at a fixed pitch, as wide as it needs to be and scrolled sideways, with room for its labels.
+
+**Not built, deliberately.** The spiral, offered in the same conversation, was refused by Tom in
+favour of this. No force-directed graph: it would throw away the one-dimensional course-order axis
+that makes the card readable in half a second.
+
+**Where the numbers are.** `packages/player-vue/src/components/schools/shared/classBrainFold.ts`
+holds the maths and `classBrainFigure.ts` turns it into ink; both are pure and tested without a
+browser. `api/classes/[id]/brain.ts` sends the whole reached stretch — its MAX_AXIS is now a 2,000
+sanity ceiling on the response, not a lens.
+
 ## 2026-09-17 — Three more ways a name reached Insights, and one dead endpoint (job #32, the capture)
 
 **What the live capture found that the local gate could not.** With all the unit suites green and
