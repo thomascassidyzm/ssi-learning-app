@@ -57,7 +57,14 @@ vi.mock('@/composables/schools/useSchoolContext', async () => {
 async function mountAs(user: any) {
   const mod: any = await import('@/composables/schools/useSchoolContext')
   mod.__currentUser.value = user
-  return mount(HandbookView)
+  const wrapper = mount(HandbookView)
+  // Sections are shut by default since 2026-09-17 — these tests are about what
+  // an entry offers, so open every section and read the rows.
+  for (let i = 0; i < wrapper.findAll('.section-head').length; i++) {
+    const head = wrapper.findAll('.section-head')[i]
+    if (head.attributes('aria-expanded') !== 'true') await head.trigger('click')
+  }
+  return wrapper
 }
 
 // An entry with a clip for the persona, read from the pack, so the test
@@ -115,10 +122,10 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
 
   it('an entry whose anchor is a step of a walk offers that walk without a hand-written link', async () => {
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'govt_admin' })
-    const entry = handbookEntries().find((e) => e.id === 'choose-what-role-someone-arrives-as')!
+    const entry = handbookEntries().find((e) => e.id === 'change-how-many-seats-you-pay-for')!
     expect(entry.walk).toBeNull()
     await wrapper.find(`#hb-${entry.id} .entry-head`).trigger('click')
-    expect(wrapper.find(`#hb-${entry.id} [data-walk-offer]`).attributes('data-walk-offer')).toBe('invite-first-person')
+    expect(wrapper.find(`#hb-${entry.id} [data-walk-offer]`).attributes('data-walk-offer')).toBe('subscribe-your-organisation')
   })
 
   it('a tap defers every clip for the capability and goes to its place; the node that fits claims its own', async () => {
@@ -159,6 +166,10 @@ describe('HandbookView — the clip leads, where a clip exists', () => {
     // "Read the lot", and even there it carries no Show me for them.
     const wrapper = await mountAs({ ...SCHOOL_ADMIN, educational_role: 'teacher' })
     await wrapper.findAll('.btn-ghost').find((b) => b.text().includes('Read the lot'))!.trigger('click')
+    for (let i = 0; i < wrapper.findAll('.section-head').length; i++) {
+      const head = wrapper.findAll('.section-head')[i]
+      if (head.attributes('aria-expanded') !== 'true') await head.trigger('click')
+    }
     expect(wrapper.find('#hb-the-invites-desk').exists()).toBe(true)
     expect(wrapper.find('#hb-the-invites-desk [data-walk-offer]').exists()).toBe(false)
   })

@@ -1,6 +1,6 @@
 {
-  "version": "e5ad5ac76500",
-  "generatedAt": "2026-09-16",
+  "version": "3ae8e7b9b833",
+  "generatedAt": "2026-09-17",
   "walks": [
     {
       "id": "add-a-class-under-a-group",
@@ -3940,7 +3940,10 @@
         "link",
         "join",
         "leader",
-        "learner"
+        "learner",
+        "role",
+        "teacher",
+        "permissions"
       ],
       "place": {
         "route": "node-home"
@@ -3960,11 +3963,11 @@
       "how": [
         "Open the group, school or organisation you want them to belong to.",
         "Tap **Invite a person**.",
-        "Pick the role they arrive as.",
+        "Pick the role they arrive as from the dropdown on the left of the form. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
         "Type their name and submit.",
         "Copy the minted link and send it."
       ],
-      "note": "Nothing is created until you submit. Every link you mint lands in **Ways in**."
+      "note": "Nothing is created until you submit. The place matters as much as the role: a group leader invited on a group leads that group and everything under it. Every link you mint lands in **Ways in**."
     },
     {
       "id": "change-how-many-seats-you-pay-for",
@@ -4094,47 +4097,6 @@
         "Finish creating the class."
       ],
       "note": "The course is set when the class is made and stays with it. A class that needs a different language is a new class, which keeps the old one's records intact. A school on a free trial is held to the one language it signed up for until it subscribes."
-    },
-    {
-      "id": "choose-what-role-someone-arrives-as",
-      "title": "Choose what role someone arrives as",
-      "section": "getting-people-in",
-      "moment": "setting-up",
-      "personas": [
-        "admin",
-        "leader",
-        "school_admin"
-      ],
-      "keywords": [
-        "role",
-        "teacher",
-        "leader",
-        "learner",
-        "invite",
-        "permissions"
-      ],
-      "place": {
-        "route": "node-home"
-      },
-      "anchor": "invite-form-role",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/admin/NodeActionBar.vue",
-      "routes": [
-        "/admin/classes/:id",
-        "/admin/groups/:id",
-        "/admin/schools/:id",
-        "/org/:id"
-      ],
-      "walk": null,
-      "what": "The role you pick on an invite is the role the person lands in, and it travels with the link rather than being set afterwards. Teacher sees their own classes, group leader sees everything below their node, learner just learns.",
-      "where": "Any node's home page, **Invite a person**, the role dropdown on the left of the form.",
-      "how": [
-        "Tap **Invite a person** on the node you want them to belong to.",
-        "Open the role dropdown.",
-        "Pick the role they should hold in this place.",
-        "Fill in their name and submit."
-      ],
-      "note": "The place matters as much as the role — a group leader invited on a group leads that group and everything under it, so invite people on the node whose shape you actually mean."
     },
     {
       "id": "choose-which-courses-a-school-can-use",
@@ -5802,47 +5764,6 @@
       "note": "The row is a button in its own right, so a keyboard works too. The buttons at the right of the row do their own jobs and do not open the class."
     },
     {
-      "id": "open-the-folded-ledger",
-      "title": "Open the folded ledger",
-      "section": "getting-people-in",
-      "moment": "something-wrong",
-      "personas": [
-        "admin",
-        "leader",
-        "school_admin"
-      ],
-      "keywords": [
-        "show all",
-        "fold",
-        "ledger",
-        "links",
-        "ways in",
-        "fewer"
-      ],
-      "place": {
-        "route": "node-home"
-      },
-      "anchor": "ways-in-show-all",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/admin/WaysInLedger.vue",
-      "routes": [
-        "/admin/classes/:id",
-        "/admin/groups/:id",
-        "/admin/schools/:id",
-        "/org/:id"
-      ],
-      "walk": null,
-      "what": "Turning the one-row-per-role summary of your links into the full ledger, where every link has its own row and its own verbs.",
-      "where": "The **Ways in** section, the **Show all** line under the role rows. It only appears when there are more than three links.",
-      "how": [
-        "Scroll to **Ways in** on the node's home page.",
-        "Tap **Show all**.",
-        "The ledger opens with its filter chips and every link's row.",
-        "Tap **Show fewer** at the bottom to fold it back."
-      ],
-      "note": "Nothing is ever hidden for good: every link is one tap away."
-    },
-    {
       "id": "open-your-inbox",
       "title": "Open your inbox",
       "section": "your-own-account",
@@ -6370,9 +6291,13 @@
         "bug",
         "report",
         "problem",
+        "went wrong",
         "feedback",
+        "broken",
         "settings",
-        "tools"
+        "tools",
+        "screenshot",
+        "sent"
       ],
       "place": {
         "route": "settings"
@@ -6386,14 +6311,16 @@
         "/tutors/dashboard/play"
       ],
       "walk": null,
-      "what": "Opening the report sheet when something in the app has gone wrong.",
-      "where": "**Settings**, under **Tools**, the **Report a bug** row.",
+      "what": "Telling us when the app misbehaves, with the details of your course and device attached for you.",
+      "where": "**Settings**, under **Tools**, the **Report a bug** row, and the sheet it opens.",
       "how": [
-        "Open **Settings**.",
-        "Tap **Report a bug**.",
-        "Describe what happened on the sheet that opens and tap **Send**."
+        "Open **Settings** and tap **Report a bug**.",
+        "Write what happened in the **What happened?** box. **Send** stays off until you have written something, and the box holds 2,000 characters.",
+        "Add a screenshot if you have one.",
+        "Tap **Send**. It reads **Sending…** while it goes.",
+        "Read **Got it, thank you** where the form was. The sheet closes on its own a moment later, or tap the line to close it now."
       ],
-      "note": "The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app."
+      "note": "The row is there whether or not you are signed in. Tapping outside the sheet closes it without sending. That line is the whole reply: there is no ticket number and nobody replies through the app. If the screenshot cannot upload the note still goes without it, and if the note itself does not send the sheet says so and you can tap **Send** again."
     },
     {
       "id": "report-a-bug-from-the-dashboard",
@@ -6413,7 +6340,10 @@
         "suggestion",
         "feedback",
         "broken",
-        "dashboard"
+        "dashboard",
+        "describe",
+        "screenshot",
+        "send"
       ],
       "place": {
         "route": "dashboard"
@@ -6426,88 +6356,16 @@
         "/schools"
       ],
       "walk": null,
-      "what": "Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.",
-      "where": "**Report a bug** in the account menu at the top right, under your name.",
+      "what": "Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on, your school, your role and your account are attached for you.",
+      "where": "**Report a bug** in the account menu at the top right, under your name, and the window it opens.",
       "how": [
         "Tap your name at the top right, then **Report a bug**.",
-        "Write what happened, add a screenshot if you have one, and tap **Send**."
+        "Write what happened in the **What happened?** box, and what you expected if that helps. **Send** stays off until you have written something, and the box holds 2,000 characters.",
+        "Add a screenshot if you have one.",
+        "Tap **Send**. It reads **Sending…** while it goes.",
+        "Read **Got it, thank you** at the top of the page."
       ],
-      "note": "Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else."
-    },
-    {
-      "id": "say-what-happened",
-      "title": "Say what happened",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "describe",
-        "what happened",
-        "text"
-      ],
-      "place": {
-        "route": "settings"
-      },
-      "anchor": "report-bug-text",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
-      "routes": [
-        "/",
-        "/me",
-        "/schools/play",
-        "/tutors/dashboard/play"
-      ],
-      "walk": null,
-      "what": "The box where you describe the problem in your own words.",
-      "where": "The **What happened?** box on the report sheet.",
-      "how": [
-        "Tap into the box and write what you saw.",
-        "Keep it under 2,000 characters. Send stays off until you have written something."
-      ],
-      "note": "Your course and device details are added for you, so you only need to describe what went wrong."
-    },
-    {
-      "id": "say-what-happened-on-the-dashboard",
-      "title": "Say what happened on the dashboard",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "describe",
-        "what happened",
-        "dashboard",
-        "suggestion"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "anchor": "schools-report-bug-happened",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/schools/ReportBugModal.vue",
-      "routes": [
-        "/org",
-        "/schools"
-      ],
-      "walk": null,
-      "what": "The box where you describe the bug, or the thing you would like, in your own words.",
-      "where": "The **What happened?** box on the Report a bug window that opens from the account menu.",
-      "how": [
-        "Tap into the box and write what you saw.",
-        "Keep it under 2,000 characters. Send stays off until you have written something."
-      ],
-      "note": "The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong."
+      "note": "That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. The item is not shown while a platform admin is viewing the dashboard as someone else."
     },
     {
       "id": "see-and-download-your-funder-numbers",
@@ -6594,44 +6452,6 @@
       "note": "The list holds still until you refresh it, so a number on screen will not change under you while you are reading. If a refresh fails you are told plainly rather than being shown stale figures as if they were current."
     },
     {
-      "id": "see-that-your-report-arrived",
-      "title": "See that your report arrived",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "sent",
-        "thank you",
-        "arrived"
-      ],
-      "place": {
-        "route": "settings"
-      },
-      "anchor": "report-bug-thanks",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
-      "routes": [
-        "/",
-        "/me",
-        "/schools/play",
-        "/tutors/dashboard/play"
-      ],
-      "walk": null,
-      "what": "Confirming the note reached us.",
-      "where": "The **Got it, thank you** line that replaces the form once it has sent.",
-      "how": [
-        "Tap **Send** on the report sheet.",
-        "Read **Got it, thank you**. The sheet closes on its own a moment later, or tap the line to close it now."
-      ],
-      "note": "That line is the whole reply. There is no ticket number and no message back."
-    },
-    {
       "id": "see-what-a-funded-organisation-gives-its-learners",
       "title": "See what a funded organisation gives its learners",
       "section": "courses-and-content",
@@ -6710,81 +6530,6 @@
         "Tap **Billing & invoices** to reach invoices, change the card, or cancel."
       ],
       "note": "Every payment change happens on the one Upgrade page, so there is a single place to go and no second checkout to get confused with. The invoices button appears once a subscription is running."
-    },
-    {
-      "id": "send-a-dashboard-bug-report",
-      "title": "Send a dashboard bug report",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "send",
-        "submit",
-        "screenshot",
-        "dashboard"
-      ],
-      "place": {
-        "route": "dashboard"
-      },
-      "anchor": "schools-report-bug-send",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/schools/ReportBugModal.vue",
-      "routes": [
-        "/org",
-        "/schools"
-      ],
-      "walk": null,
-      "what": "Sending your note, and your screenshot if you added one, to us.",
-      "where": "The **Send** button at the foot of the Report a bug window.",
-      "how": [
-        "Write what happened, and what you expected if that helps.",
-        "Tap **Send**. It reads **Sending…** while it goes."
-      ],
-      "note": "A **Got it, thank you** line appears at the top of the page and that is the whole reply. Nobody answers through the app. If the screenshot cannot upload, the note still goes without it."
-    },
-    {
-      "id": "send-the-report",
-      "title": "Send the report",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "send",
-        "submit",
-        "screenshot"
-      ],
-      "place": {
-        "route": "settings"
-      },
-      "anchor": "report-bug-send",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
-      "routes": [
-        "/",
-        "/me",
-        "/schools/play",
-        "/tutors/dashboard/play"
-      ],
-      "walk": null,
-      "what": "Sending your note, and your screenshot if you added one, to us.",
-      "where": "The **Send** button at the foot of the report sheet.",
-      "how": [
-        "Write what happened.",
-        "Tap **Send**. It reads **Sending…** while it goes."
-      ],
-      "note": "If the screenshot cannot upload, the note still goes without it. If the note itself does not send, the sheet says so and you can tap Send again."
     },
     {
       "id": "set-or-change-your-password",
@@ -7280,45 +7025,6 @@
       "note": "The export follows your filters, not the whole school — so a filtered list gives you a filtered file. Clear the filters first if you want everybody."
     },
     {
-      "id": "tell-us-about-something-that-went-wrong",
-      "title": "Tell us about something that went wrong",
-      "section": "your-own-account",
-      "moment": "something-wrong",
-      "personas": [
-        "teacher",
-        "school_admin",
-        "leader"
-      ],
-      "keywords": [
-        "bug",
-        "report",
-        "problem",
-        "went wrong",
-        "feedback",
-        "broken"
-      ],
-      "place": {
-        "route": "settings"
-      },
-      "anchor": "report-bug-sheet",
-      "surface": "schools",
-      "source": "packages/player-vue/src/components/ReportBugSheet.vue",
-      "routes": [
-        "/",
-        "/me",
-        "/schools/play",
-        "/tutors/dashboard/play"
-      ],
-      "walk": null,
-      "what": "Sending us a note when the app misbehaves, with the details of your course and device attached for you.",
-      "where": "The sheet that opens from **Report a bug** in **Settings**.",
-      "how": [
-        "Tap **Report a bug** in Settings.",
-        "Write what happened, add a screenshot if you have one, and tap **Send**."
-      ],
-      "note": "Tapping outside the sheet closes it without sending. Nobody replies through the app: the note goes to one place where we read it."
-    },
-    {
       "id": "tell-us-the-year-and-department",
       "title": "Tell us the year and department",
       "section": "seeing-progress",
@@ -7714,7 +7420,10 @@
         "re-mint",
         "access",
         "ledger",
-        "shareable"
+        "shareable",
+        "show all",
+        "fold",
+        "fewer"
       ],
       "place": {
         "route": "node-home"

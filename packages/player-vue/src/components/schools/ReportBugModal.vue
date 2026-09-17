@@ -137,21 +137,6 @@ function onKeydown(e: KeyboardEvent) {
         </header>
         <p class="rb-lede">{{ t('schools.bugReport.lede', 'A bug or a suggestion. The page you are on is attached for you.') }}</p>
 
-        <!-- HANDBOOK Say what happened on the dashboard
-             section: your-own-account
-             moment: something-wrong
-             roles: teacher, school_admin, leader
-             place: dashboard
-             parts: schools-report-bug-modal, schools-report-bug-expected
-             keywords: bug, report, describe, what happened, dashboard, suggestion
-             What it's for. The box where you describe the bug, or the thing you would like, in your own words.
-             Where it is. The **What happened?** box on the Report a bug window that opens from the account menu.
-             How you do it.
-             1. Tap into the box and write what you saw.
-             2. Keep it under 2,000 characters. Send stays off until you have written something.
-             Worth knowing. The page you were on, your school, your role and your account are added for you, so you only need to describe what went wrong.
-             checked: 72f46933.428798bd
-        -->
         <label class="rb-label" for="rb-happened">{{ t('schools.bugReport.happenedLabel', 'What happened?') }}</label>
         <textarea
           id="rb-happened"
@@ -189,20 +174,6 @@ function onKeydown(e: KeyboardEvent) {
         <p class="rb-page">{{ t('schools.bugReport.pageLine', 'Page: {page}').replace('{page}', pagePath) }}</p>
         <p v-if="failed" class="rb-note rb-error" role="alert">{{ t('schools.bugReport.failed', 'That did not send. Please try again.') }}</p>
 
-        <!-- HANDBOOK Send a dashboard bug report
-             section: your-own-account
-             moment: something-wrong
-             roles: teacher, school_admin, leader
-             place: dashboard
-             keywords: bug, report, send, submit, screenshot, dashboard
-             What it's for. Sending your note, and your screenshot if you added one, to us.
-             Where it is. The **Send** button at the foot of the Report a bug window.
-             How you do it.
-             1. Write what happened, and what you expected if that helps.
-             2. Tap **Send**. It reads **Sending…** while it goes.
-             Worth knowing. A **Got it, thank you** line appears at the top of the page and that is the whole reply. Nobody answers through the app. If the screenshot cannot upload, the note still goes without it.
-             checked: 7eb5defe.510c12c6
-        -->
         <footer class="rb-actions">
           <button class="rb-btn rb-btn-ghost" type="button" @click="emit('close')">{{ t('schools.bugReport.cancel', 'Cancel') }}</button>
           <button class="rb-btn rb-btn-primary" type="button" data-walk="schools-report-bug-send" :disabled="!canSend" @click="send">

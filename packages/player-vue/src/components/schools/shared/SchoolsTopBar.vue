@@ -422,14 +422,17 @@ if (typeof document !== 'undefined') {
                moment: something-wrong
                roles: teacher, school_admin, leader
                place: dashboard
-               parts: schools-report-bug-toast
-               keywords: bug, report, problem, went wrong, suggestion, feedback, broken, dashboard
-               What it's for. Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.
-               Where it is. **Report a bug** in the account menu at the top right, under your name.
+               parts: schools-report-bug-toast, schools-report-bug-modal, schools-report-bug-happened, schools-report-bug-expected, schools-report-bug-send
+               keywords: bug, report, problem, went wrong, suggestion, feedback, broken, dashboard, describe, screenshot, send
+               What it's for. Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on, your school, your role and your account are attached for you.
+               Where it is. **Report a bug** in the account menu at the top right, under your name, and the window it opens.
                How you do it.
                1. Tap your name at the top right, then **Report a bug**.
-               2. Write what happened, add a screenshot if you have one, and tap **Send**.
-               Worth knowing. Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
+               2. Write what happened in the **What happened?** box, and what you expected if that helps. **Send** stays off until you have written something, and the box holds 2,000 characters.
+               3. Add a screenshot if you have one.
+               4. Tap **Send**. It reads **Sending…** while it goes.
+               5. Read **Got it, thank you** at the top of the page.
+               Worth knowing. That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. The item is not shown while a platform admin is viewing the dashboard as someone else.
                checked: 37290b79.8d741e37
           -->
           <button v-if="!isViewingAs" type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
