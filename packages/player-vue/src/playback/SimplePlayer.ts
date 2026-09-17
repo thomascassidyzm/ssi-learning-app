@@ -132,6 +132,7 @@ type EventName =
   | 'round_completed'
   | 'session_complete'
   | 'audio_failed' // Browser needs a fresh user gesture to play audio (iOS autoplay).
+  | 'audio_started' // A real clip ACTUALLY began sounding (see AudioStartedEvent).
   | 'interrupted' // Something OUTSIDE the app paused our element (see AudioInterruptedEvent).
   | 'self_paused' // The engine took itself to isPlaying=false (interruption / silent run) — the conductor mirrors it.
   | 'no_playable_content' // A jump found nothing playable from here on (see jumpToRound).
@@ -157,6 +158,41 @@ export interface AudioInterruptedEvent {
   duringSilentClip: boolean
   /** Whether the page was backgrounded at the moment of the interruption. */
   hidden: boolean
+}
+
+/**
+ * A real audio clip ACTUALLY began playing — `HTMLMediaElement.play()`'s promise
+ * resolved, which the spec defines as "playback has successfully started".
+ *
+ * WHY THIS EXISTS (job #65, 2026-09-17). `audio_play` telemetry used to be
+ * logged from `phase_changed`, i.e. on phase ENTRY, before the element had been
+ * handed a src let alone sounded. So the log recorded a clip the learner never
+ * heard whenever the play attempt failed: one of the 83 plays in 9b/KW LJ's
+ * busiest lesson was logged at 13:29:43.036 and `audio_failed` 1 ms later. Every
+ * "advance without hearing" path in this engine already reports itself
+ * (`audio_failed` attempt=2, the stall watchdog, the sub-audible 'ended'), but
+ * the positive record was still optimistic, so the two could disagree and only
+ * the optimistic one was counted.
+ *
+ * Emitted ONLY for the three audio-bearing phases' real clips. The silent
+ * pause and linger clips go through startPausePhase / startLinger and never
+ * reach playAudio, exactly as before — they were never logged and still are not.
+ * A successful RETRY emits it (the clip did sound, on the second attempt); a
+ * failed one does not.
+ */
+export interface AudioStartedEvent {
+  /** Phase whose clip started. Carried explicitly rather than read from state
+   *  at handler time, so a late handler can never mislabel the row. */
+  phase: Phase
+  /** The cycle the clip belongs to — the payload's whole context. */
+  cycle: Cycle | null
+  /** The URL actually handed to the element (post-resolution, so possibly a
+   *  blob: URL). Telemetry logs the cycle's ORIGINAL url for row-shape
+   *  continuity; this is here for diagnostics. */
+  url: string
+  /** 2 on the retry attempt, 1 on the first — so "it sounded, but only after a
+   *  retry" is visible rather than indistinguishable from a clean play. */
+  attempt: 1 | 2
 }
 
 export interface AudioFailedEvent {
@@ -857,7 +893,13 @@ export class SimplePlayer {
       rate = this.targetRateFor(this.currentCycle, targetSlot)
     }
     this.audio.playbackRate = rate
-    this.audio.play().catch((err) => {
+    this.audio.play().then(() => {
+      // The retry sounded — the learner DID hear this clip, one attempt late.
+      if (gen !== this.playGeneration) return
+      this.emit('audio_started', {
+        phase: this.state.phase, cycle: this.currentCycle, url, attempt: 2,
+      } satisfies AudioStartedEvent)
+    }).catch((err) => {
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] retry play() rejected:', err?.message)
       if (isGestureRequiredError(err)) {
@@ -1950,7 +1992,16 @@ export class SimplePlayer {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
     this.audio.playbackRate = rate
-    this.audio.play().catch((err) => {
+    this.audio.play().then(() => {
+      // THE CLIP IS SOUNDING. Not "the phase was entered" — this is where the
+      // audio_play row belongs (see AudioStartedEvent). Generation-guarded, so
+      // a resolve that lands after a skip/jump superseded it is dropped rather
+      // than logged against the cycle now on screen.
+      if (gen !== this.playGeneration) return
+      this.emit('audio_started', {
+        phase: this.state.phase, cycle: this.currentCycle, url, attempt: 1,
+      } satisfies AudioStartedEvent)
+    }).catch((err) => {
       // Ignore rejections from superseded play() calls (e.g. "interrupted by new load")
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] play() rejected:', err.message)
