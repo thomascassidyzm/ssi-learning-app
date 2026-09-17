@@ -226,15 +226,23 @@ const vadClassUptake = computed(() => (vad.value?.scope?.kind === 'class' ? [] :
 const orgIntel = ref<OrgIntelPayload | null>(null)
 const orgIntelLoading = ref(true)
 const orgIntelError = ref<string | null>(null)
-watch([nodeId, appliedCourse, () => classless.value], async ([id, courseCode, noClasses]) => {
+watch([nodeId, appliedCourse, () => classless.value, () => isClass.value, () => homeFor.value], async ([id, courseCode, noClasses]) => {
   orgIntel.value = null
   orgIntelError.value = null
   if (!id) { orgIntelLoading.value = false; return }
+  // WAIT FOR THE NODE'S OWN KIND before reading anything. A class asks no
+  // question here, and firing the read before the payload lands would ask it
+  // anyway — this watcher re-runs the moment the kind is known.
+  if (homeFor.value !== id) { orgIntelLoading.value = true; return }
+  if (isClass.value) { orgIntelLoading.value = false; return }
   orgIntelLoading.value = true
   try {
     // The journey is the only question this page asks, unless the node has no
     // class structure at all — see the panel's comment below. Asking for the
     // journey alone also means no pupil ledger is read, so no name is built.
+    // ON A CLASS THERE IS NO QUESTION LEFT (Tom, 2026-09-17, shape B): the
+    // class's journey is drawn on its Overview as the brain, and a funnel of
+    // one account is one number said twice. Nothing is read.
     orgIntel.value = await fetchOrgIntel(id, await getAuthToken(), {
       courseCode: noClasses ? null : (courseCode as string | null),
       questions: noClasses ? ['practising'] : ['journey'],
@@ -352,10 +360,13 @@ const homeLink = computed(() => {
              card and the class list above rather than asked again here — they used to
              be, counted over a different four weeks, and the two answers disagreed.
              An organisation with no classes anywhere sees the people question here
-             instead, which is the only one that can apply to it.
-             checked: 816d741d.4862a99a
+             instead, which is the only one that can apply to it. A single CLASS does
+             not carry this line at all: its journey is drawn on its own Overview as
+             the Course journey card, and a funnel of one account would be that same
+             number said a second time.
+             checked: c307207a.153f26d5
         -->
-        <details class="niv-more" data-walk="insights-more">
+        <details v-if="!isClass" class="niv-more" data-walk="insights-more">
           <summary class="niv-more-sum">
             <span class="niv-more-title">{{ t('org.insights.moreTitle', 'More about this level') }}</span>
             <span class="niv-more-count">{{ classless

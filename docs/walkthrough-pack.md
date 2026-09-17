@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `fcc425771530` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `ac34e1743238` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 
@@ -397,7 +397,7 @@ Personas: admin, leader, school_admin · place: node-insights
 2. [`insights-compare` · next] **Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.
 3. [`insights-rate-widget` · next] One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.
 4. [`insights-classes` · next] Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.
-5. [`insights-more` · next] **More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.
+5. [`insights-more` · next] **More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview.
 6. [`insights-org-journey` · next] **Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked.
 7. [`insights-voice-pause` · next] **Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.
 8. [`insights-overview` · next] **Overview** and **Insights** are two tabs on the same place. Overview takes you back to its home — insights is a lens on where you already are, not a different page to get lost in.

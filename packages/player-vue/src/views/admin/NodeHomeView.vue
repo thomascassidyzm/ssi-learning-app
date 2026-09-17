@@ -58,7 +58,11 @@ import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import { yearGroupBreakdown, practisedWithin, type YearGroupTile } from '@/views/schools/yearGroup'
-import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
+// THE COURSE JOURNEY IS THE BRAIN (Tom, 2026-09-17). JourneyBar is gone from
+// this page: the bar and the brain answer the same question, and two answers
+// on one card is the thing shape B deletes. The component itself stays for the
+// other places that still draw a bar.
+import ClassBrain from '@/components/schools/shared/ClassBrain.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
@@ -636,6 +640,7 @@ const nextBeltInfo = computed(() => {
 })
 
 const journey = computed(() => home.value?.journey ?? null)
+
 
 const enrichedStudents = computed(() => {
   const avg = classAvgSeeds.value
@@ -1297,36 +1302,42 @@ const listPayload = computed(() => {
                  moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
-                 keywords: journey, progress, legos, position, course, belt, how far
-                 What it's for. A bar showing where a class has got to in its
-                 course, measured in phrases — the individual pieces of language the
-                 course teaches. A class is one learner account played from the
-                 front, so the position is the class's own.
+                 keywords: journey, progress, legos, position, course, belt, how far, brain, replay
+                 What it's for. Where a class has got to in its course, drawn as the
+                 class itself: every phrase the course teaches stands on a line in the
+                 order it is taught, a dot lights when the class has met that phrase
+                 and grows each time it comes round, and an arc joins two phrases the
+                 class has said together in one sentence. How far right the ink
+                 reaches is how far through the course the class is.
                  Where it is. The **Course journey** card on a class page.
                  How you do it.
                  1. Open a class.
-                 2. Read the bar for how much of the course the class has covered
-                    together.
-                 3. The line underneath gives the figure in phrases, then names the
-                    next belt and how many phrases are left to reach it.
-                 Worth knowing. A class that has never played together says
-                 **Not started** in words; it is never shown as a bar of zero.
+                 2. Read how far right the ink reaches, and the four totals under it.
+                 3. Tap **Replay how it grew** to watch it build lesson by lesson, or
+                    the expand button to open it full screen.
+                 Worth knowing. It is the class's own account, the one **Play as
+                 class** runs on, so no pupil is behind any of it. New phrases are the
+                 ones the class has met for the first time; practised counts every
+                 time a phrase came round again. A class that has never played
+                 together says **Not started** in words.
                  checked: 37cd9c93.325026db
             -->
-            <div class="schools-card class-card" data-walk="class-journey">
+            <div class="schools-card class-card class-card-wide" data-walk="class-journey">
               <span class="schools-kicker">{{ t('org.nodeHome.courseJourney', 'Course journey') }}</span>
-              <!-- The bar runs in LEGOs on both sides. journey.done is the
-                   CLASS's own play-as-class position as a LEGO ordinal
-                   (source 'class-play'); only classes that have never played
-                   together fall back to the students' average (the server's
-                   'estimate' journey is a seed count — a different unit, so
-                   it never drives this bar). -->
-              <JourneyBar
-                v-if="journey && journey.source === 'class-play'"
-                :done="journey.done"
-                :total="Math.max(journey.total, journey.done)"
+              <!-- THE BRAIN IS THE BAR, DRAWN HONESTLY (Tom's ruling 2026-09-17,
+                   shape B of docs/specimens/class-stats/). The bar it replaces
+                   ran in LEGOs and said one number; this says the same thing
+                   and shows its working, on the same card, with nothing new to
+                   navigate to. The belt line underneath is unchanged. -->
+              <ClassBrain
+                v-if="home.node"
+                :class-id="String(home.node.id)"
+                :get-token="getAuthToken"
               />
-              <JourneyBar v-else-if="journey" :done="0" :total="journey.total" />
+              <!-- The card's own sentence, unmoved: how far the class has
+                   travelled and what is left to the next belt. It is the page's
+                   number, so it is written by the page and never waits on the
+                   drawing above it. -->
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
                   {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
@@ -1677,6 +1688,9 @@ const listPayload = computed(() => {
 
 .class-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
 .class-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+/* The brain is a wide drawing, not a tile: it takes the whole row so the arcs
+   have room to be read. On a phone the grid is one column anyway. */
+.class-card-wide { grid-column: 1 / -1; }
 .class-card .schools-kicker {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
