@@ -6,25 +6,25 @@ import { chromium } from '/home/tomcassidy/.cs-worktrees/ssi-learning-app/69-ssi
 import fs from 'node:fs'
 
 const env = Object.fromEntries(fs.readFileSync('/home/tomcassidy/SSi/ssi-learning-app/.env.local', 'utf8')
-  .split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]))
+  .split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '')]))
 const SVC = fs.readFileSync('/home/tomcassidy/SSi/ssi-dashboard-v7-clean/.env', 'utf8')
   .split('\n').find((l) => l.startsWith('SUPABASE_SERVICE_KEY=')).split('=')[1].trim()
-const URL = env.VITE_SUPABASE_URL, ANON = env.VITE_SUPABASE_ANON_KEY
+const SB = env.VITE_SUPABASE_URL, ANON = env.VITE_SUPABASE_ANON_KEY
 const EMAIL = 'thomas.cassidy+chepstowtest-leader@gmail.com'
 const SITE = 'https://staging.saysomethingin.app'
 const OUT = process.env.OUT || '/home/tomcassidy/.cs-scratch/hb69'
 
-const link = await (await fetch(`${URL}/auth/v1/admin/generate_link`, {
+const link = await (await fetch(`${SB}/auth/v1/admin/generate_link`, {
   method: 'POST', headers: { apikey: SVC, Authorization: `Bearer ${SVC}`, 'Content-Type': 'application/json' },
   body: JSON.stringify({ type: 'magiclink', email: EMAIL }),
 })).json()
 const otp = link.email_otp ?? link.properties?.email_otp
-const session = await (await fetch(`${URL}/auth/v1/verify`, {
+const session = await (await fetch(`${SB}/auth/v1/verify`, {
   method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' },
   body: JSON.stringify({ type: 'magiclink', email: EMAIL, token: otp }),
 })).json()
 if (!session.access_token) throw new Error('no session: ' + JSON.stringify(session).slice(0, 200))
-const ref = new URL(URL).host.split('.')[0]
+const ref = new URL(SB).host.split('.')[0]
 
 fs.mkdirSync(OUT, { recursive: true })
 const browser = await chromium.launch({ executablePath: process.env.CHROME })

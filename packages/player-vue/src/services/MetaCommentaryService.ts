@@ -130,6 +130,24 @@ export function encouragementIntervalMultiplier(
   return 1 / (1 - p)
 }
 
+/**
+ * THE CLASS DOOR for instruction-exposure progress. While playing AS A CLASS
+ * the row belongs to the class's own learner id, which the browser can never
+ * write: `learner_meta_commentary_state` carries own-row RLS resolving to the
+ * driving STAFF member's row. Every class save was refused and only
+ * console.warned — the 24 class rows that exist all carry one backfill
+ * timestamp (2026-07-24 01:30:20) and nothing organic ever landed (verified
+ * live 2026-09-17), so a class replayed the science instructions from the top
+ * every session. The READ goes through the same door: RLS hides rows rather
+ * than erroring, so routing only the write would still read back nothing.
+ *
+ * Null outside class mode: own accounts keep the direct Supabase path.
+ */
+export interface MetaCommentaryClassRoute {
+  getMetaCommentaryState?: () => Promise<{ instruction_index: number | null; instructions_complete: boolean | null } | null>
+  saveMetaCommentaryState?: (instructionIndex: number, instructionsComplete: boolean) => Promise<unknown>
+}
+
 export class MetaCommentaryService {
   private provider: CourseDataProvider
   private courseId: string
@@ -142,6 +160,9 @@ export class MetaCommentaryService {
   /** Supabase client for cross-device persistence of instruction progress.
    *  Null for guests / when not provided ⇒ localStorage-only (per-device). */
   private supabase: SupabaseClient | null
+  /** Class door — see MetaCommentaryClassRoute. A getter, because the class
+   *  context is reactive and the service outlives a single class session. */
+  private classRoute: () => MetaCommentaryClassRoute | null
 
   // Variable-interval reward state (session-scoped — a fresh session starts
   // the clock over, which is fine: encouragements aren't progress).
@@ -176,18 +197,26 @@ export class MetaCommentaryService {
   // instruction first.
   forceEncouragementsOnly = false
 
-  constructor(provider: CourseDataProvider, learnerId: string, supabase: SupabaseClient | null = null) {
+  constructor(
+    provider: CourseDataProvider,
+    learnerId: string,
+    supabase: SupabaseClient | null = null,
+    classRoute: (() => MetaCommentaryClassRoute | null) | null = null,
+  ) {
     this.provider = provider
     this.courseId = provider.getCourseId()
     this.learnerId = learnerId
     this.supabase = supabase
+    this.classRoute = classRoute ?? (() => null)
     this.globalState = this.getDefaultGlobalState()
   }
 
   /** Cross-device sync is possible only for a signed-in learner (a real
-   *  learners.id UUID) with a client — guests stay on localStorage. */
+   *  learners.id UUID) with a client — guests stay on localStorage. A class
+   *  learner id is a real UUID, so class mode passes this too; it just takes
+   *  the class door below instead of the direct table access. */
   private get canSync(): boolean {
-    return !!this.supabase && UUID_RE.test(this.learnerId)
+    return (!!this.supabase || !!this.classRoute()) && UUID_RE.test(this.learnerId)
   }
 
   private getDefaultGlobalState(): GlobalCommentaryState {
@@ -483,16 +512,24 @@ export class MetaCommentaryService {
    * the localStorage value in place.
    */
   private async syncFromServer(): Promise<void> {
-    if (!this.canSync || !this.supabase) return
+    if (!this.canSync) return
     try {
-      const { data, error } = await this.supabase
-        .from('learner_meta_commentary_state')
-        .select('instruction_index, instructions_complete')
-        .eq('learner_id', this.learnerId)
-        .maybeSingle()
-      if (error) {
-        console.warn('[MetaCommentaryService] server load failed:', error.message)
-        return
+      let data: { instruction_index?: number | null; instructions_complete?: boolean | null } | null = null
+      const route = this.classRoute()
+      if (route?.getMetaCommentaryState) {
+        data = await route.getMetaCommentaryState()
+      } else {
+        if (!this.supabase) return
+        const res = await this.supabase
+          .from('learner_meta_commentary_state')
+          .select('instruction_index, instructions_complete')
+          .eq('learner_id', this.learnerId)
+          .maybeSingle()
+        if (res.error) {
+          console.warn('[MetaCommentaryService] server load failed:', res.error.message)
+          return
+        }
+        data = res.data
       }
       const local = this.globalState
       const serverIndex = data?.instruction_index ?? 0
@@ -513,8 +550,17 @@ export class MetaCommentaryService {
   }
 
   private async saveToServer(): Promise<void> {
-    if (!this.canSync || !this.supabase) return
+    if (!this.canSync) return
     try {
+      const route = this.classRoute()
+      if (route?.saveMetaCommentaryState) {
+        await route.saveMetaCommentaryState(
+          this.globalState.instructionIndex,
+          this.globalState.instructionsComplete,
+        )
+        return
+      }
+      if (!this.supabase) return
       const { error } = await this.supabase
         .from('learner_meta_commentary_state')
         .upsert({
@@ -537,6 +583,7 @@ export function createMetaCommentaryService(
   provider: CourseDataProvider,
   learnerId: string,
   supabase: SupabaseClient | null = null,
+  classRoute: (() => MetaCommentaryClassRoute | null) | null = null,
 ): MetaCommentaryService {
-  return new MetaCommentaryService(provider, learnerId, supabase)
+  return new MetaCommentaryService(provider, learnerId, supabase, classRoute)
 }

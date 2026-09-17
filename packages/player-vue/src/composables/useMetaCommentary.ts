@@ -19,11 +19,18 @@ import {
   createMetaCommentaryService,
   type MetaCommentaryAudio,
   type EncouragementTaperConfig,
+  type MetaCommentaryClassRoute,
 } from '../services/MetaCommentaryService'
 
 export interface UseMetaCommentaryOptions {
   courseDataProvider: CourseDataProvider
   learnerId: string
+  /**
+   * The class door for `learner_meta_commentary_state` — see
+   * MetaCommentaryClassRoute. A getter, because the class context is reactive.
+   * Omitted for an own account, which keeps the direct Supabase path.
+   */
+  classRoute?: () => MetaCommentaryClassRoute | null
 }
 
 export function useMetaCommentary(options: UseMetaCommentaryOptions) {
@@ -59,7 +66,9 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
       const supabaseClient = injectedSupabase && typeof injectedSupabase === 'object' && 'value' in injectedSupabase
         ? injectedSupabase.value
         : injectedSupabase
-      const svc = createMetaCommentaryService(courseDataProvider, learnerId, supabaseClient)
+      const svc = createMetaCommentaryService(
+        courseDataProvider, learnerId, supabaseClient, options.classRoute ?? null,
+      )
       await svc.initialize()
       // Dev cheat: ?forceEncouragements=1 (or ?fc=1) fires an interjection on
       // every eligible boundary, bypassing the ~10-min interval — so the

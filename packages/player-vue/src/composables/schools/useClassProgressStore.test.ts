@@ -183,3 +183,48 @@ describe('createClassAwareProgressStore — recordLegoPairings (job #52)', () =>
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * Pod state, the pod ratchet, instruction exposure and the belt touch (job #61
+ * census → this job). Each was a direct browser write under own-row RLS, so
+ * each was refused for a class and only console.warned. The READS are routed
+ * too: RLS hides rows rather than erroring, so writing through this door and
+ * reading through the browser would still restart a class from zero.
+ */
+describe('createClassAwareProgressStore — pod state, pod ratchet, commentary, belt touch', () => {
+  const cases: Array<[string, (s: any) => Promise<unknown>, unknown[]]> = [
+    ['getPodRatchet', (s) => s.getPodRatchet(), []],
+    ['persistPodRatchet', (s) => s.persistPodRatchet(9, 2), [9, 2]],
+    ['resetPodRatchet', (s) => s.resetPodRatchet(), []],
+    ['loadPodState', (s) => s.loadPodState(), []],
+    ['upsertPodState', (s) => s.upsertPodState([{ sentence_id: 'p:s0', exposures: 2 }]), [[{ sentence_id: 'p:s0', exposures: 2 }]]],
+    ['deletePodState', (s) => s.deletePodState(), []],
+    ['getMetaCommentaryState', (s) => s.getMetaCommentaryState(), []],
+    ['saveMetaCommentaryState', (s) => s.saveMetaCommentaryState(4, true), [4, true]],
+    ['touchLastPracticed', (s) => s.touchLastPracticed(), []],
+  ]
+
+  it('in class mode posts each one to the class route with no learner id in the body', async () => {
+    for (const [method, invoke, args] of cases) {
+      fetchMock.mockClear()
+      const store = createClassAwareProgressStore(
+        ref(makeBaseStore()), ref({ id: 'class-1' }), ref(makeSupabase('staff-tok')),
+      ) as any
+      await invoke(store)
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
+      expect(body, method).toEqual({ classId: 'class-1', method, args })
+    }
+  })
+
+  it('outside class mode every one is a no-op — null for reads, false for writes, no fetch', async () => {
+    const store = createClassAwareProgressStore(
+      ref(makeBaseStore()), ref(null), ref(makeSupabase('tok')),
+    ) as any
+    for (const [method, invoke] of cases) {
+      const result = await invoke(store)
+      const expected = method.startsWith('get') || method.startsWith('load') ? null : false
+      expect(result, method).toBe(expected)
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

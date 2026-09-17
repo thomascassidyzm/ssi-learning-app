@@ -30,6 +30,8 @@ let DB: {
   lego_progress: Array<Record<string, any>>
   sessions: Array<Record<string, any>>
   learner_speaking_opportunities: Array<Record<string, any>>
+  learner_pod_state: Array<Record<string, any>>
+  learner_meta_commentary_state: Array<Record<string, any>>
 }
 
 function makeChainable(table: string) {
@@ -37,10 +39,29 @@ function makeChainable(table: string) {
   const builder: any = {
     _updatePatch: null as any,
     _insertRow: null as any,
+    _deleting: false,
+    _done: false,
     select() { return builder },
     eq(col: string, val: unknown) { rows = rows.filter((r) => r[col] === val); return builder },
     update(patch: any) { builder._updatePatch = patch; return builder },
     insert(row: any) { builder._insertRow = row; return builder },
+    // Pod state and the meta-commentary row are upserted, and a course reset
+    // deletes pod state — neither shape existed in this fake before.
+    upsert(rowOrRows: any, opts?: { onConflict?: string }) {
+      const incoming = Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]
+      const keys = (opts?.onConflict ?? '').split(',').map((k) => k.trim()).filter(Boolean)
+      const store = (DB as any)[table] as any[]
+      for (const row of incoming) {
+        const existing = keys.length
+          ? store.find((r) => keys.every((k) => r[k] === row[k]))
+          : undefined
+        if (existing) Object.assign(existing, row)
+        else store.push({ ...row })
+      }
+      builder._done = true
+      return builder
+    },
+    delete() { builder._deleting = true; return builder },
     or() { return builder }, // forward-only guards — not modelled here, just pass through
     async single() {
       if (builder._insertRow) {
@@ -57,6 +78,15 @@ function makeChainable(table: string) {
       return { data: rows[0] ?? null, error: null }
     },
     then(resolve: any) {
+      if (builder._done) return Promise.resolve({ data: null, error: null }).then(resolve)
+      if (builder._deleting) {
+        const store = (DB as any)[table] as any[]
+        for (const r of rows) {
+          const i = store.indexOf(r)
+          if (i >= 0) store.splice(i, 1)
+        }
+        return Promise.resolve({ data: null, error: null }).then(resolve)
+      }
       if (builder._updatePatch) {
         rows.forEach((r) => Object.assign(r, builder._updatePatch))
         return Promise.resolve({ data: null, error: null }).then(resolve)
@@ -102,6 +132,8 @@ beforeEach(async () => {
     lego_progress: [],
     sessions: [],
     learner_speaking_opportunities: [],
+    learner_pod_state: [],
+    learner_meta_commentary_state: [],
   }
   rpcCalls = []
   scope = { role: 'teacher', classIds: ['class-1'], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null, learnerId: 'staff-learner-a' }
@@ -328,5 +360,138 @@ describe('POST /api/school/class-progress — recordLegoPairings (job #52)', () 
     }), res)
     expect(res.statusCode).toBe(403)
     expect(rpcCalls).toHaveLength(0)
+  })
+})
+
+/**
+ * Listening pods, instruction exposure and the belt touch for a CLASS.
+ * Census (job #61, live 2026-09-17): `learner_pod_state` held 2,160 rows for
+ * individuals and ZERO for any class ever; all 199 class enrollment rows sat
+ * at completed_pod_rounds = 0 while individuals reached 327; and the 24 class
+ * `learner_meta_commentary_state` rows all carried one backfill timestamp.
+ * Every one of those was a direct browser write under own-row RLS, refused and
+ * only console.warned. These methods are the door.
+ */
+describe('POST /api/school/class-progress — pod state, pod ratchet, commentary (job #61)', () => {
+  it('persistPodRatchet writes the CLASS enrollment row', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'persistPodRatchet', args: [12, 3] }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.course_enrollments.find((r) => r.learner_id === 'class-learner-1')!
+    expect(row.completed_pod_rounds).toBe(12)
+    expect(row.rounds_since_pod).toBe(3)
+    expect(DB.course_enrollments.some((r) => r.learner_id === scope.learnerId)).toBe(false)
+  })
+
+  it('persistPodRatchet coerces junk to a non-negative integer', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'persistPodRatchet', args: [-5, 'nonsense'] }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.course_enrollments.find((r) => r.learner_id === 'class-learner-1')!
+    expect(row.completed_pod_rounds).toBe(0)
+    expect(row.rounds_since_pod).toBe(0)
+  })
+
+  it('getPodRatchet reads back what persistPodRatchet wrote', async () => {
+    await handler(makeReq({ classId: 'class-1', method: 'persistPodRatchet', args: [7, 2] }), makeRes())
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'getPodRatchet', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.result).toMatchObject({ completed_pod_rounds: 7, rounds_since_pod: 2 })
+  })
+
+  it('resetPodRatchet zeroes both counters', async () => {
+    await handler(makeReq({ classId: 'class-1', method: 'persistPodRatchet', args: [7, 2] }), makeRes())
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'resetPodRatchet', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.course_enrollments.find((r) => r.learner_id === 'class-learner-1')!
+    expect(row.completed_pod_rounds).toBe(0)
+    expect(row.rounds_since_pod).toBe(0)
+  })
+
+  it('upsertPodState writes the class learner id and IGNORES a spoofed one', async () => {
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'upsertPodState',
+      args: [[{ sentence_id: 'pod-1:s0', exposures: 2, learner_id: 'victim', course_code: 'other' }]],
+    }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_pod_state).toEqual([
+      { learner_id: 'class-learner-1', course_code: 'cym_for_eng', sentence_id: 'pod-1:s0', exposures: 2 },
+    ])
+  })
+
+  it('upsertPodState updates an existing sentence rather than duplicating it', async () => {
+    await handler(makeReq({ classId: 'class-1', method: 'upsertPodState', args: [[{ sentence_id: 'pod-1:s0', exposures: 1 }]] }), makeRes())
+    await handler(makeReq({ classId: 'class-1', method: 'upsertPodState', args: [[{ sentence_id: 'pod-1:s0', exposures: 4 }]] }), makeRes())
+    expect(DB.learner_pod_state).toHaveLength(1)
+    expect(DB.learner_pod_state[0].exposures).toBe(4)
+  })
+
+  it('upsertPodState skips rows with no sentence id, and no-ops on an empty batch', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'upsertPodState', args: [[{ exposures: 3 }]] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_pod_state).toHaveLength(0)
+    await handler(makeReq({ classId: 'class-1', method: 'upsertPodState', args: [[]] }), makeRes())
+    expect(DB.learner_pod_state).toHaveLength(0)
+  })
+
+  it('loadPodState returns only this class\'s rows', async () => {
+    DB.learner_pod_state.push(
+      { learner_id: 'class-learner-1', course_code: 'cym_for_eng', sentence_id: 'a', exposures: 1 },
+      { learner_id: 'someone-else', course_code: 'cym_for_eng', sentence_id: 'b', exposures: 9 },
+    )
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'loadPodState', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    // The fake client does not project columns, so assert the row identity:
+    // one row, this class's, not the other learner's.
+    expect(res.body.result).toHaveLength(1)
+    expect(res.body.result[0]).toMatchObject({ sentence_id: 'a', exposures: 1, learner_id: 'class-learner-1' })
+  })
+
+  it('deletePodState clears this class only', async () => {
+    DB.learner_pod_state.push(
+      { learner_id: 'class-learner-1', course_code: 'cym_for_eng', sentence_id: 'a', exposures: 1 },
+      { learner_id: 'someone-else', course_code: 'cym_for_eng', sentence_id: 'b', exposures: 9 },
+    )
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'deletePodState', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.learner_pod_state).toEqual([
+      { learner_id: 'someone-else', course_code: 'cym_for_eng', sentence_id: 'b', exposures: 9 },
+    ])
+  })
+
+  it('saveMetaCommentaryState then getMetaCommentaryState round-trips on the class row', async () => {
+    await handler(makeReq({ classId: 'class-1', method: 'saveMetaCommentaryState', args: [5, true] }), makeRes())
+    expect(DB.learner_meta_commentary_state).toHaveLength(1)
+    expect(DB.learner_meta_commentary_state[0].learner_id).toBe('class-learner-1')
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'getMetaCommentaryState', args: [] }), res)
+    expect(res.body.result).toMatchObject({ instruction_index: 5, instructions_complete: true })
+  })
+
+  it('touchLastPracticed stamps the class enrollment and creates nothing new', async () => {
+    const before = DB.course_enrollments.length
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'touchLastPracticed', args: [] }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.course_enrollments.find((r) => r.learner_id === 'class-learner-1')!
+    expect(typeof row.last_practiced_at).toBe('string')
+    expect(DB.course_enrollments).toHaveLength(before)
+  })
+
+  it('every new method is still gated by scope and role', async () => {
+    scope.classIds = ['some-other-class']
+    for (const method of ['getPodRatchet', 'persistPodRatchet', 'resetPodRatchet', 'loadPodState',
+      'upsertPodState', 'deletePodState', 'getMetaCommentaryState', 'saveMetaCommentaryState',
+      'touchLastPracticed']) {
+      const res = makeRes()
+      await handler(makeReq({ classId: 'class-1', method, args: [] }), res)
+      expect(res.statusCode, method).toBe(403)
+    }
   })
 })
