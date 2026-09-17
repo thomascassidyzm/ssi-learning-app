@@ -212,6 +212,16 @@ const fullFigure = computed(() => buildFigure(fullAxis.value, legos.value, state
   topRoom: 260,
 }))
 
+/** How far through the current belt, as a sentence or '' when unknowable. */
+const beltLine = computed(() => {
+  const b = data.value?.beltProgress
+  if (!b || !b.total) return ''
+  const pct = Math.min(100, Math.round((b.done / b.total) * 100))
+  return t('org.brain.beltPercent', '{pct}% through the {belt} belt')
+    .replace('{pct}', String(pct))
+    .replace('{belt}', b.name.toLowerCase())
+})
+
 // ─── the four totals ───
 // Each one is the class's own record and nothing else's. NEW PHRASES is an
 // item first introduced; PRACTISED is hearings and repeats (Tom, 2026-09-17).
@@ -220,10 +230,17 @@ const tiles = computed(() => {
   if (!d) return []
   return [
     {
+      // THE LAST NEW PHRASE, IN THE LEARNER'S OWN WORDS (Tom, 2026-09-17:
+      // "the idea of Sentence-3 is not helpful ... everything to the learner
+      // is about the item introduced, that's being practised right now"). The
+      // tile speaks the phrase itself, never an ordinal and never the words
+      // sentence, round, lego or cycle. Underneath it, the prompt the class
+      // hears, and how far through the belt these new phrases have carried
+      // them — a figure counted over the live course, band by band.
       key: 'position',
-      word: t('org.brain.statPosition', 'Position'),
-      value: d.reachedSeed ? t('org.brain.sentenceN', 'sentence {n}').replace('{n}', String(d.reachedSeed)) : '—',
-      detail: d.reachedSeedText?.k || '',
+      word: t('org.brain.statJustIntroduced', 'Just introduced'),
+      value: d.reachedLegoText?.t || '—',
+      detail: [d.reachedLegoText?.k || '', beltLine.value].filter(Boolean).join(' · '),
     },
     {
       key: 'minutes',

@@ -35,6 +35,8 @@ const payload: ClassBrainPayload = {
   minutes: 24,
   reachedSeed: 2,
   reachedSeedText: { t: 'dw i eisiau dysgu Cymraeg', k: 'I want to learn Welsh' },
+  reachedLegoText: { t: 'dysgu', k: 'to learn' },
+  beltProgress: { belt: 'yellow', name: 'Yellow', done: 13, total: 24 },
   seedsTotal: 40,
   windowDays: 180,
 }
@@ -216,5 +218,37 @@ describe('ClassBrain', () => {
       expect(w.findAll('svg circle')).toHaveLength(300)
     }
     expect(w.text()).toContain('cycle 4 of 4')
+  })
+})
+
+// THE POSITION TILE SPEAKS THE PHRASE (Tom, 2026-09-17: "it shouldn't say
+// Sentence-3 ... everything to the learner is about the item introduced").
+describe('ClassBrain position tile', () => {
+  it('names the last new phrase, its prompt and how far through the belt', async () => {
+    const w = mountBrain()
+    await flushPromises()
+    const text = w.text()
+    expect(text).toContain('Just introduced')
+    expect(text).toContain('dysgu')
+    expect(text).toContain('to learn')
+    // 13 of the yellow band's 24 new phrases.
+    expect(text).toContain('54% through the yellow belt')
+  })
+
+  it('never shows a teacher the course machinery', async () => {
+    const w = mountBrain()
+    await flushPromises()
+    const text = w.text().toLowerCase()
+    for (const word of ['sentence', 'lego', 'round', 'cycle']) expect(text).not.toContain(word)
+  })
+
+  it('says nothing about a belt when the server could not count one', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, json: async () => ({ ...payload, beltProgress: null, reachedLegoText: null }),
+    })) as never)
+    const w = mountBrain()
+    await flushPromises()
+    expect(w.text()).not.toContain('belt')
+    expect(w.text()).toContain('Just introduced')
   })
 })

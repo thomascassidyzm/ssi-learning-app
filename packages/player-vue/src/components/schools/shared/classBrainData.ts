@@ -28,6 +28,14 @@ export interface ClassBrainPayload {
   minutes: number
   reachedSeed: number
   reachedSeedText: { t: string; k: string } | null
+  /** The last new phrase the class has reached — what the position tile speaks. */
+  reachedLegoText: { t: string; k: string } | null
+  /**
+   * How far through the current belt the class is, counted in new phrases over
+   * the belt's own band of the live course. Null when there is nothing honest
+   * to say — a class that has never played, or a course with no legos in band.
+   */
+  beltProgress: { belt: string; name: string; done: number; total: number } | null
   seedsTotal: number
   windowDays: number
 }

@@ -1292,7 +1292,7 @@ const listPayload = computed(() => {
                  the first lesson.
                  checked: 2423aa12.0aca4ce8
             -->
-            <div class="schools-card class-card" data-walk="class-practice">
+            <div class="schools-card class-card class-card-wide" data-walk="class-practice">
               <span class="class-card-kicker-row"><span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span><HandbookMark anchor="class-practice" /></span>
               <template v-if="classPractice?.lastPractisedAt">
                 <p class="class-practice-headline frost-mono-nums">
@@ -1705,8 +1705,11 @@ const listPayload = computed(() => {
 
 .class-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
 .class-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
-/* The brain is a wide drawing, not a tile: it takes the whole row so the arcs
-   have room to be read. On a phone the grid is one column anyway. */
+/* A wide card takes the whole row rather than one auto-fit column: the brain
+   because its arcs need room to be read, the practice table because its three
+   columns clipped at a third of a desktop screen (Tom, 2026-09-17: "it needs
+   to fit the whole width of the screen in desktop mode so we can see all 3
+   columns"). On a phone the grid is one column anyway, so nothing moves. */
 .class-card-wide { grid-column: 1 / -1; }
 .class-card .schools-kicker {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
