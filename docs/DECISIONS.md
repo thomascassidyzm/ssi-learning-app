@@ -4221,3 +4221,45 @@ job: the same resolve-the-class-learner path sessions already use, or a definer 
 explicit class-teacher check.
 
 **Not done.** Weekly stepping, because the record spans eleven days. Pupil accounts, by design.
+
+## 2026-09-17 — The Overview leads with all-time totals, the week kept beneath (job #127)
+
+**Decision.** `/org/:classId` and `/org/:schoolId` — `NodeHomeView.vue` — now lead with totals:
+**Phrases practised in total**, **Classes that have practised**, **Minutes in the app in total**,
+and on a class **Minutes played as class in total**. The week is not gone: it is the sentence under
+the stats row and the line under the Class practice card, and the phrase list stays this week's.
+Tom, 2026-09-17: this-week "gives too much lumpiness to classes that might not do any Welsh from
+Monday to Wednesday, then do quite a lot on Thursday and Friday", and a total is "more intuitive for
+teachers and admins"; and "the weeks are good units", which is why they stayed.
+
+**This is not the all-time figure job #673 removed.** That one summed `school_summary` and
+`class_student_progress` off the sessions ledger, which a class account cannot write, so it was a
+second truth. These totals are the SAME rule as the week beside them — the in-app minute
+(`api/_utils/inAppTime.ts`, play to stop) and the target2 phrase off the diary — read once, with the
+window opened from seven days to all of it. `loadClassPractice(…, windowDays: null)` counts the last
+seven days of the same rows into `phrasesRecent`; `inAppTimeTotals` takes the week off the same spans
+split by UTC day. One minute definition, one phrase definition, one read.
+
+**Probed before building, live against production, read-only.** The all-time read is scoped to
+learner ids, which is the shape that stays cheap — it is the population-wide packed read that times
+out past 30 days (job #634), and nothing here uses it.
+
+| scope | learner ids | play rows all time | all-time read | week read |
+|---|---|---|---|---|
+| ZZ Test — Year 7 Welsh | 3 | 261 | — | all of them are inside the week |
+| Ysgol Gyfun Tredegar (51 classes) | 61 | 98 | 75 ms | 75 ms |
+| St Alban's RC (13 classes) | 16 | 2,289 | 341 ms | 206 ms |
+| Ysgol Cas-gwent Chepstow (34 classes) | 73 | 4,727 | **712 ms** | 85 ms |
+
+Phrase rows all time at the largest school: 1,315, read in 257 ms. So all-time is servable at class
+AND school scope today, and no roll-up is needed. For scale: the whole estate's diary is 813,452
+play rows, so a school's share is a small fraction of it.
+
+**The ceiling, stated honestly.** The read pages 1,000 rows at a time, capped at 50 pages — 50,000
+rows — and it is ordered oldest-first, so a truncation would drop the NEWEST phrases. The largest
+real school is at 4,727 rows after five months. The day a school approaches the cap, the answer is a
+materialised per-learner-per-day roll-up on the same rule, not a bigger cap and not a second query.
+
+**Not touched.** The Insights lens's `DEFAULT_WINDOW = '30d'` (`api/groups/[id]/rate-compare.ts`),
+which already offers All time in its own selector; the Course journey card; the year-group tiles and
+the tree's class rows, which stay on the week and say so.
