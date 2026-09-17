@@ -27,6 +27,7 @@ import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 import WalkOffer from '@/components/admin/WalkOffer.vue'
+import LensTabs from '@/components/admin/LensTabs.vue'
 import { viewerPersona } from '@/walkthrough/handbook'
 // A class IS one learner account (Tom's ruling, 2026-09-11, job #265), so
 // there is no per-pupil sort: name, time in app, how far the class has got,
@@ -41,7 +42,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
-const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
 const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
@@ -546,6 +547,17 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
   router.push({ path: schoolsLink('class-detail', { classId: cls.id }) })
 }
 
+// The row's Overview | Insights pair (Tom, 2026-09-17): same LensTabs the
+// class page header wears, so the control is learned once. Overview is the
+// same class-detail path openClass uses; Insights mirrors NodeHomeView's
+// insightsLink — a plain teacher's node-insights endpoint isn't a leader's,
+// so they get the teacher-scoped analytics tool for this class instead.
+function classInsightsPath(cls: { id: string }): string {
+  if (route.path.startsWith('/admin/')) return `/admin/classes/${cls.id}/insights`
+  if (isTeacher.value && !isSchoolAdmin.value && !isGovtAdmin.value) return `/schools/analytics?class=${encodeURIComponent(cls.id)}`
+  return `/org/${cls.id}/insights`
+}
+
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
 async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
@@ -815,6 +827,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
+            <th></th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
             <th></th>
           </tr>
@@ -883,6 +896,15 @@ function exportCsv() {
               <template v-else>{{ cls.phrases7d }}</template>
             </td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline v-if="cls.started" :data="cls.activity" :width="80" :height="20" /><span v-else class="schools-subtle">—</span></td>
+            <td class="cell-lens">
+              <LensTabs
+                class="row-lens"
+                :overview-path="schoolsLink('class-detail', { classId: cls.id })"
+                :insights-path="classInsightsPath(cls)"
+                current="overview"
+                @click.stop
+              />
+            </td>
             <td class="cell-share">
               <!-- HANDBOOK Copy a class link without opening the class
                    section: getting-people-in
@@ -1266,6 +1288,17 @@ function exportCsv() {
   color: var(--schools-red-deep);
 }
 
+.cell-lens {
+  white-space: nowrap;
+}
+
+/* The same Overview | Insights pair as the class page header, small — the
+   row already opens Overview on a click anywhere, this just says so. */
+.row-lens :deep(.lens-tab) {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+
 .cell-share {
   white-space: nowrap;
 }
@@ -1360,6 +1393,7 @@ function exportCsv() {
   .table-card .ssi-table tbody td.cell-class { grid-column: 1; grid-row: 1; display: block; }
   .table-card .ssi-table tbody td.is-sorted { grid-column: 2; grid-row: 1; flex-direction: column; align-items: flex-end; gap: 0; font-size: 1.25rem; font-weight: 600; color: var(--schools-fg); }
   .table-card .ssi-table tbody td.is-sorted::before { font-size: 11px; font-weight: 400; }
+  .table-card .ssi-table tbody td.cell-lens { justify-content: flex-start; padding-top: 6px; }
   .table-card .ssi-table tbody td.cell-share,
   .table-card .ssi-table tbody td.cell-action { grid-column: auto; justify-content: flex-start; padding-top: 4px; }
 }
