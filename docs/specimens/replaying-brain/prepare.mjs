@@ -1,6 +1,7 @@
 // Replaying brain, specimen v2 — step 1: distil the live pull into data.json (class-level only).
-// Input: $CS_SCRATCH/{plays,legos,seeds,phrases,classes}.json pulled live 2026-09-17 (plays.json
-// carries target1 AND target2 audio_play rows, plus audio_failed rows, per class+school) from the
+// Input: $CS_SCRATCH/{plays,legos,seeds,phrases}.json pulled live (plays.json carries known,
+// target1 AND target2 audio_play rows, plus audio_failed rows, plus the belt_skip/lego_skip
+// rows the abandoned-detour rule reads, per class+school) from the
 // learner-app Supabase (player_events audio_play rows for every class entity at St Alban's RC
 // High School, Pontypool — the busiest real class estate-wide, per a school-agnostic
 // class-grouped query over player_events/classes/schools — cym_s_for_eng course tables).
@@ -9,6 +10,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findAbandonedDetours } from './detourRule.mjs'
 const here = dirname(fileURLToPath(import.meta.url))
 const S = process.argv[2] || process.env.CS_SCRATCH
 const R = f => JSON.parse(readFileSync(join(S, f)))
@@ -35,6 +37,14 @@ const wasExcluded = p => {
   return fails.some(f => Math.abs(new Date(f) - new Date(p.occurred_at)) < 50)
 }
 const classPlaysSorted = plays.filter(p => p.class_name === CLASS && p.event_type === 'audio_play' && (p.role === 'target1' || p.role === 'target2')).sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1)
+// The abandoned-detour rule lives in detourRule.mjs, with its own test.
+const seedOfLegoId = new Map(legos.map(l => [l.lego_id, l.seed_number]))
+const detoured = findAbandonedDetours(
+  classPlaysSorted.filter(p => p.role === 'target1'),
+  plays.filter(p => p.class_name === CLASS && (p.event_type === 'belt_skip' || p.event_type === 'lego_skip'))
+       .sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1),
+  id => seedOfLegoId.get(id),
+)
 const hearingsFor = t1 => {
   const i = classPlaysSorted.indexOf(t1)
   let h = wasExcluded(t1) ? 0 : 1
@@ -45,11 +55,12 @@ const hearingsFor = t1 => {
   }
   return h
 }
-const tally = { total: 0, hearings: 0, intro: 0, debut: 0, build: 0, use: 0, legacy: 0, unresolved: 0 }
+const tally = { total: 0, hearings: 0, detoured: 0, intro: 0, debut: 0, build: 0, use: 0, legacy: 0, unresolved: 0 }
 const events = []
 for (const p of plays) {
   if (p.role !== 'target1' || p.event_type !== 'audio_play') continue
   const cls = p.class_name === CLASS ? 'class' : 'school'
+  if (cls === 'class' && detoured.has(p)) { tally.detoured++; continue }
   if (cls === 'class') tally.total++
   const lego = ord.get(p.lego_id); if (lego === undefined) continue
   let kind, phrase = null, fires = [lego]
@@ -86,7 +97,7 @@ const out = {
   pulledAt: '2026-09-17', legosTotal: legos.length, seedsTotal: Math.max(...legos.map(l => l.seed_number)), showSeeds: SHOW_SEEDS,
   legos: legos.filter(l => l.seed_number <= SHOW_SEEDS).map(l => ({ id: l.lego_id, seed: l.seed_number, t: l.target_text, k: l.known_text })),
   seeds: Object.fromEntries(seeds.filter(s => s.seed_number <= 40).map(s => [s.seed_number, { t: s.target_text, k: s.known_text }])),
-  sittings: days, events: classEvents.map(({ cls, ...e }) => e), schoolEvents: schoolEvents.map(({ cls, s, ...e }) => e), phrases: P,
+  sittings: days, events: classEvents.map(({ cls, ...e }) => e), schoolEvents: schoolEvents.map(({ cls, s, hearings, ...e }) => e), phrases: P,
   classPhraseCount: classPhrases.size,
   tally, schoolClasses, schoolCycles: schoolEvents.length, schoolFirst: schoolEvents[0]?.t.slice(0, 10), schoolLast: schoolEvents.at(-1)?.t.slice(0, 10),
   knownOnly: plays.filter(p => p.class_name === CLASS && p.role === 'known').length,
@@ -101,4 +112,5 @@ const out = {
   ],
 }
 writeFileSync(join(here, 'data.json'), JSON.stringify(out))
+console.log('detoured (abandoned) plays excluded:', [...detoured].map(p => `${p.occurred_at} ${p.lego_id} ${p.cycle_id}`))
 console.log(tally, 'sittings', days, 'school events', schoolEvents.length, 'phrases used (class)', classPhrases.size, 'phrases used (all)', usedPhrases.size, 'bytes', JSON.stringify(out).length)
