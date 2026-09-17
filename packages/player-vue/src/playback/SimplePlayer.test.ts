@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { SimplePlayer, phaseStartTimeoutCoversItsAwaits, type AudioFailedEvent, type Round } from './SimplePlayer'
+import { SimplePlayer, phaseStartTimeoutCoversItsAwaits, type AudioFailedEvent, type AudioStartedEvent, type Round } from './SimplePlayer'
 import { PlayerConductor, type ConductorEngine } from './PlayerConductor'
 
 // The background-safe PAUSE clip is a self-contained silent WAV data: URI
@@ -156,6 +156,73 @@ describe('SimplePlayer — failure handling', () => {
     // backstop, and the learner would drop into the pause with no known audio.
     // Asserted as a relationship so a new bounded await cannot reopen the gap.
     expect(phaseStartTimeoutCoversItsAwaits()).toBe(true)
+  })
+
+  // ── audio_started: the positive record, moved off the phase edge (job #65) ──
+  // `audio_play` telemetry used to be logged from phase_changed, i.e. before the
+  // element had a src. One of the 83 plays in 9b/KW LJ's busiest lesson was
+  // logged at 13:29:43.036 and audio_failed 1 ms later — the log claimed a clip
+  // the learner never heard. The row is now written off `audio_started`, which
+  // fires only when play()'s promise resolves.
+  it('emits audio_started only when the clip actually starts, once per real clip', async () => {
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    const started: AudioStartedEvent[] = []
+    player.on('audio_started', (e) => started.push(e as AudioStartedEvent))
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(started.length).toBe(1)
+    expect(started[0].phase).toBe('prompt')
+    expect(started[0].cycle?.id).toBe('S0001L01-c1')
+    expect(started[0].url).toBe('https://example.com/k.mp3')
+    expect(started[0].attempt).toBe(1)
+
+    // Walk the cycle: voice1 and voice2 each sound, the pause does not.
+    mockAudio._endedHandler?.()
+    await vi.advanceTimersByTimeAsync(50)
+    mockAudio._endedHandler?.()
+    await vi.advanceTimersByTimeAsync(50)
+    expect(started.map((e) => e.phase)).toEqual(['prompt', 'voice1', 'voice2'])
+    // Never for a silent clip — the pause/linger clips never reach playAudio.
+    expect(started.every((e) => !e.url.startsWith(SILENT_PAUSE_CLIP_PREFIX))).toBe(true)
+  })
+
+  it('a clip whose play() REJECTS emits audio_failed and NO audio_started', async () => {
+    // The exact defect: the old phase-entry log wrote a row here anyway.
+    mockAudio.play = vi.fn(() => Promise.reject(new Error('decode failed')))
+
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    const started: AudioStartedEvent[] = []
+    const failed: AudioFailedEvent[] = []
+    player.on('audio_started', (e) => started.push(e as AudioStartedEvent))
+    player.on('audio_failed', (e) => failed.push(e as AudioFailedEvent))
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(failed.length).toBeGreaterThan(0)
+    expect(started.length).toBe(0)
+  })
+
+  it('a clip that sounds only on the RETRY emits audio_started with attempt=2', async () => {
+    let calls = 0
+    mockAudio.play = vi.fn(() => {
+      calls++
+      return calls === 1 ? Promise.reject(new Error('transient')) : Promise.resolve(undefined)
+    })
+
+    const player = new SimplePlayer([makeRound('S0001L01')])
+    const started: AudioStartedEvent[] = []
+    player.on('audio_started', (e) => started.push(e as AudioStartedEvent))
+
+    player.play()
+    await vi.advanceTimersByTimeAsync(50)
+
+    // It DID sound — one attempt late. That is a play, and it is recorded as one.
+    expect(started.length).toBe(1)
+    expect(started[0].attempt).toBe(2)
+    expect(started[0].phase).toBe('prompt')
   })
 
   it('emits audio_failed with reason=needs-gesture on NotAllowedError from play()', async () => {

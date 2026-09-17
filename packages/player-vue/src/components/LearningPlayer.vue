@@ -1186,51 +1186,58 @@ const updateClassLegoProgress = async (classId: string, lastLegoId: string) => {
   if (error) console.error('[LearningPlayer] Failed to update class progress:', error)
 }
 
-// Start a class session
+// THE CLASS LESSON RECORD (`class_sessions`) — the second source for a class's
+// practice minutes, and until 2026-09-17 a table no real school had ever
+// written. Job #65: all 637 rows belong to demo/test schools and `sessions`
+// holds none for a class learner, so 9b/KW LJ's 38.2 minutes came from
+// `player_events` alone with nothing to reconcile against — and any future
+// undercount of that kind would have been invisible.
+//
+// TWO things were wrong, and both are fixed here. The write went straight from
+// the browser, against an own-row insert policy; and the only call site sat in
+// a branch the real play-as-class path never reaches — verified live on staging
+// (a real teacher playing a real class issued GETs to `class_sessions` and not
+// one POST). It now goes through /api/school/class-progress like every other
+// class write, and it STARTS ON THE FIRST CLIP THAT ACTUALLY SOUNDS rather than
+// on an init branch: a lesson begins when the class first hears something, so
+// there is no empty row for a player that was opened and closed, and no way for
+// a future refactor of the init path to lose the record again.
+const classSessionStarting = ref(false)
 const startClassSessionTracking = async () => {
-  if (!props.classContext || !supabase?.value) return
-  // class_sessions.teacher_user_id holds the AUTH uid (matches classes.teacher_user_id
-  // and the own-row RLS policy) — never learnerId. Guests have no auth uid: skip logging.
-  const teacherUserId = (auth as any)?.userId?.value
-  if (!teacherUserId) return
+  if (!props.classContext) return
+  if (classSessionId.value || classSessionStarting.value) return
   const startLegoId = props.classContext.last_lego_id || 'S0001L01'
+  classSessionStarting.value = true
   classSessionStartTime.value = Date.now()
   classSessionLastLegoId.value = startLegoId
-
-  const { data, error } = await supabase.value
-    .from('class_sessions')
-    .insert({
-      class_id: props.classContext.id,
-      teacher_user_id: teacherUserId,
-      start_lego_id: startLegoId,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    console.error('[LearningPlayer] Failed to start class session:', error)
-  } else {
-    classSessionId.value = data.id
-    console.log('[LearningPlayer] Class session started:', data.id)
+  try {
+    const row = await (classWriteRoute.value as any)?.startClassSession?.(startLegoId)
+    if (row?.id) {
+      classSessionId.value = row.id
+      console.log('[LearningPlayer] Class session started:', row.id)
+    }
+  } catch (err) {
+    // Never let a telemetry write touch playback.
+    console.warn('[LearningPlayer] Failed to start class session:', err)
+  } finally {
+    classSessionStarting.value = false
   }
 }
 
 // End a class session
 const endClassSessionTracking = async () => {
-  if (!classSessionId.value || !supabase?.value) return
-  const durationSeconds = Math.floor((Date.now() - classSessionStartTime.value) / 1000)
-  const { error } = await supabase.value
-    .from('class_sessions')
-    .update({
-      ended_at: new Date().toISOString(),
-      end_lego_id: classSessionLastLegoId.value,
-      cycles_completed: totalCycles.value,
-      duration_seconds: durationSeconds,
-    })
-    .eq('id', classSessionId.value)
-  if (error) console.error('[LearningPlayer] Failed to end class session:', error)
-  else console.log('[LearningPlayer] Class session ended:', classSessionId.value)
+  const sessionId = classSessionId.value
+  if (!sessionId) return
   classSessionId.value = null
+  const durationSeconds = Math.floor((Date.now() - classSessionStartTime.value) / 1000)
+  try {
+    await (classWriteRoute.value as any)?.endClassSession?.(
+      sessionId, classSessionLastLegoId.value || null, totalCycles.value, durationSeconds,
+    )
+    console.log('[LearningPlayer] Class session ended:', sessionId)
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to end class session:', err)
+  }
 }
 
 // Save round completion progress to database
@@ -2685,11 +2692,9 @@ simplePlayer.onPhaseChanged((phase) => {
     clearPreparingState()
   }
 
-  // ── Comprehensive audio telemetry ──
-  // SimplePlayer reuses one Audio element so at most one audio plays at
-  // a time; logging on phase transitions captures every audio start
-  // regardless of cache vs network. Batches via usePlayerLog (5s + 10-
-  // event flush + pagehide beacon) — complete, not continuous.
+  // The VAD marks below are the only thing left on this edge. Per-clip play
+  // telemetry moved to onAudioStarted (below) on 2026-09-17 — a phase edge is
+  // not evidence that anything sounded.
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return
 
@@ -2716,49 +2721,65 @@ simplePlayer.onPhaseChanged((phase) => {
       markPhaseTransition('VOICE_2')
     }
   }
+})
 
-  // Audio play — log the URL + role for any phase that actually plays
-  // a file. Skips silent phases (pause, or listening cycles with
-  // missing prompt/voice2).
+// ── Comprehensive audio telemetry ──
+// Logged when the clip ACTUALLY STARTS SOUNDING, never on phase entry.
+// Until 2026-09-17 this lived in the phase_changed handler above, so a row was
+// written the moment a phase was entered — before the element had a src, let
+// alone audio. When the play attempt then failed, the log still claimed the
+// clip played: one of the 83 plays in 9b/KW LJ's busiest lesson was logged at
+// 13:29:43.036 with `audio_failed` 1 ms later (job #65). Every failure path in
+// the engine already reports itself; this makes the positive record honest too,
+// so the two can no longer disagree.
+//
+// SimplePlayer reuses one Audio element so at most one clip plays at a time,
+// and `audio_started` fires once per real clip — the silent pause and linger
+// clips never reach it, exactly as they never reached the old handler. Row
+// shape is UNCHANGED: same keys, same values, same batching via usePlayerLog
+// (5s + 10-event flush + pagehide beacon).
+simplePlayer.onAudioStarted(({ phase, cycle }) => {
+  // The class lesson begins at the first clip the class actually hears — see
+  // startClassSessionTracking. Idempotent; a no-op outside class mode.
+  if (props.classContext) void startClassSessionTracking()
+  if (!cycle) return
   let audioUrl: string | undefined
   let role: 'known' | 'target1' | 'target2' | null = null
-  // The clip's own length at 1x. This row is logged at clip START, so the
-  // minute rule (api/_utils/inAppTime.ts, Tom 2026-09-13: a span closes at the
-  // last audio-ended point) needs the length to know when the last clip of a
-  // span ENDED. Stamped from build 2026-09-13 on for the two target clips
-  // (the script carries their lengths; it carries no known-side length);
-  // rows without it resolve through course_audio.duration_ms.
+  // The clip's own length at 1x. The minute rule (api/_utils/inAppTime.ts, Tom
+  // 2026-09-13: a span closes at the last audio-ended point) needs the length
+  // to know when the last clip of a span ENDED. Stamped from build 2026-09-13
+  // on for the two target clips (the script carries their lengths; it carries
+  // no known-side length); rows without it resolve through course_audio.duration_ms.
   let durationMs: number | null = null
   if (phase === 'prompt') { audioUrl = cycle.known?.audioUrl; role = 'known' }
   else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1'; durationMs = cycle.target1DurationMs ?? null }
   else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2'; durationMs = cycle.target2DurationMs ?? null }
-  if (audioUrl && role) {
-    // cacheHit reflects whether AudioCache.persistent has the id at the
-    // moment the cycle begins playing — signal for "did the per-cycle
-    // resolver / prefetchNextCycle warm have time to land this audio
-    // in IndexedDB before the learner reached it." Tri-state: null when
-    // we couldn't extract an id (already a blob: URL post-resolution,
-    // or an off-format URL) so queries can distinguish "uncached" from
-    // "couldn't tell".
-    const idMatch = audioUrl.match(/\/api\/audio\/([^?/]+)/)
-    const audioId = idMatch ? idMatch[1] : null
-    const cacheHit = audioId ? audioCache.has(audioId) : null
-    logEvent('audio_play', {
-      url: audioUrl,
-      role,
-      cycleId: cycle.id,
-      cycleType: cycle.type ?? null,
-      legoId: cycle.legoId ?? null,
-      // Only when the cycle carries one. An explicit null here wins over the
-      // log context, and no main-flow cycle ever had a seedId: 47,336 of
-      // 47,336 production audio_play rows in the week to 2026-09-12 were null.
-      // Left absent, the context stamps the seed the cursor is on (job #339).
-      ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
-      playbackSpeed: cycle.playbackSpeed ?? 1.0,
-      ...(durationMs != null && Number.isFinite(durationMs) ? { durationMs } : {}),
-      cacheHit,
-    })
-  }
+  if (!audioUrl || !role) return
+  // cacheHit reflects whether AudioCache.persistent has the id at the
+  // moment the clip begins playing — signal for "did the per-cycle
+  // resolver / prefetchNextCycle warm have time to land this audio
+  // in IndexedDB before the learner reached it." Tri-state: null when
+  // we couldn't extract an id (already a blob: URL post-resolution,
+  // or an off-format URL) so queries can distinguish "uncached" from
+  // "couldn't tell".
+  const idMatch = audioUrl.match(/\/api\/audio\/([^?/]+)/)
+  const audioId = idMatch ? idMatch[1] : null
+  const cacheHit = audioId ? audioCache.has(audioId) : null
+  logEvent('audio_play', {
+    url: audioUrl,
+    role,
+    cycleId: cycle.id,
+    cycleType: cycle.type ?? null,
+    legoId: cycle.legoId ?? null,
+    // Only when the cycle carries one. An explicit null here wins over the
+    // log context, and no main-flow cycle ever had a seedId: 47,336 of
+    // 47,336 production audio_play rows in the week to 2026-09-12 were null.
+    // Left absent, the context stamps the seed the cursor is on (job #339).
+    ...(cycle.seedId ? { seedId: cycle.seedId } : {}),
+    playbackSpeed: cycle.playbackSpeed ?? 1.0,
+    ...(durationMs != null && Number.isFinite(durationMs) ? { durationMs } : {}),
+    cacheHit,
+  })
 })
 
 // Cycle completed - update counters and animations
