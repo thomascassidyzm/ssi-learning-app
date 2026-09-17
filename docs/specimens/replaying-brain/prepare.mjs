@@ -47,6 +47,13 @@ const usedPhrases = new Set(events.map(e => e.phrase).filter(Boolean))
 const classPhrases = new Set(classEvents.map(e => e.phrase).filter(Boolean))
 const P = {}; for (const id of usedPhrases) { const p = pById.get(id); P[id] = { t: p.target_text, k: p.known_text, lego: ord.get(p.lego_id), role: p.phrase_role, pos: p.position, n: (p.decomposition || []).length, seed: p.seed_number } }
 const schoolClasses = new Set(plays.map(p => p.class_name)).size
+// Total in-app minutes: real wall-clock span per sitting (last play minus first play that
+// day, any role — known/target1/target2), summed. Idle time between sittings is never counted.
+const classPlaysByDay = new Map()
+for (const p of plays) { if (p.class_name !== CLASS) continue; const d = p.occurred_at.slice(0, 10); (classPlaysByDay.get(d) || classPlaysByDay.set(d, []).get(d)).push(p.occurred_at) }
+let totalMinutes = 0
+for (const ts of classPlaysByDay.values()) { ts.sort(); totalMinutes += (new Date(ts.at(-1)) - new Date(ts[0])) / 60000 }
+const introducedCount = new Set(classEvents.filter(e => e.kind === 'intro').map(e => e.lego)).size
 const out = {
   school: "St Alban's RC High School, Pontypool", className: CLASS, course: 'Welsh, southern, for English speakers', courseCode: COURSE,
   pulledAt: '2026-09-17', legosTotal: legos.length, seedsTotal: Math.max(...legos.map(l => l.seed_number)), showSeeds: SHOW_SEEDS,
@@ -56,6 +63,7 @@ const out = {
   classPhraseCount: classPhrases.size,
   tally, schoolClasses, schoolCycles: schoolEvents.length, schoolFirst: schoolEvents[0]?.t.slice(0, 10), schoolLast: schoolEvents.at(-1)?.t.slice(0, 10),
   knownOnly: plays.filter(p => p.class_name === CLASS && p.role === 'known').length,
+  totalMinutes: Math.round(totalMinutes * 10) / 10, introducedCount,
   // Estate-wide, class-grouped over player_events JOIN classes JOIN schools, target1 audio_play,
   // cym_s_for_eng, excluding is_demo/is_test schools. Pulled live 2026-09-17 — the query behind
   // "why this class" below; the single source of truth for which class is busiest estate-wide.
