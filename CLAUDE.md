@@ -738,7 +738,9 @@ inline.
 /schools/teachers           → teachers list
 /schools/students           → students list
 /schools/classes            → the teacher's classes
-/schools/classes/:id        → REDIRECT to /org/:id (job #999, 2026-09-16 — one class page)
+/schools/classes/:id        → REDIRECT to /org/:id on dev (job #999, 2026-09-16 — one class
+                              page). Still the standalone class-detail view on main until the
+                              next promotion carries it
 /schools/analytics          → Rate-compare insight tool, teacher-scoped
 /schools/settings           → school settings
 /schools/setup              → admin setup wizard (guarded)
