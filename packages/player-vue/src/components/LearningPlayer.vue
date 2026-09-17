@@ -49,6 +49,7 @@ import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/ada
 import { setPlaybackLive } from '../playback/playbackLiveness'
  
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
+import { expandFiredLegoIds } from '../composables/buildLegoPairs'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { envLabel } from '../composables/usePreviewTriggers'
@@ -2758,12 +2759,10 @@ simplePlayer.onCycleCompleted((cycle) => {
   // so we automatically respect the "only count what the learner heard"
   // rule. Guests have a learnerId fallback the composable filters on.
   if (cycle.legoId) {
-    const firedLegoIds = [cycle.legoId]
-    if (Array.isArray(cycle.componentLegoIds)) {
-      for (const id of cycle.componentLegoIds) {
-        if (id && id !== cycle.legoId) firedLegoIds.push(id)
-      }
-    }
+    // The expansion rule itself lives in composables/buildLegoPairs.ts, beside
+    // buildPairs, so the job #59 history backfill replays this exact rule
+    // rather than a second copy of it.
+    const firedLegoIds = expandFiredLegoIds(cycle.legoId, cycle.componentLegoIds)
     // Accumulate locally; flushed in one batch on pause/background/unmount.
     // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
     // Pairings keep flowing while PRACTISING. Tom, 2026-08-31: ordinary

@@ -6127,6 +6127,71 @@ $$;
 
 
 --
+-- Name: record_lego_pairings_backfill(uuid, text, text[], integer[], text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_lego_pairings_backfill(
+  _learner_id uuid,
+  _course_code text,
+  _pairs text[],
+  _counts integer[],
+  _tag text,
+  _first_fired_at timestamptz,
+  _last_fired_at timestamptz
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF _pairs IS NULL OR array_length(_pairs, 1) IS NULL OR _tag IS NULL THEN
+    RETURN;
+  END IF;
+
+  WITH input AS (
+    SELECT
+      CASE WHEN _pairs[idx][1] < _pairs[idx][2] THEN _pairs[idx][1] ELSE _pairs[idx][2] END AS lego_a,
+      CASE WHEN _pairs[idx][1] < _pairs[idx][2] THEN _pairs[idx][2] ELSE _pairs[idx][1] END AS lego_b,
+      COALESCE(_counts[idx], 1) AS cnt
+    FROM generate_series(1, array_length(_pairs, 1)) AS g(idx)
+    WHERE _pairs[idx][1] IS NOT NULL
+      AND _pairs[idx][2] IS NOT NULL
+      AND _pairs[idx][1] <> _pairs[idx][2]
+  ),
+  agg AS (
+    SELECT lego_a, lego_b, SUM(cnt)::int AS cnt FROM input GROUP BY lego_a, lego_b
+  )
+  INSERT INTO learner_lego_pairings AS p
+    (learner_id, course_code, lego_a, lego_b, fire_count, first_fired_at, last_fired_at,
+     backfill_fire_count, backfill_tag, backfill_prev_first_fired_at)
+  SELECT _learner_id, _course_code, lego_a, lego_b, cnt,
+         COALESCE(_first_fired_at, now()), COALESCE(_last_fired_at, now()),
+         cnt, _tag, NULL
+  FROM agg
+  ON CONFLICT (learner_id, course_code, lego_a, lego_b) DO UPDATE
+    SET fire_count = p.fire_count
+                     - (CASE WHEN p.backfill_tag = _tag THEN p.backfill_fire_count ELSE 0 END)
+                     + EXCLUDED.backfill_fire_count,
+        backfill_fire_count = EXCLUDED.backfill_fire_count,
+        backfill_tag = _tag,
+        -- Remember the live first_fired_at the first time this tag touches the
+        -- row, so reversal restores it; a re-run must not overwrite that memory
+        -- with the value the previous run already pulled back.
+        backfill_prev_first_fired_at = CASE
+          WHEN p.backfill_tag = _tag THEN p.backfill_prev_first_fired_at
+          ELSE p.first_fired_at
+        END,
+        first_fired_at = LEAST(
+          CASE WHEN p.backfill_tag = _tag
+               THEN COALESCE(p.backfill_prev_first_fired_at, p.first_fired_at)
+               ELSE p.first_fired_at END,
+          EXCLUDED.first_fired_at),
+        last_fired_at = GREATEST(p.last_fired_at, EXCLUDED.last_fired_at);
+END;
+$$;
+
+
+--
 -- Name: refresh_paid_paddle_grant(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11502,6 +11567,9 @@ CREATE TABLE public.learner_lego_pairings (
     fire_count integer DEFAULT 1 NOT NULL,
     first_fired_at timestamp with time zone DEFAULT now() NOT NULL,
     last_fired_at timestamp with time zone DEFAULT now() NOT NULL,
+    backfill_fire_count integer DEFAULT 0 NOT NULL,
+    backfill_tag text,
+    backfill_prev_first_fired_at timestamp with time zone,
     CONSTRAINT learner_lego_pairings_check CHECK ((lego_a < lego_b))
 );
 
@@ -11510,7 +11578,7 @@ CREATE TABLE public.learner_lego_pairings (
 -- Name: TABLE learner_lego_pairings; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firing counts for the v2 brain view timelapse. Forward-only — not backfilled from history.';
+COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firing counts for the v2 brain view timelapse. Live writes are forward-only; a tagged, reversible history replay is possible via record_lego_pairings_backfill (job #59).';
 
 
 --
@@ -11518,6 +11586,27 @@ COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firi
 --
 
 COMMENT ON COLUMN public.learner_lego_pairings.fire_count IS 'Total cycles in which both legos appeared together. Drives synapse thickness via log(fire_count + 1).';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_fire_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_fire_count IS 'How much of fire_count came from the run named in backfill_tag. Subtract it to reverse that run exactly.';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_tag; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_tag IS 'Name of the backfill run that contributed backfill_fire_count. NULL means every fire on this row was recorded live.';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_prev_first_fired_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_prev_first_fired_at IS 'first_fired_at before the backfill moved it back to the real first firing. NULL when the backfill created the row.';
 
 
 --
