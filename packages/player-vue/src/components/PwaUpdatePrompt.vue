@@ -46,7 +46,14 @@ let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 // audio is playing. Nothing here changes them.
 const { needRefresh } = shouldRunServiceWorker()
   ? useRegisterSW({
-      immediate: true,
+      // Register AFTER `window load`, not during it (job #119). The precache
+      // install is the whole app shell, ~1.5 MB, and with `immediate: true` it
+      // came down the same pipe as the page's own boot fetches during the exact
+      // seconds the learner is watching a blank screen on 4G. `false` only moves
+      // registration to the load event — the SW still registers on this visit,
+      // precaches the same entries, and the offline boot path it is load-bearing
+      // for is unchanged. Nothing about WHAT is cached moves.
+      immediate: false,
       onRegistered(registration) {
         console.log('[PWA] Service worker registered')
         if (registration) {

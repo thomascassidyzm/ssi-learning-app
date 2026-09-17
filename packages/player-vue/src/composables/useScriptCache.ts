@@ -424,6 +424,32 @@ export const checkContentVersion = (
   return promise
 }
 
+/**
+ * Run work once the page has finished loading and the main thread is idle.
+ *
+ * For background fetches that compete with first paint for the SAME PIPE. On a
+ * phone on 4G that competition is the whole cost: the bytes are not wasted, they
+ * are just being spent at the one moment the learner has nothing on screen.
+ * Falls back to a plain timeout where `requestIdleCallback` does not exist
+ * (Safari < 16.4), and runs immediately outside a browser (tests, SSR) so the
+ * work is never simply lost.
+ */
+export const afterFirstPaint = (fn: () => void): void => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    fn()
+    return
+  }
+  const idle = () => {
+    const ric = (window as unknown as {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void
+    }).requestIdleCallback
+    if (typeof ric === 'function') ric(() => fn(), { timeout: 3000 })
+    else setTimeout(fn, 1000)
+  }
+  if (document.readyState === 'complete') idle()
+  else window.addEventListener('load', idle, { once: true })
+}
+
 const doCheckContentVersion = async (
   supabase: SupabaseClient,
   courseCode: string
@@ -487,11 +513,23 @@ const doCheckContentVersion = async (
     // Outside the liveStamp guard on purpose (A-86) — an AUDIO repair moves
     // audio_stamp without necessarily moving content_stamp, and the downloaded
     // snapshot has to pick up the new `<uuid>.vN` refs either way.
-    void refreshListeningMetaIfStale(supabase, courseCode, liveStamp, liveAudioStamp).catch(() => {})
-    // No snapshot at all (a device that only ever had the automatic
-    // download-ahead): write one now, in the background, so Listening Mode's
-    // Dialogues list and the main-flow pod exist offline too (job #379).
-    void ensureListeningMetaSnapshot(supabase, courseCode).catch(() => {})
+    //
+    // AFTER FIRST PAINT, both of them (job #119). "Never blocks anything" was
+    // true of the main thread and false of the pipe: writing the snapshot costs
+    // three paginated `course_practice_phrases` pages plus every seed of the
+    // course — 313 KB measured on a cold class Overview at phone width on 4G,
+    // roughly a third of that load — and it was going out DURING the seconds
+    // the learner is looking at a blank screen, on a page that renders none of
+    // it. Nothing about what gets written changes; only when. The offline
+    // guarantee is intact: the snapshot is still written on this boot, and the
+    // player's own round-advance heal (LearningPlayer) is untouched.
+    afterFirstPaint(() => {
+      void refreshListeningMetaIfStale(supabase, courseCode, liveStamp, liveAudioStamp).catch(() => {})
+      // No snapshot at all (a device that only ever had the automatic
+      // download-ahead): write one now, in the background, so Listening Mode's
+      // Dialogues list and the main-flow pod exist offline too (job #379).
+      void ensureListeningMetaSnapshot(supabase, courseCode).catch(() => {})
+    })
 
     if (liveStamp) {
       liveContentStamps.set(courseCode, liveStamp)
