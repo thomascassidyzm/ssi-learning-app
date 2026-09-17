@@ -18,6 +18,15 @@ const params = new URLSearchParams(location.search)
 const mode = params.get('mode') || 'full'
 const p = JSON.parse(JSON.stringify(fixture)) as Record<string, any>
 
+// A class in its first term: the axis is short, so nothing is folded and the
+// card must look exactly as it always has.
+if (mode === 'short') {
+  const N = 22
+  p.legos = p.legos.slice(0, N)
+  p.events = p.events.filter((e: any) => e.fires.every((f: number) => f < N))
+  p.introducedCount = N
+  p.reachedSeed = p.legos[N - 1].seed
+}
 if (mode === 'truncated') {
   const MAX_AXIS = 60
   const axisTo = p.legos.length
