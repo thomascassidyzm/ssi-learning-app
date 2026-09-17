@@ -185,6 +185,12 @@ export interface SendInput {
   spec: AudienceSpec
   title: string
   body: string
+  /**
+   * A one-tap action for every recipient's inbox row, e.g. { kind: 'acknowledge', label: 'Understood', payload: {} }.
+   * Not reachable from the HTTP composer (parseSendBody never sets it) — script-only, for a send that
+   * genuinely wants a stamped answer rather than just a body. Defaults to null, as it always has.
+   */
+  action?: { kind: string; label: string; payload: Record<string, unknown> } | null
 }
 
 export interface SendResult {
@@ -302,7 +308,7 @@ export async function sendAdminMessage(svc: SupabaseClient, input: SendInput): P
       source: ADMIN_MESSAGE_SOURCE,
       title: input.title,
       body: input.body,
-      action: null,
+      action: input.action ?? null,
       dedupe_key: dedupeKeyFor(input.id, userId),
     }))
     const { data, error } = await svc
