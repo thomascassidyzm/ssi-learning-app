@@ -4161,3 +4161,28 @@ org questions, and the voice panel's named learner rows are hidden on this page.
 practice is RECORDED, never PUBLISHED: the session rows stay in the DB for later analysis, the
 students-on-their-own minutes still add into the class card as a class total, and the "17 of
 39 people practised" sentence keeps its count. Nothing in Insights names a pupil.
+
+## 2026-09-17 — The replaying brain on real class data: Chepstow 10C (job #50)
+
+**Decision.** One static page, `packages/player-vue/public/docs/specimens/replaying-brain/index.html`,
+served by staging at `/docs/specimens/replaying-brain/`. Chunks on one line in course order, arcs
+between chunks said inside the same played phrase, thickness by repeat count, a play button and a
+cycle-by-cycle scrubber with sitting jumps, the practised-phrase list in course order, and a stats
+strip, all computed in the browser at the scrubber position. Builder in
+`docs/specimens/replaying-brain/` with the class-level data snapshot committed beside it.
+
+**Why 10C.** Chepstow is the only real school with class play. Its 33 classes have 901 heard
+cycles between them, almost all a single sitting on 8 September; 10C has the most cycles across
+more than one sitting: 47 cycles, 3 sittings, 3 to 14 September.
+
+**Finding: the co-fire table is empty for every class, and why.** `learner_lego_pairings` has zero
+rows for every class entity in every school. Class play runs under the class entity learner whose
+`user_id` is `class-learner:<class_id>`; `record_lego_pairings` is not SECURITY DEFINER, so the
+table's own-row INSERT policy refuses the write and the client only console.warns. Pupil accounts
+are not touched by class play. The page therefore rebuilds co-firing the way the app does, from
+the played phrase's decomposition, cycle by cycle from `player_events` audio_play rows with their
+real timestamps. No arc is drawn from unplayed course structure. Fixing the pipe is a separate
+job: the same resolve-the-class-learner path sessions already use, or a definer RPC with an
+explicit class-teacher check.
+
+**Not done.** Weekly stepping, because the record spans eleven days. Pupil accounts, by design.
