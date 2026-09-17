@@ -3462,7 +3462,17 @@
       "upgradeCta": "Upgrade →",
       "statMinutesPractised": "Minutes practised",
       "statJourneyLegos": "Phrases travelled together",
-      "classNotStartedJourney": "Not started — the class has not played together yet."
+      "classNotStartedJourney": "Not started — the class has not played together yet.",
+      "statPhrasesPractisedTotal": "Phrases practised in total",
+      "statMinutesPlayedAsClassTotal": "Minutes played as class in total",
+      "statMinutesInAppTotal": "Minutes in the app in total",
+      "statClassesEverPractised": "Classes that have practised",
+      "statsNoteInAppTimeTotal": "The numbers above are totals for all the time your school has been learning. Minutes in the app is the time your classes, staff and students spent in the app, pauses included — the time they were in the lesson — and whole-class play accounts for {classMinutes} of them.",
+      "statsNoteThisWeek": "In the last seven days: {phrases} phrases practised, {classes} classes practising and {minutes} minutes in the app, of which audio actually playing came to {audioMinutes} minutes.",
+      "phrasePractisedTotal": "phrase practised in total",
+      "phrasesPractisedTotal": "phrases practised in total",
+      "classMinutesInAppTotal": "{n} minutes in the app together altogether, pauses included.",
+      "classThisWeek": "In the last seven days: {phrases} phrases and {minutes} minutes."
     },
     "ui": {
       "howThisWorks": {
