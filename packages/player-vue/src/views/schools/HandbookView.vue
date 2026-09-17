@@ -419,6 +419,14 @@ onMounted(() => {
 .handbook-chip.is-open { border-color: var(--schools-red, #DB1E17); color: var(--schools-red, #DB1E17); }
 .chip-count { color: var(--schools-fg-3, #8A8078); font-variant-numeric: tabular-nums; }
 .handbook-chip.is-open .chip-count { color: inherit; }
+/* PHONE (390px): six chips wrapping turns the sticky bar into a third of the
+   screen, so they run in one scrolling row instead. */
+@media (max-width: 559px) {
+  .handbook-controls { gap: var(--space-2); padding-top: var(--space-3); padding-bottom: var(--space-3); }
+  .handbook-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 calc(var(--space-3) * -1); padding: 0 var(--space-3); }
+  .handbook-chips::-webkit-scrollbar { display: none; }
+  .handbook-chip { flex: none; }
+}
 .section-head {
   width: 100%; display: flex; align-items: center; gap: var(--space-3);
   background: none; border: none; padding: 0; cursor: pointer; text-align: left; font: inherit;
