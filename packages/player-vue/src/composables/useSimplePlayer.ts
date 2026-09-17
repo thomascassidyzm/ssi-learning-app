@@ -10,6 +10,7 @@ import {
   type Cycle,
   type Phase,
   type AudioFailedEvent,
+  type AudioStartedEvent,
   type AudioInterruptedEvent,
   type SimplePlayerRuntimeOverrides,
 } from '../playback/SimplePlayer'
@@ -99,6 +100,9 @@ export interface UseSimplePlayerReturn {
   onRoundCompleted: (callback: (round: Round) => void) => void
   onSessionComplete: (callback: () => void) => void
   onAudioFailed: (callback: (event: AudioFailedEvent) => void) => void
+  /** A real clip ACTUALLY began sounding — the play() promise resolved. This,
+   *  not phase entry, is where per-clip play telemetry belongs (job #65). */
+  onAudioStarted: (callback: (event: AudioStartedEvent) => void) => void
   onNoPlayableContent: (callback: () => void) => void
   /** Something outside the app paused the audio (a lost bluetooth route, a
    * headset button, another app taking the session). The engine has already
@@ -130,6 +134,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const roundCallbacks: Array<(round: Round) => void> = []
   const sessionCallbacks: Array<() => void> = []
   const audioFailedCallbacks: Array<(event: AudioFailedEvent) => void> = []
+  const audioStartedCallbacks: Array<(event: AudioStartedEvent) => void> = []
   // Raised when a jump found nothing playable from its target to the end of
   // the queue — offline, "none of the rest of this is on the device". The app
   // decides what to do (recycle what IS cached, or tell the learner plainly).
@@ -194,6 +199,9 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       const event = data as AudioFailedEvent
       audioFailed.value = event
       audioFailedCallbacks.forEach(cb => cb(event))
+    })
+    player.on('audio_started', (data) => {
+      audioStartedCallbacks.forEach(cb => cb(data as AudioStartedEvent))
     })
     player.on('no_playable_content', () => {
       noPlayableCallbacks.forEach(cb => cb())
@@ -476,6 +484,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const onRoundCompleted = (callback: (round: Round) => void) => { roundCallbacks.push(callback) }
   const onSessionComplete = (callback: () => void) => { sessionCallbacks.push(callback) }
   const onAudioFailed = (callback: (event: AudioFailedEvent) => void) => { audioFailedCallbacks.push(callback) }
+  const onAudioStarted = (callback: (event: AudioStartedEvent) => void) => { audioStartedCallbacks.push(callback) }
   const onNoPlayableContent = (callback: () => void) => { noPlayableCallbacks.push(callback) }
   const onInterrupted = (callback: (event: AudioInterruptedEvent) => void) => { interruptedCallbacks.push(callback) }
 
@@ -487,6 +496,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     roundCallbacks.length = 0
     sessionCallbacks.length = 0
     audioFailedCallbacks.length = 0
+    audioStartedCallbacks.length = 0
     noPlayableCallbacks.length = 0
     interruptedCallbacks.length = 0
   })
@@ -535,6 +545,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     onRoundCompleted,
     onSessionComplete,
     onAudioFailed,
+    onAudioStarted,
     onNoPlayableContent,
     onInterrupted,
   }
