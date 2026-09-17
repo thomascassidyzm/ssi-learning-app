@@ -123,8 +123,11 @@ const geom = computed(() => {
   const n = Math.max(legos.value.length, 1)
   const y = showLabels.value ? 150 : 96
   const h = showLabels.value ? 280 : 150
+  // The labels lean right at 58°, so the last one runs past the last dot. The
+  // box is wider than the line to hold it; the dots do not move.
+  const w = W + (showLabels.value ? 80 : 0)
   const x = (i: number): number => (n === 1 ? W / 2 : PAD + (i * (W - PAD * 2)) / (n - 1))
-  return { y, h, x }
+  return { y, h, w, x }
 })
 const arcs = computed(() => {
   const { x, y } = geom.value
@@ -183,7 +186,9 @@ const tiles = computed(() => {
       key: 'minutes',
       word: t('org.brain.statMinutes', 'In-app minutes'),
       value: d.minutes >= 0 ? String(d.minutes) : '—',
-      detail: t('org.brain.acrossSittings', 'across {n} sittings').replace('{n}', String(d.sittings.length)),
+      detail: d.sittings.length === 1
+        ? t('org.brain.acrossOneSitting', 'in one sitting')
+        : t('org.brain.acrossSittings', 'across {n} sittings').replace('{n}', String(d.sittings.length)),
     },
     {
       key: 'practised',
@@ -249,7 +254,7 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
       <!-- INLINE: the brain at its latest frame, the four totals, two controls -->
       <div v-if="!full" class="cb-body">
         <div class="cb-draw">
-          <svg :viewBox="`0 0 ${W} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
+          <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
             <path v-for="(a, i) in arcs" :key="`a${i}`" :d="a.d" fill="none" stroke="var(--schools-red, #2563eb)" :stroke-opacity="a.o" :stroke-width="a.w" />
             <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
             <g v-for="(d, i) in dots" :key="d.key">
@@ -312,14 +317,14 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
       <!-- FULL SCREEN: the same brain, phone first. An in-app overlay with an
            obvious close, padded out of the notch and the home indicator. -->
       <Teleport v-if="full" to="body">
-        <div class="cb-full" role="dialog" aria-modal="true" :aria-label="t('org.brain.fullTitle', 'The class’s course journey')">
+        <div class="cb-full schools-surface" role="dialog" aria-modal="true" :aria-label="t('org.brain.fullTitle', 'The class’s course journey')">
           <header class="cb-full-bar">
             <span class="cb-full-title">{{ t('org.nodeHome.courseJourney', 'Course journey') }}</span>
             <button type="button" class="cb-close" :aria-label="t('org.brain.close', 'Close')" @click="closeFull">✕</button>
           </header>
           <div class="cb-full-scroll">
             <div class="cb-draw">
-              <svg :viewBox="`0 0 ${W} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
+              <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
                 <path v-for="(a, i) in arcs" :key="`fa${i}`" :d="a.d" fill="none" stroke="var(--schools-red, #2563eb)" :stroke-opacity="a.o" :stroke-width="a.w" />
                 <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
                 <g v-for="(d, i) in dots" :key="`f${d.key}`">
