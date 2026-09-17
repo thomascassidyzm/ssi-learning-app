@@ -99,12 +99,22 @@ const { fetchSchools: prefetchSchools } = useSchoolData()
 const { fetchClasses: prefetchClasses } = useClassesData()
 const { fetchTeachers: prefetchTeachers } = useTeachersData()
 const { fetchStudents: prefetchStudents } = useStudentsData()
+// …EXCEPT on an Insights surface. The roster is the only prefetch that
+// carries PEOPLE — every teacher and pupil of the school, by name — and Tom's
+// ruling of 2026-09-16 16:31Z is that nothing in Insights names a pupil, on
+// the glance or behind a tap. A page that never draws a name must not receive
+// 82 of them either, so the warm-up waits until the leader actually opens a
+// roster page, which fetches for itself on mount exactly as it did before this
+// hoist existed. Seen live on staging: /api/school/roster delivered the whole
+// school's names to the leader's Insights page (job #32).
+const INSIGHTS_PATH = /^\/org\/[^/]+\/insights|^\/schools\/analytics/
 watch(
   () => ctx.currentUser.value,
   (user) => {
     if (!user) return
     prefetchSchools()
     if (ctx.isTeacher.value || ctx.isSchoolAdmin.value) prefetchClasses()
+    if (INSIGHTS_PATH.test(router.currentRoute.value.path)) return
     if (ctx.isSchoolAdmin.value) {
       prefetchTeachers()
       prefetchStudents()
