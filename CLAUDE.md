@@ -4,9 +4,13 @@
 
 ## 🚨 CODE IS GOSPEL
 
-**Documentation in this repo is historical artifact — out of date BY DESIGN — and is never an authority for any decision.** Before acting on any claim found in a doc (including audits, build docs, README content, this file), verify it against the running code and the live DB. If the code can't answer the question, **ASK TOM** — one plain question — rather than trusting a doc. Today's specimen: agents burned a morning trusting docs about explainer clips and voice casting that the code contradicted.
+**No document in this repo is an authority for any decision — the running code and the live DB are.** Most of what is written here is a dated record of what somebody found on the day they wrote it, and nothing goes back to correct it afterwards. Before acting on any claim found in a doc, including audits, build docs, README content and this file, verify it against the code. If the code can't answer the question, **ASK TOM** — one plain question — rather than trusting a doc. The specimen that earned this rule: agents burned a morning trusting docs about explainer clips and voice casting that the code contradicted.
 
-**The `docs/` tree has been retired.** On Tom's ruling of 2026-08-24 it was moved wholesale to `archive/docs-retired-2026-08-24/` — nothing deleted, history intact, and nothing in there carries any standing. Do not go looking for it: if you find yourself reading the archive to answer a question, you are already off the rails. What stayed at its old path stayed because **running code reads or writes it**, not because it is documentation: `docs/board/reports/*.md` is a build-time `?raw` import in `BoardReportView.vue`, `docs/explainer-pack.md` and `docs/walkthrough-pack.md` are compiler outputs, and the screenshot directories are where the `e2e/` probes write. Treat all of those as code, not as docs.
+**The `docs/` tree was archived once, and has since refilled.** On Tom's ruling of 2026-08-24 the documentation estate moved wholesale to `archive/docs-retired-2026-08-24/` — nothing deleted, history intact, and nothing in there carries any standing. Do not go looking for it: if you find yourself reading the archive to answer a question, you are already off the rails. But `docs/` did not stay empty and is not retired today. It carries 427 tracked files, and 105 of its 124 markdown files were written AFTER that ruling. Three kinds live there:
+
+- **Standing files, kept current.** `docs/DECISIONS.md` is the repo's decision journal, written on most jobs. `docs/ROADMAP-PUBLIC.md` is handed word for word to the in-app support drafter — treat it as learner-facing copy, not as notes. `docs/README.md` describes the tree.
+- **Compiler outputs and probe captures — treat as code.** `docs/explainer-pack.md`, `docs/walkthrough-pack.md` and `docs/handbook-pack.md` are written by `tools/explainer/compile.mjs` and `tools/walkthrough/compile.mjs`. The 244 screenshots under `the-view/`, `the-lens/`, `a159-htw-visual/`, `perf/`, `org-account/`, `navbar-redesign/` and the rest are where the `e2e/` probes write. A few JSON files under `pod-position-audit/` and `pods/` are read by scripts in `tools/`. `docs/board/` is now authored prose ONLY — the build-time `?raw` import this file used to describe is gone with `BoardReportView.vue`; `/board/:code` renders a frozen `board_snapshots` row from `GET /api/board/snapshot/:code`.
+- **Dated job write-ups — the bulk of it.** Most of the markdown is one worker's report of one investigation, named with the date it was written. It is evidence of what was true on that date, never updated afterwards, and never an authority for today. Read one to learn how something was measured; verify every claim in it against the running code before you act on it.
 
 ## 🚨 CHANGE A SCHOOLS CAPABILITY, CHANGE ITS DESCRIPTION — IN THE SAME EDIT
 
@@ -138,15 +142,12 @@ Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-ag
 - Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
 - If you find yourself on `staging` or `main`, switch to `dev` before making changes.
 
-**GitHub Actions is retired, by DELETION, not by disabling.** `.github/` is empty on `dev` and on
-`staging` (deleted in `8c2a8830`). It still carries `auto-merge-claude.yml` and `verify.yml` on
-`main`, and will until the next ordinary promotion carries the deletion there — that residue is
-EXPECTED and is not a defect. This matters because every worker gets a private worktree cut from
-`origin/main`, so a worker reading `.github/workflows/` in its own fresh tree finds the files every
-time. Four workers in a row reported them as broken. They are not broken; they are retired, and the
-gate is `pnpm test:api` + the local feedback loops below, asserted by
-`api/_utils/securityTestMachineryIntegrity.security.test.ts`. Do not delete them from `main` — that
-is a hotfix to the production branch, and this is cosmetic.
+**GitHub Actions is retired, by DELETION, not by disabling.** There is no `.github/` directory on
+`dev`, on `staging` or on `main` — the deletion made on `dev` and `staging` in `8c2a8830` reached
+`main` on an ordinary promotion, so the residue this file used to warn about is gone. Nothing gates
+a merge on this repo: no workflow runs, and a pushed branch sits there until somebody merges it.
+The gate is `pnpm test:premerge` plus the local feedback loops below, with the security-test roster
+itself asserted by `api/_utils/securityTestMachineryIntegrity.security.test.ts`.
 
 **Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
 
@@ -357,11 +358,17 @@ ssi-learning-app/
 │       │   │   ├── LearningPlayer.vue   # Main player component
 │       │   │   ├── SessionComplete.vue  # Session summary screen
 │       │   │   └── schools/             # 21 schools UI components
-│       │   ├── views/schools/           # 12 schools dashboard views
-│       │   ├── composables/schools/     # 16 schools composables
+│       │   ├── views/schools/           # 47 schools dashboard views
+│       │   ├── composables/schools/     # 59 schools composables
 │       │   ├── containers/SchoolsContainer.vue  # Schools layout + auth
+│       │   ├── playback/        # SimplePlayer + PlayerConductor — the live 4-phase engine
+│       │   ├── locales/         # 25 interface locale files; eng.json is the key source
+│       │   ├── i18n/            # Parity + bare-English gates over those locales
 │       │   └── App.vue
 │       └── public/audio/        # Demo audio files (bundled)
+├── api/                         # Vercel serverless routes (typecheck:api / test:api)
+├── tools/                       # Build + ops scripts: walkthrough, explainer, release-train
+├── e2e/                         # Probe scripts (more live in packages/player-vue/e2e/)
 ├── apml/                        # APML specifications
 │   ├── core/                    # Core data types
 │   ├── engine/                  # Cycle-orchestration spec (historical — no such class ships)
@@ -369,8 +376,12 @@ ssi-learning-app/
 │   ├── persistence/             # Storage specs
 │   ├── interfaces/              # UI specs
 │   └── ssi-learning-app-master.apml  # Master APML
-├── docs/                        # Documentation
-├── supabase/                    # Database schema
+├── docs/                        # Live: decision journal, public roadmap, dated job
+│                               # write-ups, compiler outputs, e2e probe captures
+├── archive/                     # docs-retired-2026-08-24/ — the archived doc estate, no standing
+├── plans/                       # Numbered engineering plans
+├── supabase/                    # Database schema + migrations
+├── ops/                         # systemd units
 ├── vercel.json                  # Deployment configuration
 └── package.json                 # Workspace root (pnpm)
 ```
@@ -710,18 +721,40 @@ Text update is instantaneous on phase change. No drift possible.
 The schools dashboard is **fully implemented** within `player-vue` as a path-based sub-application. It is NOT a separate app — it shares the same Vercel deployment.
 
 ### URL Structure
+
+**The node home is the home, for every role.** `/org/:id` — school, group or class, the same page —
+is where a school leader and a teacher both land; the flat `/schools/*` views below it are the
+legacy lane, live for teachers and for legacy no-school `school_admin` rows, and redirected to the
+node home for school-scoped leaders (`SchoolsContainer`, nav unification 2026-07-30). Verify any
+route claim here against `packages/player-vue/src/router/index.ts`, which carries the reasoning
+inline.
+
 ```
-saysomethingin.app/schools              → Dashboard home
-saysomethingin.app/schools/teachers     → Teachers view
-saysomethingin.app/schools/students     → Students view
-saysomethingin.app/schools/classes      → Classes (teacher view)
-saysomethingin.app/schools/classes/:id  → Class detail
-saysomethingin.app/schools/analytics    → Analytics & reporting
-saysomethingin.app/schools/settings     → School settings
-saysomethingin.app/schools/setup        → Admin setup (guarded)
-saysomethingin.app/schools/all          → Govt admin view (all schools)
-saysomethingin.app/schools/student-progress → Individual student view
+/org/:id                    → node home — school, group or class (NodeHomeView)
+/org/:id/insights           → the Insight Engine scoped to that node
+/org/:id/handbook           → the compiled Handbook, member scope
+
+/schools                    → flat dashboard home (teachers + legacy rows)
+/schools/teachers           → teachers list
+/schools/students           → students list
+/schools/classes            → the teacher's classes
+/schools/classes/:id        → REDIRECT to /org/:id (job #999, 2026-09-16 — one class page)
+/schools/analytics          → Rate-compare insight tool, teacher-scoped
+/schools/settings           → school settings
+/schools/setup              → admin setup wizard (guarded)
+/schools/handbook           → the compiled Handbook
+/schools/support            → support
+/schools/inbox              → inbox
+/schools/all                → govt-admin view across all schools
+/schools/play               → play as class
+/schools/upgrade            → billing door
+
+/tutors                     → tutor signup; /tutors/dashboard is the tutor lane
+/orgs                       → self-serve organisation signup
 ```
+
+There is no `/schools/student-progress`; the admin read-view at `/admin/users/:learnerId/progress`
+is the per-learner page.
 
 ### Architecture
 - **Container**: `SchoolsContainer.vue` handles auth (OTP email login), role checks, and join codes
@@ -939,13 +972,14 @@ pnpm --filter @ssi/web dev
 | `packages/player-vue/src/containers/SchoolsContainer.vue` | Schools layout + auth + routing |
 | `packages/player-vue/src/views/schools/DashboardView.vue` | Schools dashboard home |
 | `packages/player-vue/src/views/schools/SetupView.vue` | Admin school setup |
-| `packages/player-vue/src/composables/schools/` | Schools data layer (16 composables) |
-| `packages/player-vue/src/router/index.ts` | All route definitions incl. /schools |
+| `packages/player-vue/src/composables/schools/` | Schools data layer (59 composables) |
+| `packages/player-vue/src/router/index.ts` | All route definitions incl. /org and /schools |
+| `packages/player-vue/src/locales/` | 25 interface locale files + `README.md`; `eng.json` is the key source of truth and the runtime fallback. Parity is enforced by `composables/useI18n.localeParity.test.ts`, and `i18n/noBareEnglish.test.ts` catches English left sitting in a non-English locale. The `brand.*` wordmark keys are never translated |
 | `packages/player-vue/src/explainer/learnerExplainers.ts` | Static learner-facing copy for the "How this works" (HTW) explainer system — content laws in the file header (no streaks/XP, no jargon) |
 | `packages/player-vue/src/components/me/HowThisWorksLearner.vue`, `WhyThisWorks.vue` + figure components (`CyclePillFigure.vue`, `ClimbingBandFigure.vue`, `ThreeGapsFigure.vue`, `WornPathFigure.vue`, `SpacingReturnsFigure.vue`, `ListeningStretchFigure.vue`, `PlayerScreenFigure.vue`, `ExplainerFigure.vue`) | HTW explainer sections + their SVG-figure illustrations, mounted from `views/me/ProfileView.vue` (Library → "How this works") |
 | `packages/player-vue/e2e/explainer/` | HTW screenshot/verification scripts (`deployed-walk.mjs`, `player-screen-figure-verify.mjs`, `shoot-parts-2-3.mjs`, `shoot-player-screen.mjs`) |
-| `docs/a159-htw-visual/` | HTW visual-design working docs (`live-on-dev.md`, `pace-settings-copy.md`, `style-a-built.html`) |
-| `docs/htw-copy-for-aran.md` | Full learner-facing HTW copy exported for external editing — **only on unmerged branch `a159-library-htw`, not yet on `dev`** |
+| `docs/a159-htw-visual/` | HTW visual-design captures — `style-a-built.html` plus the `live/` screenshots the `packages/player-vue/e2e/explainer/` probes write. Its two prose notes, `live-on-dev.md` and `pace-settings-copy.md`, went to `archive/docs-retired-2026-08-24/a159-htw-visual/` on 2026-08-24 |
+| `archive/docs-retired-2026-08-24/htw-copy-for-aran.md` | Full learner-facing HTW copy exported for external editing. Archived 2026-08-24; branch `a159-library-htw` no longer exists, on origin or locally |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
 | `apml/playback/lazy-loading.apml` | Lazy loading architecture spec |
 | `apml/playback/player-conductor.apml` | PlayerConductor transition-ownership spec |
@@ -954,8 +988,8 @@ pnpm --filter @ssi/web dev
 | `apml/interfaces/learning-player.apml` | Player UI spec |
 | `new_vision/LEARNING_APP_DATA_FLOW.md` (in Dashboard) | Database-first architecture |
 | `new_vision/LEGO_SESSION_SPECIFICATION.md` (in Dashboard) | Session structure spec |
-| `docs/a159-unused-features/` | Investigative doc trail — adoption-measurement scripts + findings on which learner-facing features go unused — **only on unmerged branch `a159-library-htw`** |
-| `docs/vad-telemetry/` | Investigative doc trail — VAD (voice-activity-detection) latency probes; `playback-rejection-diagnosis.md` is on `dev`, further probes added on `a159-library-htw` |
+| `archive/docs-retired-2026-08-24/a159-unused-features/` | Investigative trail — adoption-measurement scripts plus findings on which learner-facing features go unused. Archived 2026-08-24; the branch it was written on is gone |
+| `archive/docs-retired-2026-08-24/vad-telemetry/` | Investigative trail — VAD, voice-activity-detection, latency probes. Both notes archived 2026-08-24; nothing under `docs/vad-telemetry/` now |
 
 ---
 
@@ -963,7 +997,9 @@ pnpm --filter @ssi/web dev
 
 ### In This Repo
 - `apml/` - Full APML specifications for learning engine
-- `docs/` - Additional documentation
+- `docs/DECISIONS.md` - the decision journal; `docs/ROADMAP-PUBLIC.md` - the support agent's verbatim roadmap
+- `docs/` - dated job write-ups, compiler outputs, probe captures. Evidence, not authority
+- `archive/docs-retired-2026-08-24/` - the archived documentation estate. Archaeology only
 
 ### In Dashboard Repo (`ssi-dashboard-v7-clean`)
 - `new_vision/LEARNING_APP_DATA_FLOW.md` - How app will query Supabase
@@ -1007,7 +1043,9 @@ A **Cycle** is an immutable, pre-validated learning unit:
 - Keep new components under 300 lines
 
 ### Feedback Loops
-Before every commit **and before pushing any PR** — these are CI-gated, so a red one blocks the merge:
+Before every commit and before you merge. Nothing blocks a merge automatically — GitHub Actions is
+gone and the nightly on watson-1 reports rather than gates — so a red one you did not run lands on
+`dev` and is found the next morning:
 ```bash
 # player-vue (Vue SPA)
 pnpm --filter player-vue typecheck  # Must pass (run `pnpm --filter @ssi/core build` first — vue-tsc reads core's dist)
@@ -1199,7 +1237,7 @@ A self-correcting loop where Claude picks tasks from a PRD, implements them, run
 ### Files
 - `ralph-prd.json` - Task list with pass/fail status
 - `progress.txt` - Iteration history and notes
-- `ralph-prompt.md` - Core prompt with context and rules
+- `ralph-prompt.md` - Core prompt with context and rules. **No longer in the tree** — the two shell scripts carry what is left of it
 - `ralph-once.sh` - Single iteration (HITL mode)
 - `ralph-afk.sh` - Loop mode (overnight/AFK)
 
@@ -1226,5 +1264,8 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-09-04 (corrected repo structure diagram — no apps/*, no packages/ui or packages/demo; only packages/core and packages/player-vue exist)*
-*Status: v2.3.0 - Lazy loading for instant startup | Schools dashboard fully implemented at /schools*
+*Last updated: 2026-09-17 (staleness pass — docs/ is live again and described as it is; the schools
+URL table rebuilt around the /org/:id node home; GitHub Actions residue on main gone; schools and
+locale counts corrected against the tree)*
+*Status: the node home is the schools home for every role; the Handbook and walkthrough packs
+compile from the .vue sources; 25 interface locales under parity gates*
