@@ -1730,7 +1730,7 @@
           "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes."
         },
         "4": {
-          "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open."
+          "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview."
         },
         "5": {
           "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked."
@@ -3851,7 +3851,8 @@
       "heardN": "heard {n}×",
       "nothingYet": "Nothing practised yet at this point.",
       "beforeFirstSitting": "Before the first sitting. Press play.",
-      "whereLine": "Sitting {s} of {of}, {day} · cycle {k} of {n} · {phrase}"
+      "whereLine": "Sitting {s} of {of}, {day} · cycle {k} of {n} · {phrase}",
+      "nothingToDraw": "Nothing to draw yet — the first lesson played as class starts the ink."
     }
   },
   "insights": {

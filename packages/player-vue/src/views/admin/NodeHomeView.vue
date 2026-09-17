@@ -641,20 +641,6 @@ const nextBeltInfo = computed(() => {
 
 const journey = computed(() => home.value?.journey ?? null)
 
-// The belt line the Course journey card has always ended on, kept underneath
-// the brain: how far the class has travelled, and what is left to the next
-// belt. The brain draws the journey; this names it in words.
-const beltLine = computed<string | null>(() => {
-  const j = journey.value
-  if (!j) return null
-  const travelled = j.source === 'class-play'
-    ? t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(j.done)).replace('{total}', String(j.total))
-    : t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.')
-  const belt = nextBeltInfo.value
-    ? t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.value.remaining)).replace('{belt}', nextBeltInfo.value.name)
-    : t('org.nodeHome.reachedBlackBelt', 'Reached Black belt — top of the ladder.')
-  return `${travelled} ${belt}`
-})
 
 const enrichedStudents = computed(() => {
   const avg = classAvgSeeds.value
@@ -1347,8 +1333,19 @@ const listPayload = computed(() => {
                 v-if="home.node"
                 :class-id="String(home.node.id)"
                 :get-token="getAuthToken"
-                :belt-line="beltLine"
               />
+              <!-- The card's own sentence, unmoved: how far the class has
+                   travelled and what is left to the next belt. It is the page's
+                   number, so it is written by the page and never waits on the
+                   drawing above it. -->
+              <p class="class-card-note">
+                <template v-if="journey && journey.source === 'class-play'">
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
+                </template>
+                <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
+                <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
+                <template v-else>{{ t('org.nodeHome.reachedBlackBelt', 'Reached Black belt — top of the ladder.') }}</template>
+              </p>
             </div>
           </div>
 

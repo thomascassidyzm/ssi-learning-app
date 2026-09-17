@@ -32,8 +32,6 @@ import { stateAt, edgeWidth, edgeOpacity, dotRadius } from './classBrainState'
 const props = defineProps<{
   classId: string
   getToken: () => Promise<string | null> | string | null
-  /** The belt line the card has always carried, kept underneath the brain. */
-  beltLine?: string | null
 }>()
 
 const { t } = useI18n()
@@ -245,7 +243,7 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
   <div class="cb">
     <p v-if="loading" class="cb-quiet">{{ t('org.brain.loading', 'Reading the class’s own record…') }}</p>
     <p v-else-if="error" class="cb-quiet">{{ t('org.brain.readError', 'Could not read this class’s journey.') }}</p>
-    <p v-else-if="!hasPlayed" class="cb-quiet">{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}</p>
+    <p v-else-if="!hasPlayed" class="cb-quiet">{{ t('org.brain.nothingToDraw', 'Nothing to draw yet — the first lesson played as class starts the ink.') }}</p>
 
     <template v-else>
       <!-- INLINE: the brain at its latest frame, the four totals, two controls -->
@@ -273,8 +271,6 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
             <span class="cb-stat-detail">{{ tile.detail }}</span>
           </div>
         </div>
-
-        <p v-if="beltLine" class="class-card-note">{{ beltLine }}</p>
 
         <div class="cb-actions">
           <button type="button" class="cb-btn" :aria-expanded="replayOpen" aria-controls="cb-replay" @click="replayOpen = !replayOpen">

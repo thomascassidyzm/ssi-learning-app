@@ -1,5 +1,5 @@
 {
-  "version": "fcc425771530",
+  "version": "ac34e1743238",
   "generatedAt": "2026-09-17",
   "walks": [
     {
@@ -1940,7 +1940,7 @@
         },
         {
           "anchor": "insights-more",
-          "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.",
+          "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview.",
           "advance": {
             "on": "next"
           }
@@ -5122,7 +5122,9 @@
         "position",
         "course",
         "belt",
-        "how far"
+        "how far",
+        "brain",
+        "replay"
       ],
       "place": {
         "route": "node-home"
@@ -5137,14 +5139,14 @@
         "/org/:id"
       ],
       "walk": null,
-      "what": "A bar showing where a class has got to in its course, measured in phrases — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.",
+      "what": "Where a class has got to in its course, drawn as the class itself: every phrase the course teaches stands on a line in the order it is taught, a dot lights when the class has met that phrase and grows each time it comes round, and an arc joins two phrases the class has said together in one sentence. How far right the ink reaches is how far through the course the class is.",
       "where": "The **Course journey** card on a class page.",
       "how": [
         "Open a class.",
-        "Read the bar for how much of the course the class has covered together.",
-        "The line underneath gives the figure in phrases, then names the next belt and how many phrases are left to reach it."
+        "Read how far right the ink reaches, and the four totals under it.",
+        "Tap **Replay how it grew** to watch it build lesson by lesson, or the expand button to open it full screen."
       ],
-      "note": "A class that has never played together says **Not started** in words; it is never shown as a bar of zero."
+      "note": "It is the class's own account, the one **Play as class** runs on, so no pupil is behind any of it. New phrases are the ones the class has met for the first time; practised counts every time a phrase came round again. A class that has never played together says **Not started** in words."
     },
     {
       "id": "how-fresh-these-numbers-are",
@@ -5611,7 +5613,7 @@
         "Tap the line to open it.",
         "Read the journey question, answered in a sentence with its funnel underneath."
       ],
-      "note": "It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it."
+      "note": "It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it. A single CLASS does not carry this line at all: its journey is drawn on its own Overview as the Course journey card, and a funnel of one account would be that same number said a second time."
     },
     {
       "id": "move-a-teacher-to-another-class",

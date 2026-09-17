@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `fcc425771530` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `ac34e1743238` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -566,15 +566,15 @@ Moment: setting-up · section: seeing-progress · roles: admin · anchor: `quest
 
 Moment: setting-up · section: seeing-progress · roles: admin, leader, school_admin · anchor: `class-journey` · in `packages/player-vue/src/views/admin/NodeHomeView.vue`
 
-**What it's for.** A bar showing where a class has got to in its course, measured in phrases — the individual pieces of language the course teaches. A class is one learner account played from the front, so the position is the class's own.
+**What it's for.** Where a class has got to in its course, drawn as the class itself: every phrase the course teaches stands on a line in the order it is taught, a dot lights when the class has met that phrase and grows each time it comes round, and an arc joins two phrases the class has said together in one sentence. How far right the ink reaches is how far through the course the class is.
 
 **Where it is.** The **Course journey** card on a class page.
 
 1. Open a class.
-2. Read the bar for how much of the course the class has covered together.
-3. The line underneath gives the figure in phrases, then names the next belt and how many phrases are left to reach it.
+2. Read how far right the ink reaches, and the four totals under it.
+3. Tap **Replay how it grew** to watch it build lesson by lesson, or the expand button to open it full screen.
 
-**Worth knowing.** A class that has never played together says **Not started** in words; it is never shown as a bar of zero.
+**Worth knowing.** It is the class's own account, the one **Play as class** runs on, so no pupil is behind any of it. New phrases are the ones the class has met for the first time; practised counts every time a phrase came round again. A class that has never played together says **Not started** in words.
 
 ## How fresh these numbers are
 
@@ -751,7 +751,7 @@ Moment: every-lesson · section: seeing-progress · roles: school_admin, leader,
 1. Tap the line to open it.
 2. Read the journey question, answered in a sentence with its funnel underneath.
 
-**Worth knowing.** It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it.
+**Worth knowing.** It reads the same course the card above reads. Whether classes are practising, and which have gone quiet, are answered by the card and the class list above rather than asked again here — they used to be, counted over a different four weeks, and the two answers disagreed. An organisation with no classes anywhere sees the people question here instead, which is the only one that can apply to it. A single CLASS does not carry this line at all: its journey is drawn on its own Overview as the Course journey card, and a funnel of one account would be that same number said a second time.
 
 ## Move a teacher to another class
 
