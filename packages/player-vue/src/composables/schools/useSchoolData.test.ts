@@ -197,7 +197,9 @@ describe('useSchoolData', () => {
 
     await sd.fetchSchools()
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/school/roster', expect.objectContaining({
+    // ?part=school: this composable reads the totals and nothing else, and
+    // the full roster carries every teacher and pupil by name (job #32).
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/roster?part=school', expect.objectContaining({
       headers: { Authorization: 'Bearer tok' },
     }))
     expect(sd.currentSchool.value?.school_name).toBe('My School')
