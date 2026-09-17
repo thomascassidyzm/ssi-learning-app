@@ -38,3 +38,10 @@ test('the window is a parameter, not a constant in the rule', () => {
   assert.equal(findAbandonedDetours(plays, jumps, seedOf).size, 0)
   assert.equal(findAbandonedDetours(plays, jumps, seedOf, 120_000).size, 1)
 })
+
+test('a long run under the gap window is still real practice, not an abandoned detour', () => {
+  // 11 plays 30s apart over 5 minutes (each gap well under the 60s window), then a skip back.
+  const plays = Array.from({ length: 11 }, (_, n) => play(at(n * 30), 'S0002L02'))
+  const jumps = [{ occurred_at: at(340), target_seed: 1 }]
+  assert.equal(findAbandonedDetours(plays, jumps, seedOf).size, 0, 'a five-minute run is not abandoned within about a minute')
+})

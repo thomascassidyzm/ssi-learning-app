@@ -37,12 +37,25 @@ const wasExcluded = p => {
   return fails.some(f => Math.abs(new Date(f) - new Date(p.occurred_at)) < 50)
 }
 const classPlaysSorted = plays.filter(p => p.class_name === CLASS && p.event_type === 'audio_play' && (p.role === 'target1' || p.role === 'target2')).sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1)
+const classTarget1Sorted = classPlaysSorted.filter(p => p.role === 'target1')
 // The abandoned-detour rule lives in detourRule.mjs, with its own test.
 const seedOfLegoId = new Map(legos.map(l => [l.lego_id, l.seed_number]))
+// belt_skip carries its destination directly (payload.targetSeed, flattened onto the row as
+// target_seed by the pull). lego_skip never does — the player logs only fromLegoId + direction,
+// never where the skip landed — so its destination is derived: the seed of the next target1 play
+// after the skip. A lego_skip the class never played on from (no later play at all) derives no
+// destination and is ignored, same as any other jump with a null target_seed.
+const classJumps = plays
+  .filter(p => p.class_name === CLASS && (p.event_type === 'belt_skip' || p.event_type === 'lego_skip'))
+  .sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1)
+  .map(j => {
+    if (j.event_type === 'belt_skip') return j
+    const next = classTarget1Sorted.find(p => p.occurred_at > j.occurred_at)
+    return { ...j, target_seed: next ? seedOfLegoId.get(next.lego_id) : null }
+  })
 const detoured = findAbandonedDetours(
-  classPlaysSorted.filter(p => p.role === 'target1'),
-  plays.filter(p => p.class_name === CLASS && (p.event_type === 'belt_skip' || p.event_type === 'lego_skip'))
-       .sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1),
+  classTarget1Sorted,
+  classJumps,
   id => seedOfLegoId.get(id),
 )
 const hearingsFor = t1 => {
