@@ -10,7 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const S = process.argv[2] || process.env.CS_SCRATCH
 const R = f => JSON.parse(readFileSync(join(S, f)))
 const plays = R('plays.json'), legos = R('legos.json'), seeds = R('seeds.json'), phrases = R('phrases.json')
-const CLASS = '10C', COURSE = 'cym_s_for_eng', SHOW_SEEDS = 11
+const CLASS = '8H', COURSE = 'cym_s_for_eng', SHOW_SEEDS = 11
 
 const ord = new Map(legos.map((l, i) => [l.lego_id, i]))
 const pById = new Map(phrases.map(p => [p.id, p]))
@@ -42,6 +42,7 @@ const classEvents = events.filter(e => e.cls === 'class'), schoolEvents = events
 const days = [...new Set(classEvents.map(e => e.t.slice(0, 10)))]
 classEvents.forEach(e => { e.s = days.indexOf(e.t.slice(0, 10)) })
 const usedPhrases = new Set(events.map(e => e.phrase).filter(Boolean))
+const classPhrases = new Set(classEvents.map(e => e.phrase).filter(Boolean))
 const P = {}; for (const id of usedPhrases) { const p = pById.get(id); P[id] = { t: p.target_text, k: p.known_text, lego: ord.get(p.lego_id), role: p.phrase_role, pos: p.position, n: (p.decomposition || []).length, seed: p.seed_number } }
 const schoolClasses = new Set(plays.map(p => p.class_name)).size
 const out = {
@@ -50,8 +51,9 @@ const out = {
   legos: legos.filter(l => l.seed_number <= SHOW_SEEDS).map(l => ({ id: l.lego_id, seed: l.seed_number, t: l.target_text, k: l.known_text })),
   seeds: Object.fromEntries(seeds.filter(s => s.seed_number <= 40).map(s => [s.seed_number, { t: s.target_text, k: s.known_text }])),
   sittings: days, events: classEvents.map(({ cls, ...e }) => e), schoolEvents: schoolEvents.map(({ cls, s, ...e }) => e), phrases: P,
+  classPhraseCount: classPhrases.size,
   tally, schoolClasses, schoolCycles: schoolEvents.length, schoolFirst: schoolEvents[0]?.t.slice(0, 10), schoolLast: schoolEvents.at(-1)?.t.slice(0, 10),
   knownOnly: plays.filter(p => p.class_name === CLASS && p.role === 'known').length,
 }
 writeFileSync(join(here, 'data.json'), JSON.stringify(out))
-console.log(tally, 'sittings', days, 'school events', schoolEvents.length, 'phrases used', usedPhrases.size, 'bytes', JSON.stringify(out).length)
+console.log(tally, 'sittings', days, 'school events', schoolEvents.length, 'phrases used (class)', classPhrases.size, 'phrases used (all)', usedPhrases.size, 'bytes', JSON.stringify(out).length)

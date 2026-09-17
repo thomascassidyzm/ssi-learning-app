@@ -11,6 +11,7 @@ const OUT = join(here, '../../../packages/player-vue/public/docs/specimens/repla
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 const fmt = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const T = D.tally
+const classSpanDays = Math.round((new Date(D.sittings.at(-1) + 'T00:00:00Z') - new Date(D.sittings[0] + 'T00:00:00Z')) / 864e5) + 1
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${esc(D.className)}'s brain on Welsh, replayed</title>
 <style>
@@ -31,7 +32,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;bord
 </style></head><body><main>
 <h1>${esc(D.className)}'s brain on Welsh, replayed</h1>
 <p class="sub">${esc(D.school)} · ${esc(D.course)} · the class is the unit; no pupil is behind any of this</p>
-<p class="note"><b>What is real.</b> Every dot, line and count comes from the class's own play log: ${T.total} cycles in which the class heard the Welsh, across ${D.sittings.length} sittings, ${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}. A line joins two chunks only when they were said inside the same phrase in one of those cycles, and thickens each time that happens again. <b>What is thin.</b> This is a school in its second week: ${D.sittings.length} sittings, ${Object.keys(D.phrases).length} distinct phrases, ${D.legos.length ? 'sentence ' + Math.max(...D.events.map(e => D.legos[e.lego]?.seed || 0)) : ''} reached of ${D.seedsTotal}. Nothing here is padded. Full account of the data at the foot of the page.</p>
+<p class="note"><b>What is real.</b> Every dot, line and count comes from the class's own play log: ${T.total} cycles in which the class heard the Welsh, across ${D.sittings.length} sittings, ${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}. A line joins two chunks only when they were said inside the same phrase in one of those cycles, and thickens each time that happens again. <b>What is thin.</b> This is a school in its second week: ${D.sittings.length} sittings, ${D.classPhraseCount} distinct phrases, ${D.legos.length ? 'sentence ' + Math.max(...D.events.map(e => D.legos[e.lego]?.seed || 0)) : ''} reached of ${D.seedsTotal}. Nothing here is padded. Full account of the data at the foot of the page.</p>
 <div class="transport" role="group" aria-label="replay">
 <button id="restart" title="Restart">⟲</button><button id="prevSit" title="Previous sitting">◀</button><button id="play" class="play" title="Play or pause">▶</button><button id="nextSit" title="Next sitting">▶|</button>
 <input id="scrub" type="range" min="0" max="${D.events.length}" value="0" step="1" aria-label="position in time">
@@ -48,8 +49,8 @@ table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;bord
 <section style="margin-top:22px"><h2>Where this data comes from, and what is missing</h2><ul class="gaps">
 <li><b>Source.</b> The learner app's own play log, one row per audio played, for the class account of ${esc(D.className)}. A cycle counts once the class heard the Welsh target, so ${D.knownOnly - T.total} cycles where only the English prompt played before a pause or skip are not counted. Of the ${T.total} counted: ${T.intro} chunk introductions, ${T.debut} chunk debuts, ${T.build} build phrases, ${T.use} use phrases.</li>
 <li><b>The lines are rebuilt, not read.</b> The app has a co-firing table for exactly this picture, but for every class in every school it is empty: a class plays under a class account whose identity is not the teacher's, and the table's own security rule refuses the write, silently. The pupils' accounts are untouched by class play. So each arc here is derived the way the app itself derives co-firing, from the chunks that make up the phrase that was actually played, taken from the play log cycle by cycle with its real timestamp. No arc is drawn from course structure alone: a phrase never played draws nothing.</li>
-<li><b>Why ${esc(D.className)}.</b> Chepstow's ${D.schoolClasses} classes have between them ${D.schoolCycles + T.total} heard cycles, ${fmt(D.schoolFirst)} to ${fmt(D.schoolLast)}, most of them a single sitting on Tuesday 8 September. ${esc(D.className)} is the class with the most cycles across more than one sitting. No other real school has any class play yet; every other class with sittings in the database is a demo school.</li>
-<li><b>Stepping.</b> The scrubber moves cycle by cycle inside a sitting, and the sitting buttons jump between sittings. Weeks are not offered because the whole record spans eleven days.</li>
+<li><b>Why ${esc(D.className)}.</b> Chepstow's ${D.schoolClasses} classes have between them ${D.schoolCycles + T.total} heard cycles, ${fmt(D.schoolFirst)} to ${fmt(D.schoolLast)}. ${esc(D.className)} and 7H are tied for the most cycles of any class, ${T.total} each across three sittings; ${esc(D.className)} is shown because it covers the most distinct phrases. No other real school has any class play yet; every other class with sittings in the database is a demo school.</li>
+<li><b>Stepping.</b> The scrubber moves cycle by cycle inside a sitting, and the sitting buttons jump between sittings. Weeks are not offered because ${esc(D.className)}'s own record spans ${classSpanDays} days (${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}); it's the wider school, ${fmt(D.schoolFirst)} to ${fmt(D.schoolLast)}, that runs to weeks.</li>
 <li><b>The school layer</b> is the other ${D.schoolClasses - 1} Chepstow classes' cycles up to the same moment, drawn faint below the line. ${D.schoolEvents.filter(e => e.kind === 'legacy').length} of their cycles carry an older cycle id that names the chunk but not the phrase; those light the chunk and draw no arc.</li>
 <li><b>Pulled</b> ${D.pulledAt} from the live database. A static snapshot: it does not refresh.</li>
 </ul></section>
@@ -72,11 +73,16 @@ function stateAt(k){
 }
 function reachOf(f){return 0}
 // --- the brain: arc diagram, class above the line in ink, school faint below
+// Class arc width/opacity is on an ABSOLUTE scale, fixed for the whole replay, not
+// renormalised against the busiest pair seen so far — so a pair that keeps recurring
+// visibly thickens as the replay goes on, rather than holding steady because it was
+// already the max at cycle 10 and stays the max at cycle 20.
+const edgeWidth=n=>Math.min(0.8+1.1*Math.sqrt(n),6),edgeOpacity=n=>Math.min(0.32+0.14*Math.sqrt(n),0.95);
 function brain(S){
   const W=560,L=22,R=22,Y=170,H=300,X=i=>L+i*(W-L-R)/(N-1);
-  let g='';const smax=Math.max(1,...S.sedge.values()),cmax=Math.max(1,...S.edge.values());
+  let g='';const smax=Math.max(1,...S.sedge.values());
   for(const[k,n]of S.sedge){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 0 '+x2+' '+Y+'" fill="none" stroke="'+SCHOOL+'" stroke-opacity="'+(0.25+0.4*lg(n,smax)).toFixed(2)+'" stroke-width="'+(0.5+2.5*lg(n,smax)).toFixed(2)+'"/>'}
-  for(const[k,n]of[...S.edge].sort((p,q)=>p[1]-q[1])){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 1 '+x2+' '+Y+'" fill="none" stroke="'+INK+'" stroke-opacity="'+(0.3+0.6*lg(n,cmax)).toFixed(2)+'" stroke-width="'+(0.8+3.6*lg(n,cmax)).toFixed(2)+'"/>'}
+  for(const[k,n]of[...S.edge].sort((p,q)=>p[1]-q[1])){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 1 '+x2+' '+Y+'" fill="none" stroke="'+INK+'" stroke-opacity="'+edgeOpacity(n).toFixed(2)+'" stroke-width="'+edgeWidth(n).toFixed(2)+'"/>'}
   g+='<line x1="'+X(0)+'" y1="'+Y+'" x2="'+X(N-1)+'" y2="'+Y+'" stroke="'+DIM+'" stroke-width="3"/>';
   const nmax=Math.max(1,...S.node);let lastSeed=0;
   D.legos.forEach((l,i)=>{const n=S.node[i],sn=S.snode[i],x=X(i);
