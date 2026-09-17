@@ -133,6 +133,49 @@ describe('the class brain', () => {
     expect(findAbandonedDetours(plays, [{ occurred_at: '2026-09-16T09:00:10.000Z', target_seed: null }], (id) => seedOf.get(id)).size).toBe(0)
   })
 
+  /**
+   * THE AUDIT, 2026-09-17. Tom on his phone: "these phrase numbers look
+   * suspicious, statistically unlikely that they are so symmetrical" — the ZZ
+   * Test — Year 7 Welsh class read New phrases 8, Practised 28 phrases, 8 lit
+   * chunks and a cursor at the 8th LEGO of 679. Every one of those was
+   * recomputed straight off player_events in plain SQL and every one held.
+   *
+   * The three 8s are not a coincidence AND not a bug: they are three views of
+   * the SAME eight chunks, because that class started at seed 1 and skipped
+   * nothing, so each chunk it met it met through its own intro cycle. The two
+   * tests below pin both halves of that — the agreement when the class starts
+   * at the start, and the fact that it is NOT true by construction.
+   */
+  it('AUDIT: starting at the start, new phrases and lit chunks are the same chunks', () => {
+    clock = Date.parse('2026-09-16T14:00:00.000Z')
+    const rows = [
+      ...cycle('S0001L01', 'S0001L01_intro'),
+      ...cycle('S0001L01', 'S0001L01_debut'),
+      ...cycle('S0002L01', 'S0002L01_intro'),
+      ...cycle('S0002L01', 'S0002L01_debut'),
+      ...cycle('S0002L01', 'S0002L01_build_01_a'),
+    ]
+    const brain = buildBrain({ courseCode: COURSE, rows, skips: [], ordinalOf, seedOf, phrases })
+    const lit = new Set(brain.events.flatMap((e) => e.fires))
+    expect(brain.introducedCount).toBe(2)
+    expect(lit.size).toBe(2)
+    // And hearings are exactly twice the counted cycles when every clip sounds
+    // — the live class's 154 against 77, which is what that ratio was.
+    expect(brain.tally.hearings).toBe(brain.tally.total * 2)
+  })
+
+  it('AUDIT: joining mid-course lights chunks the class was never introduced to', () => {
+    clock = Date.parse('2026-09-16T15:00:00.000Z')
+    // Nothing but a build phrase, which fires BOTH its chunks. No intro cycle
+    // played at all, so nothing is new — but two chunks light.
+    const rows = cycle('S0002L01', 'S0002L01_build_01_a')
+    const brain = buildBrain({ courseCode: COURSE, rows, skips: [], ordinalOf, seedOf, phrases })
+    const lit = new Set(brain.events.flatMap((e) => e.fires))
+    expect(brain.introducedCount).toBe(0)
+    expect(lit.size).toBe(2)
+    expect(brain.distinctPhrases).toBe(1)
+  })
+
   it('reads a phrase id out of a cycle id, and nothing out of an intro', () => {
     expect(phraseIdFromCycleId('S0042L03_use_05_abc', 'fra_for_eng')).toBe('fra_for_eng:S0042L03U05')
     expect(phraseIdFromCycleId('S0042L03_intro', 'fra_for_eng')).toBeNull()
