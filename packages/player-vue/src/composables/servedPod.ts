@@ -117,6 +117,13 @@ export const SERVING_POD_SLUGS = ['pod-1'] as const
  *    nowhere — for Steve too. Not in the offline bundle (api/courses/[code]/
  *    bundle.ts keeps its own closed list): 567 lines is a download-size call
  *    nobody has made, so it listens online, exactly as it did for its holders.
+ *
+ * Being closed means anything not named here is unlisted with no individual
+ * verdict on it: spa_for_eng's `music` and `travel-situations` choice pods,
+ * for instance, are real, live, recorded pods that Listening Mode simply
+ * never shows — the same unmade size call as the offline bundle above, not a
+ * decision that those two specifically don't belong (Astra cold-check finding,
+ * 2026-09-16).
  */
 export const LISTENING_EXTRA_POD_SLUGS = ['method-pod', 'senedd-s4c-steve'] as const
 
