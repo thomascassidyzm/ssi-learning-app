@@ -1315,6 +1315,8 @@ const listPayload = computed(() => {
                  2. Read how far right the ink reaches, and the four totals under it.
                  3. Tap **Replay how it grew** to watch it build lesson by lesson, or
                     the expand button to open it full screen.
+                 4. Come out of full screen with **Close**, or by tapping the dim strip
+                    above the sheet, or with your phone's own back gesture.
                  Worth knowing. It is the class's own account, the one **Play as
                  class** runs on, so no pupil is behind any of it. New phrases are the
                  ones the class has met for the first time; practised counts every

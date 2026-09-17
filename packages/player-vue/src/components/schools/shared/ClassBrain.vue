@@ -95,21 +95,65 @@ function prevSitting(): void {
 }
 
 const replayOpen = ref(false)
+
+// ─── the full-screen overlay, and the FOUR ways out of it ───
+// Tom got stuck in it on a real phone, 2026-09-17: a small ✕ in the corner of
+// an opaque sheet, and a back gesture that left the page entirely. So the
+// overlay now leaves by all four of the ways a person actually tries — a large
+// labelled Close that sits inside the safe area, a tap on the scrim above the
+// sheet, the browser's own back gesture, and Escape on a desktop — and every
+// one of them goes through closeFull().
 const full = ref(false)
-function openFull(): void { full.value = true; replayOpen.value = true }
-function closeFull(): void { full.value = false; stop() }
+/** True while OUR history entry is the top of the stack, so back() is ours to spend. */
+let historyPushed = false
+
+function openFull(): void {
+  if (full.value) return
+  full.value = true
+  replayOpen.value = true
+  // A history entry of our own: the back gesture then closes the overlay
+  // instead of leaving the class page, which is what a phone user means by it.
+  if (typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
+    try { window.history.pushState({ ssiClassBrainFull: true }, ''); historyPushed = true } catch { historyPushed = false }
+  }
+}
+
+/** The one door out — Close, the scrim, Escape, and the back gesture all use it. */
+function closeFull(): void {
+  if (!full.value) return
+  full.value = false
+  stop()
+  if (historyPushed) {
+    historyPushed = false
+    try { window.history.back() } catch { /* nothing to go back to: the overlay is shut either way */ }
+  }
+}
+
+/** The back gesture. Our entry is already gone, so this must never spend another. */
+function onPopState(): void {
+  historyPushed = false
+  if (full.value) { full.value = false; stop() }
+}
+
 function onKey(e: KeyboardEvent): void { if (e.key === 'Escape') closeFull() }
+
+function unbind(): void {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+    document.removeEventListener('keydown', onKey)
+  }
+  if (typeof window !== 'undefined') window.removeEventListener('popstate', onPopState)
+}
+
 watch(full, (isFull) => {
   if (typeof document === 'undefined') return
-  document.body.style.overflow = isFull ? 'hidden' : ''
-  if (isFull) document.addEventListener('keydown', onKey)
-  else document.removeEventListener('keydown', onKey)
+  if (isFull) {
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('popstate', onPopState)
+  } else unbind()
 })
-onBeforeUnmount(() => {
-  if (typeof document === 'undefined') return
-  document.body.style.overflow = ''
-  document.removeEventListener('keydown', onKey)
-})
+onBeforeUnmount(unbind)
 
 // ─── the drawing ───
 const legos = computed(() => data.value?.legos ?? [])
@@ -194,7 +238,7 @@ const tiles = computed(() => {
       key: 'practised',
       word: t('org.brain.statPractised', 'Practised'),
       value: t('org.brain.nPhrases', '{n} phrases').replace('{n}', String(d.distinctPhrases)),
-      detail: t('org.brain.heardNTimes', 'heard {n} times').replace('{n}', String(d.tally.hearings)),
+      detail: t('org.brain.practisedNTimes', 'practised {n} times').replace('{n}', String(d.tally.hearings)),
     },
     {
       key: 'new',
@@ -255,14 +299,14 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
       <div v-if="!full" class="cb-body">
         <div class="cb-draw">
           <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
-            <path v-for="(a, i) in arcs" :key="`a${i}`" :d="a.d" fill="none" stroke="var(--schools-red, #2563eb)" :stroke-opacity="a.o" :stroke-width="a.w" />
+            <path v-for="(a, i) in arcs" :key="`a${i}`" :d="a.d" fill="none" stroke="var(--schools-blue, #60A5FA)" :stroke-opacity="a.o" :stroke-width="a.w" />
             <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
             <g v-for="(d, i) in dots" :key="d.key">
-              <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-red, #2563eb)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
+              <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-blue, #60A5FA)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
               <text v-if="showLabels" :transform="`translate(${d.cx} ${geom.y + 26}) rotate(58)`" font-size="12" :fill="d.lit ? '#2C2622' : '#c4bdb2'" :font-weight="d.lit ? 600 : 400">{{ dots[i].text }}</text>
             </g>
             <template v-if="caption">
-              <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-red, #2563eb)" text-anchor="middle">{{ caption.t }}</text>
+              <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-blue, #60A5FA)" text-anchor="middle">{{ caption.t }}</text>
               <text :x="caption.cx" y="46" font-size="12" fill="#8A8078" text-anchor="middle">{{ caption.k }}</text>
             </template>
           </svg>
@@ -306,7 +350,7 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
                   <div class="cb-known">{{ row.k }}</div>
                   <div class="cb-bar" :style="{ width: `${row.pct}%` }" />
                 </td>
-                <td class="cb-n">{{ t('org.brain.heardN', 'heard {n}×').replace('{n}', String(row.n)) }}</td>
+                <td class="cb-n">{{ t('org.brain.practisedN', 'practised {n}×').replace('{n}', String(row.n)) }}</td>
               </tr>
             </tbody>
           </table>
@@ -318,21 +362,24 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
            obvious close, padded out of the notch and the home indicator. -->
       <Teleport v-if="full" to="body">
         <div class="cb-full schools-surface" role="dialog" aria-modal="true" :aria-label="t('org.brain.fullTitle', 'The class’s course journey')">
+          <button type="button" class="cb-scrim" data-testid="cb-scrim" :aria-label="t('org.brain.close', 'Close')" @click="closeFull" />
           <header class="cb-full-bar">
             <span class="cb-full-title">{{ t('org.nodeHome.courseJourney', 'Course journey') }}</span>
-            <button type="button" class="cb-close" :aria-label="t('org.brain.close', 'Close')" @click="closeFull">✕</button>
+            <button type="button" class="cb-close" data-testid="cb-close" @click="closeFull">
+              <span aria-hidden="true">✕</span> {{ t('org.brain.close', 'Close') }}
+            </button>
           </header>
           <div class="cb-full-scroll">
             <div class="cb-draw">
               <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
-                <path v-for="(a, i) in arcs" :key="`fa${i}`" :d="a.d" fill="none" stroke="var(--schools-red, #2563eb)" :stroke-opacity="a.o" :stroke-width="a.w" />
+                <path v-for="(a, i) in arcs" :key="`fa${i}`" :d="a.d" fill="none" stroke="var(--schools-blue, #60A5FA)" :stroke-opacity="a.o" :stroke-width="a.w" />
                 <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
                 <g v-for="(d, i) in dots" :key="`f${d.key}`">
-                  <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-red, #2563eb)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
+                  <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-blue, #60A5FA)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
                   <text v-if="showLabels" :transform="`translate(${d.cx} ${geom.y + 26}) rotate(58)`" font-size="12" :fill="d.lit ? '#2C2622' : '#c4bdb2'" :font-weight="d.lit ? 600 : 400">{{ dots[i].text }}</text>
                 </g>
                 <template v-if="caption">
-                  <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-red, #2563eb)" text-anchor="middle">{{ caption.t }}</text>
+                  <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-blue, #60A5FA)" text-anchor="middle">{{ caption.t }}</text>
                   <text :x="caption.cx" y="46" font-size="12" fill="#8A8078" text-anchor="middle">{{ caption.k }}</text>
                 </template>
               </svg>
@@ -365,7 +412,7 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
                     <div class="cb-known">{{ row.k }}</div>
                     <div class="cb-bar" :style="{ width: `${row.pct}%` }" />
                   </td>
-                  <td class="cb-n">{{ t('org.brain.heardN', 'heard {n}×').replace('{n}', String(row.n)) }}</td>
+                  <td class="cb-n">{{ t('org.brain.practisedN', 'practised {n}×').replace('{n}', String(row.n)) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -386,7 +433,7 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
 @media (min-width: 620px) { .cb-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .cb-stat { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border: 1px solid var(--schools-border, #E7E1D8); border-radius: 10px; background: #fff; min-width: 0; }
 .cb-stat-word { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
-.cb-stat-value { font-size: 18px; font-weight: 600; line-height: 1.2; color: var(--schools-red, #2563eb); }
+.cb-stat-value { font-size: 18px; font-weight: 600; line-height: 1.2; color: var(--schools-blue, #60A5FA); }
 .cb-stat-detail { font-size: 11px; color: var(--schools-fg-3, #8A8078); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cb-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
@@ -396,31 +443,51 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
 .cb-replay { margin-top: 10px; }
 .cb-transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
 .cb-transport button { font: inherit; font-size: 15px; min-width: 44px; min-height: 44px; border: 1px solid var(--schools-border, #E7E1D8); background: #fff; border-radius: 8px; color: var(--schools-fg-1, #2C2622); cursor: pointer; }
-.cb-transport .cb-play { background: var(--schools-red, #2563eb); color: #fff; border-color: var(--schools-red, #2563eb); min-width: 56px; }
-.cb-transport input[type='range'] { flex: 1 1 140px; min-width: 120px; accent-color: var(--schools-red, #2563eb); }
+.cb-transport .cb-play { background: var(--schools-red, #DB1E17); color: #fff; border-color: var(--schools-red, #DB1E17); min-width: 56px; }
+.cb-transport input[type='range'] { flex: 1 1 140px; min-width: 120px; accent-color: var(--schools-red, #DB1E17); }
 .cb-speed { font-size: 11px; color: var(--schools-fg-3, #8A8078); display: flex; align-items: center; gap: 4px; }
 .cb-where { font-size: 13px; color: var(--schools-fg-1, #2C2622); margin: 0 0 8px; min-height: 1.5em; }
 
 .cb-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .cb-table td { padding: 5px 6px; border-top: 1px solid var(--schools-border, #E7E1D8); vertical-align: top; }
-.cb-table td.cb-n { text-align: right; white-space: nowrap; color: var(--schools-red, #2563eb); font-weight: 600; width: 6em; font-size: 11px; }
+.cb-table td.cb-n { text-align: right; white-space: nowrap; color: var(--schools-blue, #60A5FA); font-weight: 600; width: 6em; font-size: 11px; }
 .cb-known { color: var(--schools-fg-3, #8A8078); font-size: 12px; }
-.cb-bar { height: 4px; background: var(--schools-red, #2563eb); border-radius: 3px; margin-top: 3px; opacity: 0.7; }
-.cb-table tr.is-now td { background: rgba(37, 99, 235, 0.07); }
+.cb-bar { height: 4px; background: var(--schools-blue, #60A5FA); border-radius: 3px; margin-top: 3px; opacity: 0.7; }
+.cb-table tr.is-now td { background: rgba(96, 165, 250, 0.14); }
 
-/* FULL SCREEN — phone first. The bar owns the top inset, the scroller owns
-   the bottom one, and both sides clear a landscape notch. */
+/* FULL SCREEN — phone first, and it must LEAVE. A scrim strip across the top
+   is a tap target of its own, the bar under it owns the top inset so the Close
+   pill can never sit in the notch, the scroller owns the bottom one, and both
+   sides clear a landscape notch. z-index is above the schools shell's own
+   chrome (SchoolsTopBar tops out at 70) so nothing can paint over Close. */
 .cb-full { position: fixed; inset: 0; z-index: 1200; background: var(--schools-bg, #F7F4EF); display: flex; flex-direction: column; }
+/* The strip of scrim above the sheet: tapping it closes, the way a phone
+   sheet is expected to. It is a real button so a keyboard and a screen
+   reader reach it too. */
+.cb-scrim {
+  flex: 0 0 auto; border: none; padding: 0; cursor: pointer; display: block; width: 100%;
+  height: calc(30px + env(safe-area-inset-top, 0px));
+  background: rgba(15, 18, 18, 0.55);
+}
 .cb-full-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  height: calc(54px + env(safe-area-inset-top, 0px));
-  padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+  min-height: 60px;
+  padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
   background: #fff; border-bottom: 1px solid var(--schools-border, #E7E1D8);
+  border-radius: 14px 14px 0 0;
 }
 .cb-full-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--schools-fg-3, #8A8078); }
-.cb-close { font: inherit; font-size: 18px; min-width: 44px; min-height: 44px; border: none; background: transparent; color: var(--schools-fg-1, #2C2622); cursor: pointer; }
+/* Large, labelled and unmissable — a bare ✕ in a corner is what Tom could not
+   find on his phone. */
+.cb-close {
+  font: inherit; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 46px; padding: 0 18px; border-radius: 999px;
+  border: 1px solid var(--schools-border-strong, rgba(15, 18, 18, .18));
+  background: var(--schools-card, #fff); color: var(--schools-fg, #0F1212); cursor: pointer;
+}
 .cb-full-scroll {
-  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  background: var(--schools-bg, #F7F4EF);
   padding: 12px max(12px, env(safe-area-inset-left, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-right, 0px));
 }
 </style>

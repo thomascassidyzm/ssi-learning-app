@@ -1,6 +1,6 @@
 # Walkthrough pack — compiled render
 
-**Version `ac34e1743238` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
+**Version `31543ced446d` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — edit tools/walkthrough/walks/*.json and recompile.**
 
 ## add-a-class-under-a-group — Add a class to a group
 

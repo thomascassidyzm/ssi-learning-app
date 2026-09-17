@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `ac34e1743238` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `31543ced446d` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -573,6 +573,7 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 1. Open a class.
 2. Read how far right the ink reaches, and the four totals under it.
 3. Tap **Replay how it grew** to watch it build lesson by lesson, or the expand button to open it full screen.
+4. Come out of full screen with **Close**, or by tapping the dim strip above the sheet, or with your phone's own back gesture.
 
 **Worth knowing.** It is the class's own account, the one **Play as class** runs on, so no pupil is behind any of it. New phrases are the ones the class has met for the first time; practised counts every time a phrase came round again. A class that has never played together says **Not started** in words.
 

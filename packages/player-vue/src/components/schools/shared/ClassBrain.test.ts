@@ -57,9 +57,12 @@ describe('ClassBrain', () => {
     expect(text).toContain('Practised')
     // Two chunks met, one phrase practised, six hearings behind it.
     expect(text).toContain('1 phrases')
-    expect(text).toContain('heard 6 times')
+    expect(text).toContain('practised 6 times')
     // The old word is gone from the card entirely.
     expect(text).not.toContain('Phrases introduced')
+    // HEARD is wrong and is gone (Tom, 2026-09-17): the class has not heard the
+    // phrase until after it has tried to say it, so the card never claims it.
+    expect(text.toLowerCase()).not.toContain('heard')
   })
 
   it('lights only the chunks the class has played, and leaves the rest grey', async () => {
@@ -91,6 +94,60 @@ describe('ClassBrain', () => {
     expect(overlay).not.toBeNull()
     expect(overlay!.querySelector('.cb-close')).not.toBeNull()
     expect(document.body.style.overflow).toBe('hidden')
+  })
+
+  it('leaves full screen by Close, by the scrim, by Escape and by the back gesture', async () => {
+    const w = mountBrain()
+    await flushPromises()
+    const expand = (): Promise<void> => w.findAll('button').find((b) => b.attributes('aria-label') === 'Open full screen')!.trigger('click')
+
+    // 1. the large labelled Close
+    await expand()
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).not.toBeNull()
+    expect(document.querySelector('.cb-close')!.textContent).toContain('Close')
+    await (document.querySelector('.cb-close') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).toBeNull()
+
+    // 2. the scrim strip above the sheet
+    await expand()
+    await flushPromises()
+    ;(document.querySelector('.cb-scrim') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).toBeNull()
+
+    // 3. Escape, on a desktop
+    await expand()
+    await flushPromises()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).toBeNull()
+    expect(document.body.style.overflow).toBe('')
+  })
+
+  it('THE BACK GESTURE: opening pushes a history entry, and popping it closes the overlay', async () => {
+    // Tom got stuck in the overlay on a real phone, 2026-09-17. On a phone the
+    // first thing you try is the back gesture, and before this it left the class
+    // page entirely rather than closing the sheet.
+    const push = vi.spyOn(window.history, 'pushState')
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    const w = mountBrain()
+    await flushPromises()
+    await w.findAll('button').find((b) => b.attributes('aria-label') === 'Open full screen')!.trigger('click')
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).not.toBeNull()
+    expect(push).toHaveBeenCalled()
+
+    // The browser's own back: our entry is already gone, so the overlay closes
+    // and nothing spends a SECOND entry (which would leave the page).
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
+    await flushPromises()
+    expect(document.querySelector('.cb-full')).toBeNull()
+    expect(back).not.toHaveBeenCalled()
+    expect(document.body.style.overflow).toBe('')
+    push.mockRestore()
+    back.mockRestore()
   })
 
   it('says so in words when the class has never played together', async () => {

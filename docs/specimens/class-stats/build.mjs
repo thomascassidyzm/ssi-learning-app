@@ -174,7 +174,7 @@ function brain(S,caption){const W=560,L=22,R=22,Y=150,H=280,X=i=>L+i*(W-L-R)/(N-
   return'<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="the chunks the class has met, joined where they were said together">'+g+'</svg>'}
 const orderKey=id=>{const p=D.phrases[id];return p.lego*1000+(p.role==='use'?500:0)+p.pos};
 function freq(S){const ids=[...S.ph.keys()].sort((a,b)=>orderKey(a)-orderKey(b));if(!ids.length)return'<p class="cap">Nothing practised yet at this point.</p>';const m=Math.max(...S.ph.values());const lastId=S.last&&S.last.phrase;
-  return'<table class="ph">'+ids.map(id=>{const p=D.phrases[id],n=S.ph.get(id);return'<tr'+(id===lastId?' class="now"':'')+'><td><div>'+esc(p.t)+'</div><div class="cap">'+esc(p.k)+'</div><div class="bar5" style="width:'+(8+92*n/m).toFixed(0)+'%"></div></td><td class="n">heard '+n+' time'+(n===1?'':'s')+'</td></tr>'}).join('')+'</table>'}
+  return'<table class="ph">'+ids.map(id=>{const p=D.phrases[id],n=S.ph.get(id);return'<tr'+(id===lastId?' class="now"':'')+'><td><div>'+esc(p.t)+'</div><div class="cap">'+esc(p.k)+'</div><div class="bar5" style="width:'+(8+92*n/m).toFixed(0)+'%"></div></td><td class="n">practised '+n+' time'+(n===1?'':'s')+'</td></tr>'}).join('')+'</table>'}
 function fmt(t){return new Date(t).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
 const $=id=>document.getElementById(id);
 let step=E.length,playing=false,timer=null;
@@ -200,7 +200,7 @@ const TRANSPORT = `<div class="transport" role="group" aria-label="replay">
 const STRIP = `<div class="strip">
 <div class="stat-card"><span class="stat-word">Final position</span><span class="stat-value">sentence ${seedReached}</span><span class="stat-d">${esc(D.seeds[seedReached].k)}</span></div>
 <div class="stat-card"><span class="stat-word">In-app minutes</span><span class="stat-value">${D.totalMinutes}</span><span class="stat-d">across ${D.sittings.length} sittings</span></div>
-<div class="stat-card"><span class="stat-word">Practised</span><span class="stat-value">${distinctAll} phrases</span><span class="stat-d">heard ${D.tally.hearings} times</span></div>
+<div class="stat-card"><span class="stat-word">Practised</span><span class="stat-value">${distinctAll} phrases</span><span class="stat-d">practised ${D.tally.hearings} times</span></div>
 <div class="stat-card"><span class="stat-word">New phrases</span><span class="stat-value">${D.introducedCount}</span><span class="stat-d">met for the first time</span></div></div>`
 const BRAIN_CAP = `<p class="cap">Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. A dot lights when the class has met that chunk; it grows with repetition. An arc joins two chunks the class has said together inside one phrase, and thickens with every repeat.</p>`
 

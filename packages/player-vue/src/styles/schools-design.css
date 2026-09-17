@@ -36,6 +36,14 @@
   --schools-fg-3:          #6b6b6b;   /* darkened 2026-07 — #888 read as too weak against the putty bg (< AA contrast) */
   --schools-red:           #DB1E17;
   --schools-red-deep:      #900600;
+  /* The Insights blue — Lens A on every chart the Insight Engine draws.
+     insight/theme.ts resolves --blue off this surface at registration time and
+     fell back to this same hex while the token was unwritten; naming it here
+     makes the chart palette and the schools chrome read one value. Tom's
+     ruling, 2026-09-17: the Course journey's arcs take this rather than red,
+     which was too strident for a drawing that is not an alarm. */
+  --blue:                  #60A5FA;
+  --schools-blue:          var(--blue);
   --schools-pastel:        #F2D7D7;
   --schools-gold:          #FEC902;
   --schools-success:       #1F8A5B;
