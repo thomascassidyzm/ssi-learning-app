@@ -124,6 +124,13 @@ function mins(n: number): string {
 
 const entity = computed(() => props.data.entity)
 const cohort = computed(() => props.data.cohort)
+/**
+ * ALL TIME — the default window since Tom's ruling of 2026-09-17, and TOTALS
+ * ONLY since his of 2026-09-16: the same card over the whole history instead
+ * of one week, with no second column and no average line. Only the words
+ * change here; every number is the same function over a wider range.
+ */
+const isAllTime = computed(() => props.data.window === 'all_time')
 
 /**
  * "Ysgol Cas-gwent Chepstow School average · 27 classes" — the denominator in
@@ -145,7 +152,7 @@ const rows = computed(() => [
   { key: 'class', label: t('insights.week.playAsClass', 'Play as class'), big: true, entity: mins(entity.value.classMinutes), cohort: cohort.value ? mins(cohort.value.classMinutes) : null },
   { key: 'pupils', label: t('insights.week.studentsOwn', 'Students on their own'), big: true, entity: mins(entity.value.pupilMinutes), cohort: cohort.value ? mins(cohort.value.pupilMinutes) : null },
   { key: 'total', label: t('insights.week.total', 'Total learning time'), big: false, entity: mins(entity.value.totalMinutes), cohort: cohort.value ? mins(cohort.value.totalMinutes) : null },
-  { key: 'phrases', label: t('insights.week.newPhrases', 'New phrases'), big: true, entity: String(Math.round(entity.value.newPhrases)), cohort: cohort.value ? String(Math.round(cohort.value.newPhrases)) : null },
+  { key: 'phrases', label: isAllTime.value ? t('insights.week.phrasesReached', 'Phrases reached') : t('insights.week.newPhrases', 'New phrases'), big: true, entity: String(Math.round(entity.value.newPhrases)), cohort: cohort.value ? String(Math.round(cohort.value.newPhrases)) : null },
 ])
 
 const whyOpen = ref(false)
@@ -153,7 +160,10 @@ const whyOpen = ref(false)
 // The cohort's own unit, never a guess: a school's average is a mean of
 // schools, a class's a mean of classes.
 const unitWord = computed(() => props.unitNoun || t('insights.week.unitClass', 'class'))
-const whyText = computed(() => t(
+const whyText = computed(() => isAllTime.value ? t(
+  'insights.week.whyTextAllTime',
+  'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together, from the first lesson to now. Phrases reached are the ones covered for the first time over all of that. These are totals and nothing else — never an average, never a rate, and with nothing beside them to be measured against. Switch to This week or Last week for the week beside the average you choose.',
+) : t(
   'insights.week.whyText',
   'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together. New phrases are the ones the class reached for the first time that week. The two move apart on purpose: in Fast mode a class covers more new phrases in the same minutes, in Easy mode fewer. Neither is skipping ahead or going back. The average beside you is the mean of every {unit} in that scope that has started this course, this {unit} included, so it reads the same whoever opens it.',
 ).split('{unit}').join(unitWord.value))
@@ -221,10 +231,12 @@ const allTimeLine = computed(() => {
          What it's for. Two totals for one class since the day it first pressed play:
          all its practice time, and how many phrases it has reached. Totals, on their
          own, with nothing to compare them to.
-         Where it is. The last line of the class card, under the week.
+         Where it is. The last line of the class card, under the week — on **This week**
+         and **Last week** only. On **All time**, which is what the page opens on, the
+         card itself is those totals and the line is not repeated.
          How you do it.
          1. Open the class's insights.
-         2. Read the line under the week: since when, how long, how far.
+         2. Switch to a week, and read the line under it: since when, how long, how far.
          Worth knowing. This is never an average and never a rate. A class that has not
          started yet says so instead of showing zeros.
          checked: 65f3fb1f.1f2f3a30

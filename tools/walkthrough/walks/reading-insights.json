@@ -25,19 +25,19 @@
   "steps": [
     {
       "anchor": "insights-window",
-      "say": "**This week** or **Last week** — the school week, Monday to Sunday, and those are the only two. The card is the first thing on the page; this is the one thing you switch.",
+      "say": "**All time** is where the page opens — everything this level has done since it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday, and those are the only two weeks. The card is the first thing on the page; this is the one thing you switch.",
       "advance": {
         "on": "next"
       },
-      "checked": "0f907df5.7f9d55f6"
+      "checked": "40c97618.8d47d25d"
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** decides whose average sits beside yours. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.",
+      "say": "**Compare to** decides whose average sits beside yours, and it appears once you pick a week — totals have nothing beside them on purpose. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.",
       "advance": {
         "on": "next"
       },
-      "checked": "dcff4a14.ec9a29fd"
+      "checked": "0d9945c9.c1d47a5b"
     },
     {
       "anchor": "insights-rate-widget",

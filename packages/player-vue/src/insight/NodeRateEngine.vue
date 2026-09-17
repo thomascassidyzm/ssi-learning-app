@@ -220,8 +220,13 @@ async function saveTag(kind: 'year' | 'department', value: string | null): Promi
 // stays for the mounts that are not weeks — me/insights and intel/minutes. ───
 const weekMode = computed(() => {
   const w = engineState.value?.applied.window
-  return w === 'this_week' || w === 'last_week'
+  return w === 'this_week' || w === 'last_week' || w === 'all_time'
 })
+// ALL TIME is the default and is TOTALS ONLY (Tom, 2026-09-16, widened to
+// this page 2026-09-17): no second column, no average line, and therefore
+// nothing for "Compare to" to do — the picker is absent rather than sitting
+// there changing nothing.
+const allTimeMode = computed(() => engineState.value?.applied.window === 'all_time')
 const isClassNode = computed(() => engineState.value?.node.kind === 'class')
 
 // ─── Pickers ───
@@ -304,18 +309,20 @@ const metricDesc = computed(() => {
          moment: every-lesson
          roles: admin, leader, school_admin, teacher
          place: node-insights
-         keywords: insights, numbers, week, compare, minutes, phrases, this week, last week
+         keywords: insights, numbers, all time, total, week, compare, minutes, phrases, this week, last week
          walk: reading-insights
-         What it's for. Reading a week of learning at this level — how much time was
-         spent, how much new ground was covered, and how that sits beside the average
-         you choose. One card, two columns, three numbers.
+         What it's for. Reading the learning at this level — how much time has been
+         spent, how much ground has been covered, and, for a week, how that sits beside
+         the average you choose. One card, three numbers.
          Where it is. The node's home page, **See insights**; for a teacher, **Analytics**.
          How you do it.
-         1. Open the page. The card is the first thing on it.
-         2. Switch **This week** and **Last week** if you need to. This week runs from
-            Monday morning to right now; last week is the Monday to Sunday just gone.
-            Those are the only two, because a school works in weeks.
-         3. Read the three numbers down the left, with the average beside each one.
+         1. Open the page. The card is the first thing on it, and it opens on
+            **All time**: everything since this level first pressed play.
+         2. Switch to **This week** or **Last week** for a week instead. This week runs
+            from Monday morning to right now; last week is the Monday to Sunday just
+            gone. Those are the only two weeks, because a school works in weeks.
+         3. Read the three numbers down the left, with the average beside each one on a
+            week. **All time** has no second column: totals stand on their own.
             **Play as class** is time on the class's own account, the lesson from the
             front. **Students on their own** is time on their own accounts. **Total
             learning time** is those two added together. **New phrases** is how much
@@ -328,18 +335,19 @@ const metricDesc = computed(() => {
             level, the newest one solid, with the average drawn across them as a faint
             line. No axes; it is there to be glanced at.
          Worth knowing. Nothing here is a score, a rank or a percentage — two columns
-         of plain numbers, and you do the comparing. A class that was set up and has
-         never played is in no average anywhere. The average counts every class in
+         of plain numbers, and you do the comparing. Totals are never compared at all:
+         a whole school's history has nothing fair to sit beside. A class that was set
+         up and has never played is in no average anywhere. The average counts every class in
          that scope that has started this course, including the one you are looking
          at, so it reads the same number whichever class you open it from. The line
          under the second column says how many. A week spent going back over old
          ground reads zero new phrases and a healthy pile of minutes, which is
          exactly what that week was; tap **why?** on the card for the rest.
-         checked: 77790c2d.847eea15
+         checked: e2bed1f2.5af95451
     -->
     <div v-if="engineState && weekMode" class="nre-bar" data-walk="insights-window">
       <WindowChips v-if="showWindowChips" v-model="windowModel" :options="windowOptions" :aria-label="t('insights.rateEngine.timeWindowAriaLabel', 'Time window')" />
-      <label class="nre-bar-field" data-walk="insights-compare">
+      <label v-if="!allTimeMode" class="nre-bar-field" data-walk="insights-compare">
         <span class="nre-field-label">{{ t('insights.rateEngine.compareToLabel', 'Compare to') }}</span>
         <FrostSelect v-model="compareModel" :options="compareSelectOptions" :aria-label="t('insights.rateEngine.compareToLabel', 'Compare to')" />
       </label>
@@ -390,32 +398,35 @@ const metricDesc = computed(() => {
          moment: setting-up
          roles: admin, leader, school_admin
          place: node-insights
-         keywords: week, monday, total, compare, average, denominator, this week, last week
-         What it's for. A school plans and reviews in weeks, so the insights page counts in
-         weeks too — Monday morning to Sunday night, on your own clock. A rolling "last
-         seven days" straddles two different weeks of teaching and cannot be talked about
-         in a staff meeting.
+         keywords: week, monday, all time, total, compare, average, denominator, this week, last week
+         What it's for. The page opens on the totals — everything since this level started —
+         because a week on its own is lumpy: a class that does its Welsh on Thursday and
+         Friday reads as idle on a Wednesday. When you do want a week, a school plans and
+         reviews in weeks, so the two week options are real weeks — Monday morning to
+         Sunday night, on your own clock. A rolling "last seven days" straddles two
+         different weeks of teaching and cannot be talked about in a staff meeting.
          Where it is. The card at the top of any level's insights page.
          How you do it.
          1. Open a level and tap **See insights**.
-         2. The card puts this level's week beside the average's same week, as two
-            columns of plain numbers, with twelve weekly bars under them and the
-            average as a faint line across the bars.
-         3. Switch between **This week** and **Last week**. On a Monday or a Tuesday the
-            page opens on last week, because the week in progress is barely a lesson old.
+         2. On **All time** the card gives this level's totals on their own, with the
+            date it started beside them and twelve weekly bars under them.
+         3. On **This week** or **Last week** the card puts this level's week beside the
+            average's same week, as two columns of plain numbers, with the average drawn
+            as a faint line across the bars.
          4. Tap **why?** on the card for what the numbers count and why minutes and
             new phrases move apart.
          Worth knowing. The week runs Monday 00:00 to Sunday night on UK time, so a
          Monday-morning lesson belongs to the week it was taught in. Nothing here is a
          score, a rank, a target or a streak. A quiet week is allowed to read as a quiet
-         week. Under the card, a class also shows its totals since it started — time
-         practised and phrases reached — on their own, with nothing to compare them to.
+         week. On a week, a class also shows its totals since it started on a line under
+         the card; on **All time** that line is gone, because the card is already saying
+         it.
          checked: ac359fff.a9a3817c
     -->
     <div v-if="weekBlock" class="nre-widget-card" data-walk="insights-rate-widget">
       <WeekNumbersCard
         :data="weekBlock"
-        :no-cohort-reason="insufficientReason"
+        :no-cohort-reason="allTimeMode ? null : insufficientReason"
         :all-time="allTime"
         :unit-noun="unitNoun || undefined"
       />
