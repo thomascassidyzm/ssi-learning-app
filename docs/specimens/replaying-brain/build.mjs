@@ -15,7 +15,7 @@ const classSpanDays = Math.round((new Date(D.sittings.at(-1) + 'T00:00:00Z') - n
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${esc(D.className)}'s brain on Welsh, replayed</title>
 <style>
-:root{--ink:#26357a;--ink2:#5b6cc7;--school:#b9b1a6;--dim:#e4dfd8;--paper:#fbfaf8;--text:#2a2723;--mute:#6b6459}
+:root{--ink:#26357a;--ink2:#5b6cc7;--dim:#e4dfd8;--paper:#fbfaf8;--text:#2a2723;--mute:#6b6459}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--text);font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 main{max-width:1080px;margin:0 auto;padding:16px 14px 60px}h1{font-size:21px;margin:0 0 2px}.sub{color:var(--mute);margin:0 0 12px;font-size:14px}
 .note{font-size:13px;color:#4f483f;background:#f1ede7;padding:10px 12px;border-radius:8px;margin:10px 0}
@@ -42,7 +42,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;bord
 <div class="stats" id="stats"></div>
 <div class="grid">
 <section><h2>The brain</h2><div id="brain"></div>
-<p class="legend"><i style="background:var(--ink)"></i>${esc(D.className)}<i style="background:var(--school)"></i>the school's other classes, faint, below the line<i style="background:var(--dim)"></i>not yet reached</p>
+<p class="legend"><i style="background:var(--ink)"></i>${esc(D.className)}<i style="background:var(--dim)"></i>not yet reached</p>
 <p class="cap">Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. The first ${D.legos.length} of ${D.legosTotal} chunks are shown. A dot lights when the class has heard that chunk; it grows with repetition. An arc joins two chunks that were said together inside one phrase, and thickens with every repeat.</p></section>
 <section><h2>Phrases practised</h2><p class="cap" style="margin:0 0 6px">In course order, counts as at the scrubber. The highlighted row is the phrase just played.</p><div id="freq"></div></section>
 </div>
@@ -51,45 +51,38 @@ table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;bord
 <li><b>The lines are rebuilt, not read.</b> The app has a co-firing table for exactly this picture, but for every class in every school it is empty: a class plays under a class account whose identity is not the teacher's, and the table's own security rule refuses the write, silently. The pupils' accounts are untouched by class play. So each arc here is derived the way the app itself derives co-firing, from the chunks that make up the phrase that was actually played, taken from the play log cycle by cycle with its real timestamp. No arc is drawn from course structure alone: a phrase never played draws nothing.</li>
 <li><b>Why ${esc(D.className)}.</b> Ranked class by class, estate-wide, over every real school's play log (target1 audio plays, this course, demo and test schools excluded): ${D.topClassesEstate.map(c => `${esc(c.className)} at ${esc(c.school)} (${c.cycles})`).join(', ')}. ${esc(D.className)} is the single busiest real class in the estate, so it is shown; its own school, ${esc(D.school)}, has ${D.schoolClasses} classes between them ${D.schoolCycles + T.total} heard cycles, ${fmt(D.schoolFirst)} to ${fmt(D.schoolLast)}.</li>
 <li><b>Stepping.</b> The scrubber moves cycle by cycle inside a sitting, and the sitting buttons jump between sittings. Weeks are not offered because ${esc(D.className)}'s own record spans ${classSpanDays} days (${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}); it's the wider school, ${fmt(D.schoolFirst)} to ${fmt(D.schoolLast)}, that runs to weeks.</li>
-<li><b>The school layer</b> is the cycles of the other ${D.schoolClasses - 1} classes at ${esc(D.school)}, up to the same moment, drawn faint below the line. ${D.schoolEvents.filter(e => e.kind === 'legacy').length} of their cycles carry an older cycle id that names the chunk but not the phrase; those light the chunk and draw no arc.</li>
 <li><b>Pulled</b> ${D.pulledAt} from the live database. A static snapshot: it does not refresh.</li>
 </ul></section>
 </main>
 <script>
 const D=${JSON.stringify(D)};
-const INK='#26357a',SCHOOL='#b9b1a6',DIM='#e4dfd8',PAPER='#fbfaf8';
-const N=D.legos.length,E=D.events,SE=D.schoolEvents;
+const INK='#26357a',DIM='#e4dfd8',PAPER='#fbfaf8';
+const N=D.legos.length,E=D.events;
 const lg=(n,m)=>Math.log1p(n)/Math.log1p(Math.max(m,1));
-// --- state at step k: the first k class cycles applied, and every school cycle up to that moment
+// --- state at step k: the first k class cycles applied. Class only — no cohort/school layer.
 function stateAt(k){
-  const node=new Array(N).fill(0),edge=new Map(),ph=new Map(),lastPh=null;let reach=0,plays=0,last=null;
-  for(let i=0;i<k;i++){const e=E[i];plays++;last=e;for(const f of e.fires){if(f<N)node[f]++;reach=Math.max(reach,D.legos[f]?D.legos[f].seed:reachOf(f))}
+  const node=new Array(N).fill(0),edge=new Map(),ph=new Map();let reach=0,plays=0,last=null;
+  for(let i=0;i<k;i++){const e=E[i];plays++;last=e;for(const f of e.fires){if(f<N)node[f]++;reach=Math.max(reach,D.legos[f]?D.legos[f].seed:0)}
     if(e.phrase)ph.set(e.phrase,(ph.get(e.phrase)||0)+1);
     const fs=e.fires.filter(f=>f<N).sort((a,b)=>a-b);for(let a=0;a<fs.length;a++)for(let b=a+1;b<fs.length;b++){const key=fs[a]+'|'+fs[b];edge.set(key,(edge.get(key)||0)+1)}}
-  const t=last?last.t:(E[0]?E[0].t:'');
-  const snode=new Array(N).fill(0),sedge=new Map();
-  for(const e of SE){if(k===0||e.t>t)continue;for(const f of e.fires)if(f<N)snode[f]++;const fs=e.fires.filter(f=>f<N).sort((a,b)=>a-b);for(let a=0;a<fs.length;a++)for(let b=a+1;b<fs.length;b++){const key=fs[a]+'|'+fs[b];sedge.set(key,(sedge.get(key)||0)+1)}}
-  return{node,edge,ph,reach,plays,last,t,snode,sedge};
+  return{node,edge,ph,reach,plays,last};
 }
-function reachOf(f){return 0}
-// --- the brain: arc diagram, class above the line in ink, school faint below
-// Class arc width/opacity is on an ABSOLUTE scale, fixed for the whole replay, not
+// --- the brain: arc diagram, the class alone, in ink
+// Arc width/opacity is on an ABSOLUTE scale, fixed for the whole replay, not
 // renormalised against the busiest pair seen so far — so a pair that keeps recurring
 // visibly thickens as the replay goes on, rather than holding steady because it was
 // already the max at cycle 10 and stays the max at cycle 20.
 const edgeWidth=n=>Math.min(0.8+1.1*Math.sqrt(n),6),edgeOpacity=n=>Math.min(0.32+0.14*Math.sqrt(n),0.95);
 function brain(S){
   const W=560,L=22,R=22,Y=170,H=300,X=i=>L+i*(W-L-R)/(N-1);
-  let g='';const smax=Math.max(1,...S.sedge.values());
-  for(const[k,n]of S.sedge){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 0 '+x2+' '+Y+'" fill="none" stroke="'+SCHOOL+'" stroke-opacity="'+(0.25+0.4*lg(n,smax)).toFixed(2)+'" stroke-width="'+(0.5+2.5*lg(n,smax)).toFixed(2)+'"/>'}
+  let g='';
   for(const[k,n]of[...S.edge].sort((p,q)=>p[1]-q[1])){const[a,b]=k.split('|').map(Number),x1=X(a),x2=X(b),r=(x2-x1)/2;g+='<path d="M'+x1+' '+Y+' A'+r+' '+(r*.9)+' 0 0 1 '+x2+' '+Y+'" fill="none" stroke="'+INK+'" stroke-opacity="'+edgeOpacity(n).toFixed(2)+'" stroke-width="'+edgeWidth(n).toFixed(2)+'"/>'}
   g+='<line x1="'+X(0)+'" y1="'+Y+'" x2="'+X(N-1)+'" y2="'+Y+'" stroke="'+DIM+'" stroke-width="3"/>';
   const nmax=Math.max(1,...S.node);let lastSeed=0;
-  D.legos.forEach((l,i)=>{const n=S.node[i],sn=S.snode[i],x=X(i);
+  D.legos.forEach((l,i)=>{const n=S.node[i],x=X(i);
     if(l.seed!==lastSeed){lastSeed=l.seed;g+='<text x="'+x+'" y="'+(Y+16)+'" font-size="9" fill="#a39b90" text-anchor="middle">'+l.seed+'</text>'}
-    if(sn)g+='<circle cx="'+x+'" cy="'+Y+'" r="'+(6+3*lg(sn,40)).toFixed(1)+'" fill="none" stroke="'+SCHOOL+'" stroke-width="1.2" stroke-opacity=".8"/>';
-    g+='<circle cx="'+x+'" cy="'+Y+'" r="'+(n?(3.5+4*lg(n,nmax)).toFixed(1):2.4)+'" fill="'+(n?INK:(sn?'#fff':DIM))+'" stroke="'+(n?PAPER:'#c9c2b8')+'" stroke-width="1"/>';
-    const lit=n||sn;g+='<text transform="translate('+x+' '+(Y+26)+') rotate(58)" font-size="12" fill="'+(n?'#2a2723':(sn?'#8a8378':'#c4bdb2'))+'" font-weight="'+(n?600:400)+'">'+esc(l.t)+'</text>'});
+    g+='<circle cx="'+x+'" cy="'+Y+'" r="'+(n?(3.5+4*lg(n,nmax)).toFixed(1):2.4)+'" fill="'+(n?INK:DIM)+'" stroke="'+(n?PAPER:'#c9c2b8')+'" stroke-width="1"/>';
+    g+='<text transform="translate('+x+' '+(Y+26)+') rotate(58)" font-size="12" fill="'+(n?'#2a2723':'#c4bdb2')+'" font-weight="'+(n?600:400)+'">'+esc(l.t)+'</text>'});
   const last=S.last;if(last&&last.fires.length){const fs=last.fires.filter(f=>f<N);const cx=fs.reduce((s,f)=>s+X(f),0)/fs.length;g+='<text x="'+cx.toFixed(1)+'" y="34" font-size="13" fill="'+INK+'" text-anchor="middle">'+esc(last.phrase?D.phrases[last.phrase].t:D.legos[last.lego].t)+'</text><text x="'+cx.toFixed(1)+'" y="50" font-size="12" fill="#6b6459" text-anchor="middle">'+esc(last.phrase?D.phrases[last.phrase].k:D.legos[last.lego].k)+'</text>'}
   return'<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="arc diagram of chunks and co-fired phrases">'+g+'</svg>';
 }
@@ -97,18 +90,16 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const orderKey=id=>{const p=D.phrases[id];return p.lego*1000+(p.role==='use'?500:0)+p.pos};
 function freq(S){const ids=[...S.ph.keys()].sort((a,b)=>orderKey(a)-orderKey(b));if(!ids.length)return'<p class="cap">Nothing practised yet at this point.</p>';const m=Math.max(...S.ph.values());const lastId=S.last&&S.last.phrase;
   return'<table>'+ids.map(id=>{const p=D.phrases[id],n=S.ph.get(id);return'<tr'+(id===lastId?' class="new"':'')+'><td><div>'+esc(p.t)+'</div><div class="k">'+esc(p.k)+'</div><div class="bar" style="width:'+(8+92*n/m).toFixed(0)+'%"></div></td><td class="n">'+n+'</td></tr>'}).join('')+'</table>'}
-function stats(S,k){const dt=S.t?new Date(S.t):null;const weekAgo=dt?new Date(dt.getTime()-7*864e5).toISOString():'';
-  const inWeek=E.slice(0,k).filter(e=>e.phrase&&e.t>=weekAgo).length,allPh=E.slice(0,k).filter(e=>e.phrase).length;
-  let most=null,mostN=0;for(const[id,n]of S.ph)if(n>mostN||(n===mostN&&orderKey(id)<orderKey(most))){most=id;mostN=n}
-  let longest=null;for(const id of S.ph.keys()){const p=D.phrases[id];if(!longest||p.n>D.phrases[longest].n||(p.n===D.phrases[longest].n&&p.t.length>D.phrases[longest].t.length))longest=id}
-  const sits=S.last?S.last.s+1:0;const lit=S.node.filter(Boolean).length;const seed=D.seeds[S.reach];
+// Final totals for the whole record — not tied to the scrubber. No comparison, no cohort.
+function statsFinal(){
+  const S=stateAt(E.length);const seed=D.seeds[S.reach];
   const tile=(l,v,d)=>'<div class="stat"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="d">'+esc(d||'')+'</div></div>';
-  return tile('Sittings',sits+' of '+D.sittings.length,S.last?fmt(S.last.t):'')+tile('Reach',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('Chunks heard',lit+' of '+D.legosTotal,'')+tile('Phrases',S.ph.size+' distinct',allPh+' plays')+tile('Most played',most?mostN+'×':'—',most?D.phrases[most].t:'')+tile('Longest',longest?D.phrases[longest].n+' chunks':'—',longest?D.phrases[longest].t:'')+tile('This week',inWeek+' plays',allPh+' all time');
+  return tile('Final position',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('In-app minutes',D.totalMinutes,'across '+D.sittings.length+' sittings')+tile('Phrases played',S.ph.size+' distinct','')+tile('Chunks introduced',D.introducedCount,'');
 }
 function fmt(t){return new Date(t).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
 // --- transport (the Zenjin idiom: one interval, rebuilt on speed change, stops itself at the end)
 let step=0,playing=false,timer=null;const $=id=>document.getElementById(id);
-function render(){const S=stateAt(step);$('brain').innerHTML=brain(S);$('freq').innerHTML=freq(S);$('stats').innerHTML=stats(S,step);$('scrub').value=step;
+function render(){const S=stateAt(step);$('brain').innerHTML=brain(S);$('freq').innerHTML=freq(S);$('scrub').value=step;
   const e=S.last;$('where').innerHTML=e?('Sitting <b>'+(e.s+1)+'</b> of '+D.sittings.length+', '+fmt(e.t)+' · cycle <b>'+step+'</b> of '+E.length+' · '+({intro:'introducing',debut:'debut of',build:'building',use:'using'}[e.kind]||'playing')+' <b>'+esc(e.phrase?D.phrases[e.phrase].t:D.legos[e.lego].t)+'</b>'):'Before the first sitting. Press play.';
   $('play').textContent=playing?'❚❚':'▶'}
 function setStep(k){step=Math.max(0,Math.min(E.length,k));if(step>=E.length)stop();render()}
@@ -123,6 +114,7 @@ const sitEnd=s=>{let k=0;for(let i=0;i<E.length;i++)if(E[i].s<=s)k=i+1;return k}
 $('nextSit').onclick=()=>{stop();const cur=step?E[step-1].s:-1;setStep(sitEnd(cur+1))};
 $('prevSit').onclick=()=>{stop();const cur=step?E[step-1].s:0;const k=sitEnd(cur-1);setStep(step===sitEnd(cur)?k:sitEnd(cur-1)>=step?0:k)};
 document.addEventListener('keydown',ev=>{if(ev.key===' '){ev.preventDefault();$('play').click()}else if(ev.key==='ArrowRight'){stop();setStep(step+1)}else if(ev.key==='ArrowLeft'){stop();setStep(step-1)}});
+$('stats').innerHTML=statsFinal();
 render();
 </script></body></html>`
 writeFileSync(OUT, html)
