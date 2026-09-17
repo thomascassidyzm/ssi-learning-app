@@ -27,12 +27,12 @@ main{max-width:1080px;margin:0 auto;padding:16px 14px 60px}h1{font-size:21px;mar
 svg{width:100%;height:auto;display:block;background:var(--paper)}
 .legend{font-size:12px;color:var(--mute);margin:4px 0 0}.legend i{display:inline-block;width:14px;height:8px;border-radius:2px;vertical-align:middle;margin:0 4px 0 10px}
 h2{font-size:16px;margin:0 0 6px}.cap{font-size:13px;color:var(--mute);margin:6px 0 0}
-table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;border-top:1px solid #efeae2;vertical-align:top}td.n{text-align:right;white-space:nowrap;color:var(--ink);font-weight:600;width:3.5em}td.k{color:var(--mute);font-size:13px}.bar{height:5px;background:var(--ink);border-radius:3px;margin-top:3px;opacity:.75}tr.new td{background:#eef0fa}
+table{border-collapse:collapse;width:100%;font-size:14px}td{padding:5px 6px;border-top:1px solid #efeae2;vertical-align:top}td.n{text-align:right;white-space:nowrap;color:var(--ink);font-weight:600;width:6.5em;font-size:12px}td.k{color:var(--mute);font-size:13px}.bar{height:5px;background:var(--ink);border-radius:3px;margin-top:3px;opacity:.75}tr.new td{background:#eef0fa}
 .gaps{font-size:13px;color:#4f483f}.gaps li{margin:4px 0}
 </style></head><body><main>
 <h1>${esc(D.className)}'s brain on Welsh, replayed</h1>
 <p class="sub">${esc(D.school)} · ${esc(D.course)} · the class is the unit; no pupil is behind any of this</p>
-<p class="note"><b>What is real.</b> Every dot, line and count comes from the class's own play log: ${T.total} cycles in which the class heard the Welsh, across ${D.sittings.length} sittings, ${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}. A line joins two chunks only when they were said inside the same phrase in one of those cycles, and thickens each time that happens again. <b>What is thin.</b> This class's own record runs ${classSpanDays} days: ${D.sittings.length} sittings, ${D.classPhraseCount} distinct phrases, ${D.legos.length ? 'sentence ' + Math.max(...D.events.map(e => D.legos[e.lego]?.seed || 0)) : ''} reached of ${D.seedsTotal}. Nothing here is padded. Full account of the data at the foot of the page.</p>
+<p class="note"><b>What is real.</b> Every dot, line and count comes from the class's own play log: ${T.hearings} hearings in ${T.total} cycles across ${D.sittings.length} sittings, ${fmt(D.sittings[0])} to ${fmt(D.sittings.at(-1))}. Each cycle plays the Welsh twice (two voices), so a hearing is not a cycle. A line joins two chunks only when they were said inside the same phrase in one of those cycles, and thickens each time that happens again. <b>What is thin.</b> This class's own record runs ${classSpanDays} days: ${D.sittings.length} sittings, ${D.classPhraseCount} distinct phrases, ${D.legos.length ? 'sentence ' + Math.max(...D.events.map(e => D.legos[e.lego]?.seed || 0)) : ''} reached of ${D.seedsTotal}. Nothing here is padded. Full account of the data at the foot of the page.</p>
 <div class="transport" role="group" aria-label="replay">
 <button id="restart" title="Restart">⟲</button><button id="prevSit" title="Previous sitting">◀</button><button id="play" class="play" title="Play or pause">▶</button><button id="nextSit" title="Next sitting">▶|</button>
 <input id="scrub" type="range" min="0" max="${D.events.length}" value="0" step="1" aria-label="position in time">
@@ -61,11 +61,11 @@ const N=D.legos.length,E=D.events;
 const lg=(n,m)=>Math.log1p(n)/Math.log1p(Math.max(m,1));
 // --- state at step k: the first k class cycles applied. Class only — no cohort/school layer.
 function stateAt(k){
-  const node=new Array(N).fill(0),edge=new Map(),ph=new Map();let reach=0,plays=0,last=null;
-  for(let i=0;i<k;i++){const e=E[i];plays++;last=e;for(const f of e.fires){if(f<N)node[f]++;reach=Math.max(reach,D.legos[f]?D.legos[f].seed:0)}
-    if(e.phrase)ph.set(e.phrase,(ph.get(e.phrase)||0)+1);
-    const fs=e.fires.filter(f=>f<N).sort((a,b)=>a-b);for(let a=0;a<fs.length;a++)for(let b=a+1;b<fs.length;b++){const key=fs[a]+'|'+fs[b];edge.set(key,(edge.get(key)||0)+1)}}
-  return{node,edge,ph,reach,plays,last};
+  const node=new Array(N).fill(0),edge=new Map(),ph=new Map();let reach=0,plays=0,hearings=0,last=null;
+  for(let i=0;i<k;i++){const e=E[i];const h=e.hearings==null?2:e.hearings;plays++;hearings+=h;last=e;for(const f of e.fires){if(f<N)node[f]+=h;reach=Math.max(reach,D.legos[f]?D.legos[f].seed:0)}
+    if(e.phrase)ph.set(e.phrase,(ph.get(e.phrase)||0)+h);
+    const fs=e.fires.filter(f=>f<N).sort((a,b)=>a-b);for(let a=0;a<fs.length;a++)for(let b=a+1;b<fs.length;b++){const key=fs[a]+'|'+fs[b];edge.set(key,(edge.get(key)||0)+h)}}
+  return{node,edge,ph,reach,plays,hearings,last};
 }
 // --- the brain: arc diagram, the class alone, in ink
 // Arc width/opacity is on an ABSOLUTE scale, fixed for the whole replay, not
@@ -89,7 +89,7 @@ function brain(S){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 const orderKey=id=>{const p=D.phrases[id];return p.lego*1000+(p.role==='use'?500:0)+p.pos};
 function freq(S){const ids=[...S.ph.keys()].sort((a,b)=>orderKey(a)-orderKey(b));if(!ids.length)return'<p class="cap">Nothing practised yet at this point.</p>';const m=Math.max(...S.ph.values());const lastId=S.last&&S.last.phrase;
-  return'<table>'+ids.map(id=>{const p=D.phrases[id],n=S.ph.get(id);return'<tr'+(id===lastId?' class="new"':'')+'><td><div>'+esc(p.t)+'</div><div class="k">'+esc(p.k)+'</div><div class="bar" style="width:'+(8+92*n/m).toFixed(0)+'%"></div></td><td class="n">'+n+'</td></tr>'}).join('')+'</table>'}
+  return'<table>'+ids.map(id=>{const p=D.phrases[id],n=S.ph.get(id);return'<tr'+(id===lastId?' class="new"':'')+'><td><div>'+esc(p.t)+'</div><div class="k">'+esc(p.k)+'</div><div class="bar" style="width:'+(8+92*n/m).toFixed(0)+'%"></div></td><td class="n">heard '+n+' time'+(n===1?'':'s')+'</td></tr>'}).join('')+'</table>'}
 // Final totals for the whole record — not tied to the scrubber. No comparison, no cohort.
 function statsFinal(){
   const S=stateAt(E.length);const seed=D.seeds[S.reach];

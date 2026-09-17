@@ -1,5 +1,6 @@
 // Replaying brain, specimen v2 — step 1: distil the live pull into data.json (class-level only).
-// Input: $CS_SCRATCH/{plays,legos,seeds,phrases,classes}.json pulled live 2026-09-17 from the
+// Input: $CS_SCRATCH/{plays,legos,seeds,phrases,classes}.json pulled live 2026-09-17 (plays.json
+// carries target1 AND target2 audio_play rows, plus audio_failed rows, per class+school) from the
 // learner-app Supabase (player_events audio_play rows for every class entity at St Alban's RC
 // High School, Pontypool — the busiest real class estate-wide, per a school-agnostic
 // class-grouped query over player_events/classes/schools — cym_s_for_eng course tables).
@@ -19,10 +20,35 @@ const pById = new Map(phrases.map(p => [p.id, p]))
 const toPhrase = c => { const m = /^(S\d{4}L\d{2})_(build|use)_(\d{2})_/.exec(c); return m ? `${COURSE}:${m[1]}${m[2] === 'use' ? 'U' : 'B'}${m[3]}` : null }
 
 // One event per cycle the class HEARD the target of: the target1 audio_play row.
-const tally = { total: 0, intro: 0, debut: 0, build: 0, use: 0, legacy: 0, unresolved: 0 }
+// A cycle plays the target TWICE (target1 voice A, then target2 voice B) — both are real
+// hearings. Each event carries a `hearings` count (1 or 2) computed from the class's own
+// target1+target2 audio_play rows, excluding any audio_play immediately (<50ms) followed
+// by an audio_failed row for the same clip (role+legoId+cycleId) — that play never sounded.
+const failedByClip = new Map() // "role|legoId|cycleId|occurred_at(ms)" -> true, for audio_failed rows
+for (const p of plays) {
+  if (p.event_type !== 'audio_failed') continue
+  failedByClip.set(`${p.role}|${p.lego_id}|${p.cycle_id}`, [...(failedByClip.get(`${p.role}|${p.lego_id}|${p.cycle_id}`) || []), p.occurred_at])
+}
+const wasExcluded = p => {
+  const fails = failedByClip.get(`${p.role}|${p.lego_id}|${p.cycle_id}`)
+  if (!fails) return false
+  return fails.some(f => Math.abs(new Date(f) - new Date(p.occurred_at)) < 50)
+}
+const classPlaysSorted = plays.filter(p => p.class_name === CLASS && p.event_type === 'audio_play' && (p.role === 'target1' || p.role === 'target2')).sort((a, b) => a.occurred_at < b.occurred_at ? -1 : 1)
+const hearingsFor = t1 => {
+  const i = classPlaysSorted.indexOf(t1)
+  let h = wasExcluded(t1) ? 0 : 1
+  for (let j = i + 1; j < classPlaysSorted.length; j++) {
+    const r2 = classPlaysSorted[j]
+    if (r2.role === 'target1') break
+    if (r2.role === 'target2' && r2.cycle_id === t1.cycle_id && r2.lego_id === t1.lego_id) { h += wasExcluded(r2) ? 0 : 1; break }
+  }
+  return h
+}
+const tally = { total: 0, hearings: 0, intro: 0, debut: 0, build: 0, use: 0, legacy: 0, unresolved: 0 }
 const events = []
 for (const p of plays) {
-  if (p.role !== 'target1') continue
+  if (p.role !== 'target1' || p.event_type !== 'audio_play') continue
   const cls = p.class_name === CLASS ? 'class' : 'school'
   if (cls === 'class') tally.total++
   const lego = ord.get(p.lego_id); if (lego === undefined) continue
@@ -35,8 +61,9 @@ for (const p of plays) {
     else if (/^S\d{4}L\d{2}_(build|use)_\d+$/.test(p.cycle_id)) kind = 'legacy'
     else kind = 'unresolved'
   }
-  if (cls === 'class') tally[kind]++
-  events.push({ cls, t: p.occurred_at, lego, phrase, fires, kind })
+  const hearings = cls === 'class' ? hearingsFor(p) : 2
+  if (cls === 'class') { tally[kind]++; tally.hearings += hearings }
+  events.push({ cls, t: p.occurred_at, lego, phrase, fires, kind, hearings })
 }
 events.sort((a, b) => a.t < b.t ? -1 : 1)
 const classEvents = events.filter(e => e.cls === 'class'), schoolEvents = events.filter(e => e.cls === 'school')
