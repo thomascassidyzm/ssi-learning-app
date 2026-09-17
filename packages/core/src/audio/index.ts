@@ -40,3 +40,15 @@ export {
   type PronunciationResult,
   type ProsodyWeights,
 } from './PronunciationEngine';
+// VAD summary — the one analysis behind the admin board and the aggregate
+// Insights endpoint. MasteryState itself stays exported from ./learning.
+export {
+  median,
+  summariseVad,
+  type MetricRow,
+  type ProsodyAgg,
+  type MasteryCounts,
+  type ProsodySummary,
+  type LearnerVadRow,
+  type VadSummary,
+} from './vadSummary';

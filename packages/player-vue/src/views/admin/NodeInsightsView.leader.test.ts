@@ -5,6 +5,9 @@
  * ranked by minutes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+/** The last element — `.at(-1)` is past this package's tsconfig lib. */
+const last = <T>(xs: T[]): T => xs[xs.length - 1]
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive, defineComponent, h, onMounted } from 'vue'
 import NodeInsightsView from './NodeInsightsView.vue'
@@ -104,14 +107,14 @@ describe('NodeInsightsView — the leader’s page', () => {
     // The engine resolved eng_for_hin; neither panel may answer for another
     // course — the leader's page reported four classes under a card reporting
     // one until this.
-    expect(orgIntelCalls.at(-1)!.opts.courseCode).toBe('eng_for_hin')
-    expect(vadCalls.at(-1)!.opts.courseCode).toBe('eng_for_hin')
+    expect(last(orgIntelCalls).opts.courseCode).toBe('eng_for_hin')
+    expect(last(vadCalls).opts.courseCode).toBe('eng_for_hin')
   })
 
   it('asks the org read for the JOURNEY alone, so no pupil ledger is even read', async () => {
     mount(NodeInsightsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
-    expect(orgIntelCalls.at(-1)!.opts.questions).toEqual(['journey'])
+    expect(last(orgIntelCalls).opts.questions).toEqual(['journey'])
   })
 
   it('the voice panel is read as AGGREGATES, so no pupil name reaches this page', async () => {

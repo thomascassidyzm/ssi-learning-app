@@ -3,6 +3,9 @@
  * a head of department can act on, and never in a vendor's terms.
  */
 import { describe, it, expect, vi } from 'vitest'
+
+/** The last element — `.at(-1)` is past this package's tsconfig lib. */
+const last = <T>(xs: T[]): T => xs[xs.length - 1]
 import { mount } from '@vue/test-utils'
 import OrgIntelPanel from './OrgIntelPanel.vue'
 import type { OrgIntelPayload } from './data/orgIntel'
@@ -106,7 +109,7 @@ describe('OrgIntelPanel', () => {
     // In the sentence, and on every step of the funnel.
     expect(w.text()).toContain('I still want · dw i dal yn moyn')
     expect(w.text()).not.toMatch(/S00\d\dL\d\d/)
-    const funnel = w.findAllComponents({ name: 'InsightWidget' }).at(-1)!.props('resolved') as any
+    const funnel = last(w.findAllComponents({ name: 'InsightWidget' })).props('resolved') as any
     expect(funnel.data.stages.map((st: any) => st.label)).toContain('I’m going to · dw i’n mynd i · sentence 3 of 334')
   })
 
