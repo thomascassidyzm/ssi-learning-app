@@ -2558,14 +2558,17 @@ const confirmReset = async () => {
                moment: something-wrong
                roles: teacher, school_admin, leader
                place: settings
-               keywords: bug, report, problem, feedback, settings, tools
-               What it's for. Opening the report sheet when something in the app has gone wrong.
-               Where it is. **Settings**, under **Tools**, the **Report a bug** row.
+               parts: report-bug-sheet, report-bug-text, report-bug-send, report-bug-thanks
+               keywords: bug, report, problem, went wrong, feedback, broken, settings, tools, screenshot, sent
+               What it's for. Telling us when the app misbehaves, with the details of your course and device attached for you.
+               Where it is. **Settings**, under **Tools**, the **Report a bug** row, and the sheet it opens.
                How you do it.
-               1. Open **Settings**.
-               2. Tap **Report a bug**.
-               3. Describe what happened on the sheet that opens and tap **Send**.
-               Worth knowing. The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+               1. Open **Settings** and tap **Report a bug**.
+               2. Write what happened in the **What happened?** box. **Send** stays off until you have written something, and the box holds 2,000 characters.
+               3. Add a screenshot if you have one.
+               4. Tap **Send**. It reads **Sending…** while it goes.
+               5. Read **Got it, thank you** where the form was. The sheet closes on its own a moment later, or tap the line to close it now.
+               Worth knowing. The row is there whether or not you are signed in. Tapping outside the sheet closes it without sending. That line is the whole reply: there is no ticket number and nobody replies through the app. If the screenshot cannot upload the note still goes without it, and if the note itself does not send the sheet says so and you can tap **Send** again.
                checked: 6dad6fe6.1df11bca
           -->
           <div class="setting-row clickable" data-walk="report-bug" @click="showBugReport = true">
