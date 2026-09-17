@@ -281,6 +281,33 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
   return a.slice(0, n)
 }
 
+/**
+ * A CYCLE ID THAT NAMES THE PHRASE IT PLAYS.
+ *
+ * `S0042L03_use_05_review_7` — the LEGO, then the phrase's own role and index
+ * as `course_practice_phrases.id` carries them (`…:S0042L03U05`), then what
+ * the cycle is doing with it and the script counter that keeps it unique.
+ * Same shape the bundle path already stamps, so ONE parser reads both.
+ *
+ * The counter alone is not a name. Until 2026-09-17 the walk stamped
+ * `S0042L03_build_11827`, and the class brain — reading two digits after
+ * `_build_` — called that BUILD 11 and drew the card from a sentence the class
+ * had never heard. A phrase with no readable row id keeps the old counter-only
+ * form, which the brain now resolves to NOTHING rather than to a wrong guess.
+ *
+ * `phraseRowId` is the row's id; everything after the colon is the name.
+ */
+export function phraseCycleId(
+  legoKey: string,
+  phraseRowId: string | undefined,
+  kind: 'build' | 'use' | 'review' | `inf_R${number}` | `inf_sr_R${number}`,
+  cycleNum: number,
+): string {
+  const m = /S\d{4}L\d{2}(B|U)(\d{2})$/.exec(phraseRowId || '')
+  if (!m) return `${legoKey}_${kind}_${cycleNum}`
+  return `${legoKey}_${m[1] === 'U' ? 'use' : 'build'}_${m[2]}_${kind}_${cycleNum}`
+}
+
 // Deliberately EXCLUDES the two heavy JSON columns `decomposition` and
 // `display_tiling`. Across a big course's 15-17k phrase rows those two
 // dominate the payload, yet the full-course walk only needs them for the
@@ -292,7 +319,7 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
 // on presence); any round that reaches the screen gets its authored tiling from
 // /cycles. See the course-load-window fix.
 const PRACTICE_PHRASE_COLUMNS =
-  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce'
+  'id, seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce'
 
 /**
  * Fetch ALL course_practice_phrases for a course, paginated.
@@ -848,6 +875,8 @@ export async function generateLearningScript(
 
   // Group phrases by LEGO into BUILD and USE pools
   interface Phrase {
+    /** `<course>:S0042L03U05` — the phrase's own row id, the name the cycle id carries. */
+    id?: string
     seed_number: number
     lego_index: number
     known_text: string
@@ -1456,7 +1485,7 @@ export async function generateLearningScript(
         practiceCount++
         usedPhrasesThisRound.add(phraseId)
         emitItem({
-          uuid: `${legoKey}_build_${cycleNum}`,
+          uuid: phraseCycleId(legoKey, phrase.id, 'build', cycleNum),
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
           type: 'build',
@@ -1499,7 +1528,7 @@ export async function generateLearningScript(
         usedPhrasesThisRound.add(phraseId)
         usedForPractice.add(phraseId)
         emitItem({
-          uuid: `${legoKey}_build_${cycleNum}`,
+          uuid: phraseCycleId(legoKey, phrase.id, 'build', cycleNum),
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
           type: 'build',
@@ -1615,7 +1644,7 @@ export async function generateLearningScript(
           cycleNum++
           spacedRepCount++
           emitItem({
-            uuid: `${reviewKey}_spaced_rep_${cycleNum}`,
+            uuid: phraseCycleId(reviewKey, phrase.id, 'review', cycleNum),
             cycleNum, roundNumber, seedId: reviewSeedId, legoKey: reviewKey,
             seedCode: reviewSeedId, legoCode: reviewLegoNum,
             type: 'spaced_rep',
@@ -1640,7 +1669,7 @@ export async function generateLearningScript(
         consolidateCount++
         cycleNum++
         emitItem({
-          uuid: `${legoKey}_use_${cycleNum}`,
+          uuid: phraseCycleId(legoKey, phrase.id, 'use', cycleNum),
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
           type: 'use',
@@ -1812,7 +1841,7 @@ export async function generateLearningScript(
         const seedId = legoKey.match(/S\d+/)?.[0] || ''
         cycleNum++
         emitItem({
-          uuid: `${legoKey}_inf_R${roundNumber}_${cycleNum}`,
+          uuid: phraseCycleId(legoKey, phrase.id, `inf_R${roundNumber}`, cycleNum),
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
           type: 'use',
@@ -1878,7 +1907,7 @@ export async function generateLearningScript(
           cycleNum++
           spacedRepCount++
           emitItem({
-            uuid: `${reviewKey}_inf_sr_R${roundNumber}_${cycleNum}`,
+            uuid: phraseCycleId(reviewKey, phrase.id, `inf_sr_R${roundNumber}`, cycleNum),
             cycleNum, roundNumber, seedId: reviewSeedId, legoKey: reviewKey,
             seedCode: reviewSeedId, legoCode: reviewLegoNum,
             type: 'spaced_rep',
