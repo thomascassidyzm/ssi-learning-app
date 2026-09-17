@@ -35,6 +35,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { phraseCycleName } from '../../_utils/phraseCycleName'
 import { applyCors } from '../../_utils/cors'
 import { setEntitlementVary } from '../../_utils/entitlementVary'
 import { createClient } from '@supabase/supabase-js'
@@ -126,6 +127,8 @@ interface LegoRow {
 }
 
 interface PhraseRow {
+  /** `cym_n_for_eng:S0042L03U05` — the phrase's name (job #128). */
+  id: string | null
   seed_number: number
   lego_index: number
   position: number | null
@@ -369,7 +372,8 @@ function normaliseRole(raw: string | null | undefined): PhraseRole | null {
 
 const BUNDLE_PHRASE_ROLES = ['build', 'use', 'practice', 'eternal_eligible']
 const BUNDLE_PHRASE_COLUMNS =
-  'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
+  // `id` is the phrase's NAME — see phraseId below.
+  'id, seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
   // The shortest-first SORT KEY. The walk has always selected it; the bundle
   // now does too, so `@ssi/core`'s shared selector orders a debut basket the
   // same way the walk does instead of by DB position.
@@ -833,7 +837,12 @@ export default async function handler(
       if (target2) audio.target2 = target2
 
       const phrase: BundlePhrase = {
-        phraseId: `${legoId}_${role}_${String(nextPos).padStart(2, '0')}`,
+        // The phrase's OWN id, which is what `generateScript` stamps into the
+        // cycle id and what the class brain reads back. The counter below is
+        // only a fallback: phrase ids have GAPS where rows were deleted (549
+        // of deu_for_eng's 1,816 build/use rows sit past one), so a counted
+        // index names a phrase the class never heard (job #128).
+        phraseId: phraseCycleName(row.id) ?? `${legoId}_${role}_${String(nextPos).padStart(2, '0')}`,
         legoId,
         position: nextPos,
         role,
