@@ -1,3 +1,39 @@
+## 2026-09-17 — A cycle id names the phrase it plays (job #128)
+
+#126 found the Course journey card all but empty on the deepest real learner — 10 arcs and "5
+phrases practised" against 616 chunks met — and left the fix to the player. This is that fix, plus
+the frontier the card was reading from the wrong end of the diary.
+
+**What the walk writes.** The `/cycles` and bundle paths already stamp the phrase's own name into
+the cycle id: `S0069L03_use_03_review_9`, where `use_03` is exactly what
+`course_practice_phrases.id` carries as `…:S0069L03U03`. The legacy whole-course walk did not — it
+stamped `S0312L03_build_11827`, in which the trailing number is a GLOBAL script counter of one to
+five digits and nothing at all about the phrase. `generateLearningScript` now mints every
+phrase-backed cycle through one helper, `phraseCycleId`, which reads the role and index off the
+phrase row's own id and lays them down in the shape the bundle path already uses — builds,
+consolidation uses, spaced review and both INF PLAY streams. The drained-SEED sandwich keeps its
+`_seed_rep` id, because it replays the whole parent sentence and there is no phrase for it to name;
+the brain now calls that a kind of its own rather than an unresolved blank.
+
+**What the brain reads.** `phraseIdFromCycleId` anchors the index: it must be followed by `_` or by
+the end of the id. Unanchored, a bare counter matched on its first two digits and named a phrase the
+class had never heard — the card's arcs and cloth were drawn from the wrong sentence, and its counts
+lied. Anchored, an unindexed id resolves to NOTHING. `/api/classes/:id/brain` now calls that one
+parser rather than carrying its own copy of the regex.
+
+**OLD ROWS STAY OLD.** This changes what the player WRITES, so every cycle already in
+`player_events` keeps its counter-only id and will now resolve to null rather than to a wrong
+phrase. The card's phrase counts on historical data go DOWN, honestly, and fill in from the first
+play on the new build.
+
+**The frontier.** `readDiary` caps at 12 pages of 1,000 and read ASCENDING, so a class with more
+rows than that lost its newest day rather than its oldest — the deepest real class carries 30,482
+rows, so the card was drawn from its first fortnight. It reads newest-first and hands the rows back
+in time order: the cap now costs the past, never the frontier.
+
+Nothing about the card's replay or pod behaviour changes, and the `audio_play` write shape is
+otherwise untouched.
+
 ## 2026-09-17 — The course journey axis anchors on first light, not on chunk 1 (job #126)
 
 #120's fold was only ever drawn against a class #120 synthesised, because no real CLASS is more
