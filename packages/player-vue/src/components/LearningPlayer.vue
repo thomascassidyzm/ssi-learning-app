@@ -1120,6 +1120,20 @@ const activeSessionStore = useClassAwareSessionStore(
   supabase as unknown as Ref<any>,
 )
 
+// The class door, for the writers that are NOT ProgressStore methods: the
+// listening-pod ratchet and pod state, the instruction-exposure row, and the
+// belt's last_practiced_at touch. Each of those writes straight from the
+// browser under own-row RLS, so in class mode each was refused and only
+// console.warned — pod state held ZERO rows for any class ever, every class
+// enrollment's pod ratchet sat at 0 while individuals reached 327, and the
+// instruction row never took an organic write (census, verified live
+// 2026-09-17). Same endpoint, same authz, same "the client never names a
+// learner id" rule as activeProgressStore above; null outside class mode, so
+// an own account's path is byte-identical to before.
+const classWriteRoute = computed(() =>
+  props.classContext ? (activeProgressStore.value as unknown as Record<string, unknown>) : null,
+)
+
 // Helper to check if learner is a guest (no persistence for guests)
 const isGuestLearner = computed(() => {
   const id = learnerId.value
@@ -4696,6 +4710,9 @@ const metaCommentary = courseDataProvider.value
   ? useMetaCommentary({
       courseDataProvider: courseDataProvider.value,
       learnerId: learnerId.value || 'guest',
+      // Instruction-exposure progress for a class goes through
+      // /api/school/class-progress (see classWriteRoute). Null for an own account.
+      classRoute: () => classWriteRoute.value as any,
     })
   : null
 
@@ -4755,6 +4772,9 @@ const podScheduler = supabase?.value
       // this script block: a bare reference here is a TDZ error, a lazy getter
       // is not.
       beltAnchorSeed: computed(() => beltAnchorSeed.value),
+      // Pod ratchet + pod state for a class go through /api/school/class-progress
+      // (see classWriteRoute). Null for an own account.
+      classRoute: classWriteRoute as unknown as Ref<any>,
       // No Stage-0 ladder option any more (retired 2026-07-14) — every
       // sentence goes straight to Stage 1. Its replacement, the always-visible
       // LEGO-tile display, was itself replaced on 2026-07-22 by PodTurnDisplay's
@@ -5663,6 +5683,7 @@ const initializeBeltProgress = async (force = false) => {
       supabase: supabase,
       learnerId: computed(() => learnerId.value),
       storageScope: deviceScope.value,
+      classRoute: classWriteRoute as unknown as Ref<any>,
     }
     beltProgress.value = useSharedBeltProgress(courseCode.value, syncConfig)
 

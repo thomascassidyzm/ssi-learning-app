@@ -99,6 +99,20 @@ export interface BeltProgressSyncConfig {
    * leak of 2026-09-15 (job #790).
    */
   storageScope?: string | null
+  /**
+   * THE CLASS DOOR for the `last_practiced_at` touch below. Playing as a
+   * class, the direct upsert targets the class's own enrollment row, which
+   * own-row RLS refuses — the failure was MASKED, because setLivePosition and
+   * updateEnrollmentActivity re-stamp the same column through the class
+   * endpoint on every real progress event, so no data was actually lost. Routed
+   * for cleanliness, so that no write in class mode goes to a door it cannot
+   * open. Null outside class mode: own accounts keep the direct path.
+   */
+  classRoute?: Ref<BeltClassRoute | null | undefined> | BeltClassRoute | null
+}
+
+export interface BeltClassRoute {
+  touchLastPracticed?: () => Promise<unknown>
 }
 
 // ============================================================================
@@ -168,6 +182,13 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
   // SYNC HELPERS
   // ============================================================================
+
+  const getClassRoute = (): BeltClassRoute | null => {
+    const r = syncConfig?.classRoute
+    if (!r) return null
+    const v = 'value' in (r as any) ? (r as Ref<BeltClassRoute | null | undefined>).value : (r as BeltClassRoute)
+    return v ?? null
+  }
 
   const getSupabase = (): SupabaseClient | null => {
     if (!syncConfig?.supabase) return null
@@ -258,6 +279,12 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     lastSyncError.value = null
 
     try {
+      // Class mode: the class's own enrollment row, through the server door.
+      const route = getClassRoute()
+      if (route?.touchLastPracticed) {
+        await route.touchLastPracticed()
+        return
+      }
       // NOTE: deliberately does NOT write last_completed_lego_id. That column is
       // the resume cursor ("where you are"), owned solely by
       // ProgressStore.setLivePosition. This belt sync used to write highestLegoId

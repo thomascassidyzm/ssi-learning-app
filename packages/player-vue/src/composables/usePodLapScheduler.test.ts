@@ -1148,3 +1148,143 @@ describe('usePodLapScheduler — the ladder completes (Tom 2026-09-06)', () => {
     expect(lap!.plays.length).toBeGreaterThan(0)
   })
 })
+
+// ============================================================================
+// THE CLASS DOOR (job #61 census → this job)
+//
+// Playing as a class, every read and write below targets the CLASS's own
+// learner id, which own-row RLS refuses from the browser. Live 2026-09-17:
+// learner_pod_state held 2,160 rows for individuals and ZERO for any class
+// ever, and all 199 class enrollment rows sat at completed_pod_rounds = 0
+// while individuals reached 327 — so a class restarted the cohort ladder and
+// the cadence debt from scratch every session. With a classRoute supplied,
+// NOTHING may reach Supabase directly; without one, the behaviour must be
+// byte-identical to before.
+// ============================================================================
+describe('usePodLapScheduler — class route', () => {
+  const makeRoute = () => {
+    const calls: Array<{ method: string; args: any[] }> = []
+    return {
+      calls,
+      route: {
+        getPodRatchet: async () => {
+          calls.push({ method: 'getPodRatchet', args: [] })
+          return { rounds_since_pod: 4, completed_pod_rounds: 1 }
+        },
+        persistPodRatchet: async (c: number, r: number) => { calls.push({ method: 'persistPodRatchet', args: [c, r] }) },
+        resetPodRatchet: async () => { calls.push({ method: 'resetPodRatchet', args: [] }) },
+        loadPodState: async () => {
+          calls.push({ method: 'loadPodState', args: [] })
+          return [{ sentence_id: 'T1', exposures: 6 }]
+        },
+        upsertPodState: async (rows: any[]) => { calls.push({ method: 'upsertPodState', args: [rows] }) },
+        deletePodState: async () => { calls.push({ method: 'deletePodState', args: [] }) },
+      },
+    }
+  }
+
+  const makeState = (): MockState => ({
+    // `id` matters here: pod-state exposures are keyed by sentence id, and a
+    // row without one contributes nothing to flush.
+    podSentences: [{ ...podSentence(1), id: 'pod-1' }, { ...podSentence(2), id: 'pod-2' }],
+    bookends: [bookendIntro, bookendOutro],
+    enrollment: { pod_activation_round: 6, completed_pod_rounds: 3, rounds_since_pod: 1 },
+    enrollmentUpdates: [],
+    podState: [{ sentence_id: 'T1', exposures: 99 }],
+  })
+
+  it('reads the ratchet through the class door, not the browser', async () => {
+    const state = makeState()
+    const { calls, route } = makeRoute()
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'class-uuid',
+      classRoute: ref(route), roundInterval: 5,
+    })
+    await s.initialize()
+    // The class's own values, not the enrollment row the browser can see.
+    expect(s.completedPodRounds.value).toBe(1)
+    expect(s.roundsSincePod.value).toBe(4)
+    expect(calls.map((c) => c.method)).toContain('getPodRatchet')
+    expect(calls.map((c) => c.method)).toContain('loadPodState')
+  })
+
+  it('persists the ratchet through the class door and never writes course_enrollments directly', async () => {
+    const state = makeState()
+    const { calls, route } = makeRoute()
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'class-uuid',
+      classRoute: ref(route),
+    })
+    await s.initialize()
+    await s.markLapCompleted()
+    expect(calls.some((c) => c.method === 'persistPodRatchet')).toBe(true)
+    // THE REGRESSION THIS FILE EXISTS FOR: a direct update here is the write
+    // RLS refuses, and the player only console.warned it.
+    expect(state.enrollmentUpdates).toEqual([])
+  })
+
+  it('noteRoundCompleted persists the debt through the class door', async () => {
+    const state = makeState()
+    const { calls, route } = makeRoute()
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'class-uuid',
+      classRoute: ref(route),
+    })
+    await s.initialize()
+    s.noteRoundCompleted(12)
+    await Promise.resolve()
+    await Promise.resolve()
+    const persists = calls.filter((c) => c.method === 'persistPodRatchet')
+    expect(persists[persists.length - 1].args).toEqual([1, 5])
+    expect(state.enrollmentUpdates).toEqual([])
+  })
+
+  it('flushes pod-state exposures through the class door', async () => {
+    const state = makeState()
+    const { calls, route } = makeRoute()
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'class-uuid',
+      classRoute: ref(route),
+    })
+    await s.initialize()
+    s.nextLap()
+    await s.markLapCompleted()
+    const flush = calls.find((c) => c.method === 'upsertPodState')
+    expect(flush).toBeDefined()
+    expect(flush!.args[0].length).toBeGreaterThan(0)
+    // The client never names a learner id — the server resolves it.
+    for (const row of flush!.args[0]) {
+      expect(Object.keys(row).sort()).toEqual(['exposures', 'sentence_id'])
+    }
+  })
+
+  it('reset goes through the class door for both the ratchet and the pod state', async () => {
+    const state = makeState()
+    const { calls, route } = makeRoute()
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'class-uuid',
+      classRoute: ref(route),
+    })
+    await s.initialize()
+    await s.reset()
+    expect(calls.map((c) => c.method)).toContain('resetPodRatchet')
+    expect(calls.map((c) => c.method)).toContain('deletePodState')
+    expect(state.enrollmentUpdates).toEqual([])
+  })
+
+  it('WITHOUT a class route the individual path is unchanged — same reads, same write payload', async () => {
+    for (const classRoute of [undefined, ref(null)]) {
+      const state = makeState()
+      const s = usePodLapScheduler({
+        supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'real-uuid',
+        classRoute: classRoute as any,
+      })
+      await s.initialize()
+      // Read straight from the enrollment row, exactly as before.
+      expect(s.completedPodRounds.value).toBe(3)
+      expect(s.roundsSincePod.value).toBe(1)
+      await s.markLapCompleted()
+      expect(state.enrollmentUpdates).toEqual([{ completed_pod_rounds: 4, rounds_since_pod: 0 }])
+    }
+  })
+})

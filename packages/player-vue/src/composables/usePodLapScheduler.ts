@@ -494,6 +494,42 @@ export interface UsePodLapSchedulerOptions {
    * a beginner rather than silently handing them full speed.
    */
   beltAnchorSeed?: Ref<number | null | undefined> | number | null | undefined
+  /**
+   * THE CLASS DOOR. While playing AS A CLASS every pod read and write below
+   * belongs to the class's own learner id, and the browser can never touch it:
+   * `learner_pod_state` and `course_enrollments` both carry own-row RLS, which
+   * resolves to the driving STAFF member's row, never the class's. So every
+   * class pod-state write was refused and only console.warned (zero rows for
+   * any class, ever) and every class ratchet update was silently dropped (all
+   * 199 class enrollments sat at exactly 0 — verified live 2026-09-17), which
+   * restarted the pod-lap cadence and the cohort ladder from scratch every
+   * single session.
+   *
+   * The READS go through it too. RLS HIDES rows rather than erroring, so
+   * routing only the writes would have a class persist its ratchet and then
+   * read back null on the next session — fixed in the database, still broken
+   * in the product.
+   *
+   * Null/absent outside class mode, which is every other caller: own accounts
+   * keep the direct client path untouched.
+   */
+  classRoute?: Ref<PodClassRoute | null | undefined> | PodClassRoute | null | undefined
+}
+
+/**
+ * The subset of the class-aware progress store this scheduler needs
+ * (`useClassProgressStore`), narrowed so tests can hand in a plain object.
+ * Each method is server-mediated through /api/school/class-progress, which
+ * authorises the caller against the class and resolves the class's learner id
+ * itself — the client never names a learner id.
+ */
+export interface PodClassRoute {
+  getPodRatchet?: () => Promise<{ rounds_since_pod: number | null; completed_pod_rounds: number | null } | null>
+  persistPodRatchet?: (completedPodRounds: number, roundsSincePod: number) => Promise<unknown>
+  resetPodRatchet?: () => Promise<unknown>
+  loadPodState?: () => Promise<Array<{ sentence_id: string; exposures: number }> | null>
+  upsertPodState?: (rows: Array<{ sentence_id: string; exposures: number }>) => Promise<unknown>
+  deletePodState?: () => Promise<unknown>
 }
 
 /**
@@ -525,6 +561,9 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const supabaseRef = options.supabase
   const courseCodeRef = options.courseCode
   const learnerIdRef = options.learnerId
+  /** Null outside class mode — read per call, because the class context is
+   *  reactive (a teacher can leave play-as-class without remounting). */
+  const classRoute = (): PodClassRoute | null => unwrap(options.classRoute) ?? null
 
   const isInitialized = ref(false)
   const isLoading = ref(false)
@@ -575,6 +614,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const learnerId = unwrap(learnerIdRef)
     if (!supabase || !courseCode) return
 
+    const route = classRoute()
+    // Bound, because the class store's methods are object-literal members.
+    const podRatchetRoute = route?.getPodRatchet ? () => route.getPodRatchet!() : null
+
     isLoading.value = true
     try {
       // Retry before falling back to the offline snapshot — the highest-risk
@@ -599,14 +642,19 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
             .eq('course_code', courseCode)
             .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
           // Guests have no enrollment row → in-memory counter only.
-          !isGuestLearner(learnerId)
-            ? supabase
-                .from('course_enrollments')
-                .select('rounds_since_pod, completed_pod_rounds')
-                .eq('learner_id', learnerId)
-                .eq('course_id', courseCode)
-                .maybeSingle()
-            : Promise.resolve({ data: null, error: null } as { data: null; error: null }),
+          // Class mode reads through the class door (see classRoute): the
+          // browser's own-row RLS would return an empty result for the class's
+          // row and the ratchet would restart at zero every session.
+          isGuestLearner(learnerId)
+            ? Promise.resolve({ data: null, error: null } as { data: null; error: null })
+            : podRatchetRoute
+              ? podRatchetRoute().then((data) => ({ data, error: null }))
+              : supabase
+                  .from('course_enrollments')
+                  .select('rounds_since_pod, completed_pod_rounds')
+                  .eq('learner_id', learnerId)
+                  .eq('course_id', courseCode)
+                  .maybeSingle(),
         ]),
         ([pods, bookends]) => !pods.error && !bookends.error,
       )
@@ -672,7 +720,13 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       pendingExposures = []
       if (!isGuestLearner(learnerId)) {
         try {
-          podExposures = await new PodStateStore({ client: supabase }).loadAll(learnerId!, courseCode)
+          if (route?.loadPodState) {
+            podExposures = new Map(
+              (await route.loadPodState() ?? []).map((r) => [r.sentence_id, r.exposures] as const),
+            )
+          } else {
+            podExposures = await new PodStateStore({ client: supabase }).loadAll(learnerId!, courseCode)
+          }
         } catch (err) {
           console.warn('[podLapScheduler] pod state read failed (derived-only):', err)
         }
@@ -1178,16 +1232,20 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const learnerId = unwrap(learnerIdRef)
     const courseCode = unwrap(courseCodeRef)
     if (!supabase || !courseCode || !learnerId || isGuestLearner(learnerId)) return
+    // The map holds the max seen this session — write that, so a stale batch
+    // never regresses a counter another pass just advanced.
+    const rows = batch.map((r) => ({
+      sentence_id: r.sentence_id,
+      exposures: podExposures.get(r.sentence_id) ?? r.exposures,
+    }))
     try {
+      const route = classRoute()
+      if (route?.upsertPodState) {
+        await route.upsertPodState(rows)
+        return
+      }
       await new PodStateStore({ client: supabase }).upsertMany(
-        batch.map((r) => ({
-          learner_id: learnerId,
-          course_code: courseCode,
-          sentence_id: r.sentence_id,
-          // The map holds the max seen this session — write that, so a stale
-          // batch never regresses a counter another pass just advanced.
-          exposures: podExposures.get(r.sentence_id) ?? r.exposures,
-        })),
+        rows.map((r) => ({ learner_id: learnerId, course_code: courseCode, ...r })),
       )
     } catch (err) {
       console.warn('[podLapScheduler] pod state write failed:', err)
@@ -1209,13 +1267,22 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const courseCode = unwrap(courseCodeRef)
     if (!supabase || !courseCode || !learnerId || isGuestLearner(learnerId)) return
     try {
-      await supabase
-        .from('course_enrollments')
-        .update({ completed_pod_rounds: 0, rounds_since_pod: 0 })
-        .eq('learner_id', learnerId)
-        .eq('course_id', courseCode)
+      const route = classRoute()
+      if (route?.resetPodRatchet) {
+        await route.resetPodRatchet()
+      } else {
+        await supabase
+          .from('course_enrollments')
+          .update({ completed_pod_rounds: 0, rounds_since_pod: 0 })
+          .eq('learner_id', learnerId)
+          .eq('course_id', courseCode)
+      }
       // Course reset clears the shared two-doors counter too.
-      await new PodStateStore({ client: supabase }).deleteAll(learnerId, courseCode)
+      if (route?.deletePodState) {
+        await route.deletePodState()
+      } else {
+        await new PodStateStore({ client: supabase }).deleteAll(learnerId, courseCode)
+      }
     } catch (err) {
       console.warn('[podLapScheduler] reset write failed:', err)
     }
@@ -1232,6 +1299,11 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const courseCode = unwrap(courseCodeRef)
     if (!supabase || !courseCode || !learnerId || isGuestLearner(learnerId)) return
     try {
+      const route = classRoute()
+      if (route?.persistPodRatchet) {
+        await route.persistPodRatchet(completedPodRounds.value, roundsSincePod.value)
+        return
+      }
       const { error } = await supabase
         .from('course_enrollments')
         .update({
