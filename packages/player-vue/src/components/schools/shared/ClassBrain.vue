@@ -20,6 +20,19 @@
  * and EXPAND opens the same brain full screen for a phone, as an overlay with
  * an obvious close rather than a route of its own.
  *
+ * THE LENS IS FOLDED (Tom, 2026-09-17: "log-fold plus cloth"). A class three
+ * hundred chunks in cannot have three hundred chunks at even spacing, and the
+ * old answer — the server sending only the last sixty — threw away the read
+ * this card exists for. So the axis is folded instead: the frontier keeps the
+ * spacing a short course gets and the past compresses logarithmically, so the
+ * whole stretch the class has reached stands on one screen. Where the fold has
+ * squeezed arcs past legibility they stop being lines and become CLOTH, a
+ * woven band over the past; an arc reaching from the deep past out to the
+ * frontier is always still a line, because that is the course picking old
+ * material back up and it is the point of the picture. The expand keeps the
+ * true, unfolded line, scrollable, for anyone who wants the real spacing.
+ * The maths is classBrainFold.ts; the ink is classBrainFigure.ts.
+ *
  * The rules — first light, the abandoned detour, hearings per cycle, NEW
  * PHRASES as distinct first meetings — are the server's
  * (api/_utils/classBrain.ts). Nothing is recomputed here.
@@ -27,7 +40,10 @@
 import { ref, computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { fetchClassBrain, type ClassBrainPayload } from './classBrainData'
-import { stateAt, edgeWidth, edgeOpacity, dotRadius } from './classBrainState'
+import { stateAt } from './classBrainState'
+import { foldAxis, unfoldedAxis } from './classBrainFold'
+import { buildFigure, type CaptionSource } from './classBrainFigure'
+import ClassBrainFigure from './ClassBrainFigure.vue'
 
 const props = defineProps<{
   classId: string
@@ -158,60 +174,43 @@ onBeforeUnmount(unbind)
 // ─── the drawing ───
 const legos = computed(() => data.value?.legos ?? [])
 const state = computed(() => stateAt(data.value?.events ?? [], legos.value, data.value?.axisFrom ?? 0, step.value))
-// Labels only where they can be read. Beyond that the dots and the arcs carry
-// the picture and the words would be a grey smear.
-const showLabels = computed(() => legos.value.length <= (full.value ? 26 : 14))
+
+/** The card's lens: folded, 560 units wide with the line inset from the box. */
 const W = 560
 const PAD = 22
-const geom = computed(() => {
-  const n = Math.max(legos.value.length, 1)
-  const y = showLabels.value ? 150 : 96
-  const h = showLabels.value ? 280 : 150
-  // The labels lean right at 58°, so the last one runs past the last dot. The
-  // box is wider than the line to hold it; the dots do not move.
-  const w = W + (showLabels.value ? 80 : 0)
-  const x = (i: number): number => (n === 1 ? W / 2 : PAD + (i * (W - PAD * 2)) / (n - 1))
-  return { y, h, w, x }
-})
-const arcs = computed(() => {
-  const { x, y } = geom.value
-  return [...state.value.edge.entries()]
-    .sort((p, q) => p[1] - q[1])
-    .map(([key, n]) => {
-      const [a, b] = key.split('|').map(Number)
-      const x1 = x(a)
-      const x2 = x(b)
-      const r = (x2 - x1) / 2
-      return { d: `M${x1} ${y} A${r} ${r * 0.9} 0 0 1 ${x2} ${y}`, w: edgeWidth(n), o: edgeOpacity(n) }
-    })
-})
-const dots = computed(() => {
-  const { x, y } = geom.value
-  const max = Math.max(1, ...state.value.node)
-  return legos.value.map((l, i) => ({
-    key: l.id,
-    cx: x(i),
-    cy: y,
-    r: dotRadius(state.value.node[i], max),
-    lit: state.value.node[i] > 0,
-    text: l.t,
-  }))
-})
-/** The phrase the class is on, written above the chunks that made it. */
-const caption = computed(() => {
+const cardAxis = computed(() => foldAxis(Math.max(legos.value.length, 1), W - PAD * 2, PAD))
+/** The expand's lens: the true spacing, as wide as it needs to be, scrolled. */
+const fullAxis = computed(() => unfoldedAxis(Math.max(legos.value.length, 1), undefined, PAD))
+
+/** The phrase the class is on, and the chunks that made it. */
+const captionSource = computed<CaptionSource | null>(() => {
   const last = state.value.last
   if (!last || step.value >= total.value) return null
-  const { x } = geom.value
   const from = data.value?.axisFrom ?? 0
-  const fs = last.fires.map((f) => f - from).filter((f) => f >= 0 && f < legos.value.length)
-  if (!fs.length) return null
+  const fires = last.fires.map((f) => f - from).filter((f) => f >= 0 && f < legos.value.length)
+  if (!fires.length) return null
   const phrase = last.phrase ? data.value?.phrases[last.phrase] : null
   return {
-    cx: fs.reduce((s, f) => s + x(f), 0) / fs.length,
+    fires,
     t: phrase ? phrase.t : legos.value[last.lego - from]?.t || '',
     k: phrase ? phrase.k : legos.value[last.lego - from]?.k || '',
   }
 })
+
+/** True once the axis is long enough that the fold has bent it. */
+const isFolded = computed(() => cardAxis.value.lambda != null)
+const cardFigure = computed(() => buildFigure(cardAxis.value, legos.value, state.value, {
+  caption: captionSource.value,
+  live: captionSource.value?.fires ?? [],
+}))
+// The unfolded line is long, so its arcs are long: it needs the height to fan
+// them out, and it gets it by scrolling rather than by squashing.
+const fullFigure = computed(() => buildFigure(fullAxis.value, legos.value, state.value, {
+  caption: captionSource.value,
+  live: captionSource.value?.fires ?? [],
+  scroll: true,
+  topRoom: 260,
+}))
 
 // ─── the four totals ───
 // Each one is the class's own record and nothing else's. NEW PHRASES is an
@@ -298,20 +297,10 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
       <!-- INLINE: the brain at its latest frame, the four totals, two controls -->
       <div v-if="!full" class="cb-body">
         <div class="cb-draw">
-          <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
-            <path v-for="(a, i) in arcs" :key="`a${i}`" :d="a.d" fill="none" stroke="var(--schools-blue, #60A5FA)" :stroke-opacity="a.o" :stroke-width="a.w" />
-            <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
-            <g v-for="(d, i) in dots" :key="d.key">
-              <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-blue, #60A5FA)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
-              <text v-if="showLabels" :transform="`translate(${d.cx} ${geom.y + 26}) rotate(58)`" font-size="12" :fill="d.lit ? '#2C2622' : '#c4bdb2'" :font-weight="d.lit ? 600 : 400">{{ dots[i].text }}</text>
-            </g>
-            <template v-if="caption">
-              <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-blue, #60A5FA)" text-anchor="middle">{{ caption.t }}</text>
-              <text :x="caption.cx" y="46" font-size="12" fill="#8A8078" text-anchor="middle">{{ caption.k }}</text>
-            </template>
-          </svg>
+          <ClassBrainFigure :figure="cardFigure" :alt="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')" />
         </div>
-        <p class="cb-cap">{{ t('org.brain.caption', 'Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. A dot lights when the class has met that chunk; it grows with repetition. An arc joins two chunks the class has said together inside one phrase, and thickens with every repeat.') }}</p>
+        <p v-if="isFolded" class="cb-cap">{{ t('org.brain.foldCaption', 'Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. The line is folded: the newest chunks keep their room and the older ones crowd together, so the whole stretch the class has reached fits on one screen. Where old chunks sit too close for an arc to be read, the arcs are woven into a band, and the heavier the weave the more the class has practised there. An arc reaching from the far past out to today is always still drawn.') }}</p>
+        <p v-if="!isFolded" class="cb-cap">{{ t('org.brain.caption', 'Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. A dot lights when the class has met that chunk; it grows with repetition. An arc joins two chunks the class has said together inside one phrase, and thickens with every repeat.') }}</p>
 
         <div class="cb-stats">
           <div v-for="tile in tiles" :key="tile.key" class="cb-stat">
@@ -370,19 +359,9 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
             </button>
           </header>
           <div class="cb-full-scroll">
-            <div class="cb-draw">
-              <svg :viewBox="`0 0 ${geom.w} ${geom.h}`" role="img" :aria-label="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')">
-                <path v-for="(a, i) in arcs" :key="`fa${i}`" :d="a.d" fill="none" stroke="var(--schools-blue, #60A5FA)" :stroke-opacity="a.o" :stroke-width="a.w" />
-                <line :x1="geom.x(0)" :y1="geom.y" :x2="geom.x(legos.length - 1)" :y2="geom.y" stroke="#e4dfd8" stroke-width="3" />
-                <g v-for="(d, i) in dots" :key="`f${d.key}`">
-                  <circle :cx="d.cx" :cy="d.cy" :r="d.r" :fill="d.lit ? 'var(--schools-blue, #60A5FA)' : '#e4dfd8'" :stroke="d.lit ? '#ffffff' : '#c9c2b8'" stroke-width="1" />
-                  <text v-if="showLabels" :transform="`translate(${d.cx} ${geom.y + 26}) rotate(58)`" font-size="12" :fill="d.lit ? '#2C2622' : '#c4bdb2'" :font-weight="d.lit ? 600 : 400">{{ dots[i].text }}</text>
-                </g>
-                <template v-if="caption">
-                  <text :x="caption.cx" y="30" font-size="13" fill="var(--schools-blue, #60A5FA)" text-anchor="middle">{{ caption.t }}</text>
-                  <text :x="caption.cx" y="46" font-size="12" fill="#8A8078" text-anchor="middle">{{ caption.k }}</text>
-                </template>
-              </svg>
+            <p class="cb-cap cb-unfolded-note">{{ t('org.brain.unfoldedNote', 'The true spacing, unfolded. Scroll it sideways to walk the course.') }}</p>
+            <div class="cb-draw cb-draw-scroll">
+              <ClassBrainFigure :figure="fullFigure" :alt="t('org.brain.svgAlt', 'The chunks the class has met, joined where they were said together')" />
             </div>
             <div class="cb-transport" role="group" :aria-label="t('org.brain.transportLabel', 'Replay')">
               <button type="button" :title="t('org.brain.restart', 'Restart')" @click="setStep(0)">⟲</button>
@@ -427,6 +406,10 @@ const hasPlayed = computed(() => (data.value?.events.length ?? 0) > 0)
 .cb { width: 100%; }
 .cb-quiet { font-size: var(--text-sm, 13px); color: var(--schools-fg-2, #6B6259); margin: 0; }
 .cb-draw svg { width: 100%; height: auto; display: block; }
+/* The unfolded line is wider than any phone and is meant to be walked. */
+.cb-draw-scroll { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.cb-draw-scroll svg { width: auto; max-width: none; height: 300px; }
+.cb-unfolded-note { margin-bottom: 4px; }
 .cb-cap { font-size: 12px; line-height: 1.5; color: var(--schools-fg-3, #8A8078); margin: 6px 0 0; }
 
 .cb-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0 8px; }

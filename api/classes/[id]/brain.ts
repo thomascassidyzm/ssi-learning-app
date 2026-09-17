@@ -12,9 +12,12 @@
  *
  * Who may read: an ssi_admin, or anyone whose visible scope carries the class.
  *
- * The answer is deliberately small — the axis is truncated to the stretch of
- * the course the class has reached plus a little headroom, and each event is
- * five short fields — so the card can fetch it after the page has painted.
+ * The answer carries the WHOLE stretch of the course the class has reached,
+ * plus a little headroom. It used to carry only the last sixty chunks, which
+ * kept the answer small by throwing the class's own past away; the card folds
+ * the axis instead (Tom, 2026-09-17: "log-fold plus cloth"), so the past has
+ * to be here for it to fold. Each event is still five short fields, so the
+ * card can fetch it after the page has painted.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -34,8 +37,12 @@ const PAGE = 1000
 const MAX_PAGES = 12
 /** Chunks beyond the class's reach kept on the axis, so the ink has somewhere to go. */
 const HEADROOM = 3
-/** A phone cannot read more dots than this, and a class this far in gets the tail of the axis. */
-const MAX_AXIS = 60
+/**
+ * A ceiling on the answer, not a lens. The card folds whatever it is sent, so
+ * this only exists to bound the response for a class deeper into a course than
+ * anything that has yet been built; past it the oldest chunks give way.
+ */
+const MAX_AXIS = 2000
 
 interface AxisLego { id: string; seed: number; t: string; k: string }
 
@@ -182,9 +189,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .map((r) => ({ occurred_at: r.occurred_at, event_type: r.event_type, target_seed: skipTargetSeed(r) }))
     const brain = buildBrain({ courseCode, rows: diary, skips, ordinalOf, seedOf, phrases })
 
-    // THE AXIS. The whole course is thousands of chunks; the card shows the
-    // stretch the class has reached, plus a little headroom so the ink has
-    // somewhere to go, and never more than a phone can read.
+    // THE AXIS. The whole course is thousands of chunks; the card gets the
+    // stretch the class has reached, all of it, plus a little headroom so the
+    // ink has somewhere to go. The fold is what makes it readable.
     const reachOrd = brain.events.reduce((m, e) => Math.max(m, ...e.fires), -1)
     const axisTo = Math.min(legos.length, Math.max(reachOrd + 1 + HEADROOM, 12))
     const axisFrom = Math.max(0, axisTo - MAX_AXIS)
