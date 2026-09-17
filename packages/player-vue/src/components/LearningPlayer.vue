@@ -1186,51 +1186,58 @@ const updateClassLegoProgress = async (classId: string, lastLegoId: string) => {
   if (error) console.error('[LearningPlayer] Failed to update class progress:', error)
 }
 
-// Start a class session
+// THE CLASS LESSON RECORD (`class_sessions`) — the second source for a class's
+// practice minutes, and until 2026-09-17 a table no real school had ever
+// written. Job #65: all 637 rows belong to demo/test schools and `sessions`
+// holds none for a class learner, so 9b/KW LJ's 38.2 minutes came from
+// `player_events` alone with nothing to reconcile against — and any future
+// undercount of that kind would have been invisible.
+//
+// TWO things were wrong, and both are fixed here. The write went straight from
+// the browser, against an own-row insert policy; and the only call site sat in
+// a branch the real play-as-class path never reaches — verified live on staging
+// (a real teacher playing a real class issued GETs to `class_sessions` and not
+// one POST). It now goes through /api/school/class-progress like every other
+// class write, and it STARTS ON THE FIRST CLIP THAT ACTUALLY SOUNDS rather than
+// on an init branch: a lesson begins when the class first hears something, so
+// there is no empty row for a player that was opened and closed, and no way for
+// a future refactor of the init path to lose the record again.
+const classSessionStarting = ref(false)
 const startClassSessionTracking = async () => {
-  if (!props.classContext || !supabase?.value) return
-  // class_sessions.teacher_user_id holds the AUTH uid (matches classes.teacher_user_id
-  // and the own-row RLS policy) — never learnerId. Guests have no auth uid: skip logging.
-  const teacherUserId = (auth as any)?.userId?.value
-  if (!teacherUserId) return
+  if (!props.classContext) return
+  if (classSessionId.value || classSessionStarting.value) return
   const startLegoId = props.classContext.last_lego_id || 'S0001L01'
+  classSessionStarting.value = true
   classSessionStartTime.value = Date.now()
   classSessionLastLegoId.value = startLegoId
-
-  const { data, error } = await supabase.value
-    .from('class_sessions')
-    .insert({
-      class_id: props.classContext.id,
-      teacher_user_id: teacherUserId,
-      start_lego_id: startLegoId,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    console.error('[LearningPlayer] Failed to start class session:', error)
-  } else {
-    classSessionId.value = data.id
-    console.log('[LearningPlayer] Class session started:', data.id)
+  try {
+    const row = await (classWriteRoute.value as any)?.startClassSession?.(startLegoId)
+    if (row?.id) {
+      classSessionId.value = row.id
+      console.log('[LearningPlayer] Class session started:', row.id)
+    }
+  } catch (err) {
+    // Never let a telemetry write touch playback.
+    console.warn('[LearningPlayer] Failed to start class session:', err)
+  } finally {
+    classSessionStarting.value = false
   }
 }
 
 // End a class session
 const endClassSessionTracking = async () => {
-  if (!classSessionId.value || !supabase?.value) return
-  const durationSeconds = Math.floor((Date.now() - classSessionStartTime.value) / 1000)
-  const { error } = await supabase.value
-    .from('class_sessions')
-    .update({
-      ended_at: new Date().toISOString(),
-      end_lego_id: classSessionLastLegoId.value,
-      cycles_completed: totalCycles.value,
-      duration_seconds: durationSeconds,
-    })
-    .eq('id', classSessionId.value)
-  if (error) console.error('[LearningPlayer] Failed to end class session:', error)
-  else console.log('[LearningPlayer] Class session ended:', classSessionId.value)
+  const sessionId = classSessionId.value
+  if (!sessionId) return
   classSessionId.value = null
+  const durationSeconds = Math.floor((Date.now() - classSessionStartTime.value) / 1000)
+  try {
+    await (classWriteRoute.value as any)?.endClassSession?.(
+      sessionId, classSessionLastLegoId.value || null, totalCycles.value, durationSeconds,
+    )
+    console.log('[LearningPlayer] Class session ended:', sessionId)
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to end class session:', err)
+  }
 }
 
 // Save round completion progress to database
@@ -2732,6 +2739,9 @@ simplePlayer.onPhaseChanged((phase) => {
 // shape is UNCHANGED: same keys, same values, same batching via usePlayerLog
 // (5s + 10-event flush + pagehide beacon).
 simplePlayer.onAudioStarted(({ phase, cycle }) => {
+  // The class lesson begins at the first clip the class actually hears — see
+  // startClassSessionTracking. Idempotent; a no-op outside class mode.
+  if (props.classContext) void startClassSessionTracking()
   if (!cycle) return
   let audioUrl: string | undefined
   let role: 'known' | 'target1' | 'target2' | null = null

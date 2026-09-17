@@ -32,6 +32,7 @@ let DB: {
   learner_speaking_opportunities: Array<Record<string, any>>
   learner_pod_state: Array<Record<string, any>>
   learner_meta_commentary_state: Array<Record<string, any>>
+  class_sessions: Array<Record<string, any>>
 }
 
 function makeChainable(table: string) {
@@ -134,6 +135,7 @@ beforeEach(async () => {
     learner_speaking_opportunities: [],
     learner_pod_state: [],
     learner_meta_commentary_state: [],
+    class_sessions: [],
   }
   rpcCalls = []
   scope = { role: 'teacher', classIds: ['class-1'], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null, learnerId: 'staff-learner-a' }
@@ -491,6 +493,90 @@ describe('POST /api/school/class-progress — pod state, pod ratchet, commentary
       'touchLastPracticed']) {
       const res = makeRes()
       await handler(makeReq({ classId: 'class-1', method, args: [] }), res)
+      expect(res.statusCode, method).toBe(403)
+    }
+  })
+})
+
+/**
+ * The class LESSON record (job #65). `class_sessions` held 637 rows, every one
+ * a demo/test school's: not one real school ever wrote it, and `sessions` has
+ * none for a class learner, so a class's minutes had no second source. The
+ * browser code existed and was never reached on the real path. Here it is a
+ * server method, with teacher_user_id taken from the verified token.
+ */
+describe('POST /api/school/class-progress — class_sessions (job #65)', () => {
+  it('startClassSession writes the lesson with the CALLER\'s auth uid and the authorised class', async () => {
+    const res = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'startClassSession', args: ['S0012L03'] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.class_sessions).toHaveLength(1)
+    expect(DB.class_sessions[0]).toMatchObject({
+      class_id: 'class-1',
+      teacher_user_id: 'teacher-a',
+      start_lego_id: 'S0012L03',
+    })
+    expect(res.body.result.id).toBeDefined()
+  })
+
+  it('teacher_user_id is the token\'s, never anything the client sent', async () => {
+    authUserId = 'teacher-b'
+    const res = makeRes()
+    // A spoofed teacher id in the args must be ignored — the method takes one
+    // positional argument and it is the lego id.
+    await handler(makeReq({ classId: 'class-1', method: 'startClassSession', args: ['victim-uid'] }), res)
+    expect(res.statusCode).toBe(200)
+    expect(DB.class_sessions[0].teacher_user_id).toBe('teacher-b')
+  })
+
+  it('startClassSession defaults a missing start lego rather than writing null into a NOT NULL column', async () => {
+    await handler(makeReq({ classId: 'class-1', method: 'startClassSession', args: [] }), makeRes())
+    expect(DB.class_sessions[0].start_lego_id).toBe('S0001L01')
+  })
+
+  it('endClassSession closes the lesson with duration and cycles', async () => {
+    const start = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'startClassSession', args: ['S0001L01'] }), start)
+    const id = start.body.result.id
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'endClassSession', args: [id, 'S0004L01', 26, 1830],
+    }), res)
+    expect(res.statusCode).toBe(200)
+    const row = DB.class_sessions.find((r) => r.id === id)!
+    expect(row.end_lego_id).toBe('S0004L01')
+    expect(row.cycles_completed).toBe(26)
+    expect(row.duration_seconds).toBe(1830)
+    expect(typeof row.ended_at).toBe('string')
+  })
+
+  it('endClassSession coerces junk counts to non-negative integers', async () => {
+    const start = makeRes()
+    await handler(makeReq({ classId: 'class-1', method: 'startClassSession', args: ['S0001L01'] }), start)
+    const id = start.body.result.id
+    await handler(makeReq({
+      classId: 'class-1', method: 'endClassSession', args: [id, 'S0004L01', -9, 'nonsense'],
+    }), makeRes())
+    const row = DB.class_sessions.find((r) => r.id === id)!
+    expect(row.cycles_completed).toBe(0)
+    expect(row.duration_seconds).toBe(0)
+  })
+
+  it('endClassSession refuses a lesson that belongs to a different class', async () => {
+    DB.class_sessions.push({ id: 'cs-other', class_id: 'some-other-class', teacher_user_id: 'teacher-a' })
+    const res = makeRes()
+    await handler(makeReq({
+      classId: 'class-1', method: 'endClassSession', args: ['cs-other', 'S0004L01', 1, 1],
+    }), res)
+    expect(res.statusCode).toBe(500)
+    expect(DB.class_sessions.find((r) => r.id === 'cs-other')!.ended_at).toBeUndefined()
+  })
+
+  it('both are gated by scope and role like every other method', async () => {
+    scope.classIds = ['some-other-class']
+    for (const method of ['startClassSession', 'endClassSession']) {
+      const res = makeRes()
+      await handler(makeReq({ classId: 'class-1', method, args: ['x'] }), res)
       expect(res.statusCode, method).toBe(403)
     }
   })

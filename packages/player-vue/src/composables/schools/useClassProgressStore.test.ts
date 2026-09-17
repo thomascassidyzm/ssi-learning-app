@@ -202,6 +202,8 @@ describe('createClassAwareProgressStore — pod state, pod ratchet, commentary, 
     ['getMetaCommentaryState', (s) => s.getMetaCommentaryState(), []],
     ['saveMetaCommentaryState', (s) => s.saveMetaCommentaryState(4, true), [4, true]],
     ['touchLastPracticed', (s) => s.touchLastPracticed(), []],
+    ['startClassSession', (s) => s.startClassSession('S0012L03'), ['S0012L03']],
+    ['endClassSession', (s) => s.endClassSession('cs-1', 'S0004L01', 26, 1830), ['cs-1', 'S0004L01', 26, 1830]],
   ]
 
   it('in class mode posts each one to the class route with no learner id in the body', async () => {
@@ -222,7 +224,9 @@ describe('createClassAwareProgressStore — pod state, pod ratchet, commentary, 
     ) as any
     for (const [method, invoke] of cases) {
       const result = await invoke(store)
-      const expected = method.startsWith('get') || method.startsWith('load') ? null : false
+      const expected = method.startsWith('get') || method.startsWith('load') || method === 'startClassSession'
+        ? null
+        : false
       expect(result, method).toBe(expected)
     }
     expect(fetchMock).not.toHaveBeenCalled()

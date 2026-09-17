@@ -66,6 +66,8 @@ const ALLOWED_METHODS = [
   'getMetaCommentaryState',
   'saveMetaCommentaryState',
   'touchLastPracticed',
+  'startClassSession',
+  'endClassSession',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
 
@@ -561,6 +563,74 @@ async function touchLastPracticed(svc: SupabaseClient, learnerId: string, course
   if (error) throw new Error(`touchLastPracticed failed: ${error.message}`)
 }
 
+/**
+ * The class LESSON record (`class_sessions`) — the second source for minutes.
+ *
+ * Job #65 found that `class_sessions` holds 637 rows and every one belongs to a
+ * demo/test school: not one real school has ever written it, and `sessions` has
+ * no rows for a class learner either. So a class's practice minutes came from
+ * `player_events` alone, with nothing to reconcile against — 9b/KW LJ's 38.2
+ * minutes was unfalsifiable, and any future undercount of that kind would have
+ * been invisible.
+ *
+ * The client code to write it existed and was simply never reached on the real
+ * play-as-class path — verified live on staging 2026-09-17: a real teacher
+ * playing as a real class issues GETs to `class_sessions` and not one POST.
+ * Routing it here rather than re-wiring the browser insert gets two things at
+ * once: it runs from a call site that cannot be missed, and it stops depending
+ * on the own-row insert policy (`teacher_user_id = auth.uid()::text`), which a
+ * co-teacher covering someone else's class would be at the mercy of.
+ *
+ * `teacher_user_id` is the CALLER's own auth uid, taken from the verified
+ * token — never from the body. `class_id` is the authorised class. So a caller
+ * can no more forge a lesson for another teacher than for another class.
+ */
+async function startClassSession(
+  svc: SupabaseClient, classId: string, teacherUserId: string, startLegoId: unknown,
+) {
+  const { data, error } = await svc
+    .from('class_sessions')
+    .insert({
+      class_id: classId,
+      teacher_user_id: teacherUserId,
+      start_lego_id: typeof startLegoId === 'string' && startLegoId ? safeIdToken(startLegoId) : 'S0001L01',
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(`startClassSession failed: ${error.message}`)
+  return data
+}
+
+async function endClassSession(
+  svc: SupabaseClient, classId: string, sessionId: unknown,
+  endLegoId: unknown, cyclesCompleted: unknown, durationSeconds: unknown,
+) {
+  if (typeof sessionId !== 'string' || !sessionId) throw new Error('endClassSession: sessionId required')
+  // Same extra-hop ownership check as updateLegoProgress / the session methods:
+  // the client holds only a row id, so verify the row is THIS class's lesson
+  // before writing it.
+  const { data: row, error: readErr } = await svc
+    .from('class_sessions')
+    .select('class_id')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (readErr) throw new Error(`endClassSession read failed: ${readErr.message}`)
+  if (!row || (row as any).class_id !== classId) {
+    throw new Error('endClassSession: session does not belong to this class')
+  }
+  const nonNeg = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+  const { error } = await svc
+    .from('class_sessions')
+    .update({
+      ended_at: new Date().toISOString(),
+      end_lego_id: typeof endLegoId === 'string' && endLegoId ? safeIdToken(endLegoId) : null,
+      cycles_completed: nonNeg(cyclesCompleted),
+      duration_seconds: nonNeg(durationSeconds),
+    })
+    .eq('id', sessionId)
+  if (error) throw new Error(`endClassSession failed: ${error.message}`)
+}
+
 async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, courseId: string, cycleIndex: number) {
   const { error } = await svc
     .from('course_enrollments')
@@ -762,6 +832,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'touchLastPracticed':
         await touchLastPracticed(svc, learnerId, courseId)
+        break
+      case 'startClassSession':
+        result = await startClassSession(svc, classId, auth.userId, a[0])
+        break
+      case 'endClassSession':
+        await endClassSession(svc, classId, a[0], a[1], a[2], a[3])
         break
       case 'updateCurrentCycle':
         await updateCurrentCycle(svc, learnerId, courseId, a[0])

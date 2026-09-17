@@ -99,6 +99,23 @@ interface MinimalProgressStore {
   saveMetaCommentaryState?: (instructionIndex: number, instructionsComplete: boolean) => Promise<boolean>
   /** The belt sync's last_practiced_at touch (useBeltProgress.syncToRemote). */
   touchLastPracticed?: () => Promise<boolean>
+  /**
+   * The class LESSON record (`class_sessions`) — a SECOND SOURCE for a class's
+   * practice minutes. Job #65: all 637 rows in that table belong to demo/test
+   * schools, `sessions` has none for a class learner either, and the browser
+   * code that was supposed to write it was simply never reached on the real
+   * play-as-class path (verified live on staging 2026-09-17 — a real teacher
+   * playing a real class issues GETs to class_sessions and not one POST). So a
+   * class's minutes came from player_events alone, with nothing to reconcile
+   * against. Routed here rather than repaired in the browser so it runs from a
+   * call site that cannot be missed and does not depend on the own-row insert
+   * policy a covering co-teacher would be at the mercy of. `teacher_user_id`
+   * comes from the verified token server-side, never from the client.
+   */
+  startClassSession?: (startLegoId: string) => Promise<{ id: string } | null>
+  endClassSession?: (
+    sessionId: string, endLegoId: string | null, cyclesCompleted: number, durationSeconds: number,
+  ) => Promise<boolean>
 }
 
 export interface ClassContextForProgress {
@@ -223,6 +240,15 @@ export function createClassAwareProgressStore(
     async touchLastPracticed() {
       if (!inClass()) return false
       await call('touchLastPracticed', [])
+      return true
+    },
+    async startClassSession(startLegoId) {
+      if (!inClass()) return null
+      return call('startClassSession', [startLegoId])
+    },
+    async endClassSession(sessionId, endLegoId, cyclesCompleted, durationSeconds) {
+      if (!inClass()) return false
+      await call('endClassSession', [sessionId, endLegoId, cyclesCompleted, durationSeconds])
       return true
     },
     async updateCurrentCycle(learnerId, courseId, cycleIndex) {
