@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `e5ad5ac76500` · generated 2026-09-16 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `40fd0f32c50a` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -1056,7 +1056,7 @@ Moment: something-wrong · section: your-own-account · roles: teacher, school_a
 1. Tap your name at the top right, then **Report a bug**.
 2. Write what happened, add a screenshot if you have one, and tap **Send**.
 
-**Worth knowing.** Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
+**Worth knowing.** Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
 
 ## Say what happened
 

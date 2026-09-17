@@ -3202,7 +3202,8 @@
       "cancel": "Cancel",
       "failed": "That did not send. Please try again.",
       "toast": "Got it, thank you.",
-      "closeAria": "Close"
+      "closeAria": "Close",
+      "viewAsNote": "You are viewing as {name}. This goes from your own account, with that noted."
     },
     "copyPlay": {
       "alsoOfferedOn": "This is the same play as the {name} row under {classes}. A lesson can only be credited to one class, so copy it onto the class it was for.",

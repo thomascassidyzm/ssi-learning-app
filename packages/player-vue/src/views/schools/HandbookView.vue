@@ -92,9 +92,16 @@ function toggleProse(id: string): void {
 // "Read the lot" is the compendium door: everybody's capabilities, in the six
 // sections, every entry open and every clip entry's words unfolded. Tapping it
 // again comes back to the reader's own three moments, closed.
-function readTheLot(): void {
-  theLot.value = !theLot.value
-  const ids = theLot.value ? visible.value.map((e) => e.id) : []
+// TWO REAL CONTROLS, NOT A LABEL AND A BUTTON (Tom, 2026-09-17, job #68:
+// "'Just what I can do' is not a link"). It used to be a grey caption naming
+// the current scope next to one button that flipped it, so the words a reader
+// reaches for were plain text and the button's label kept changing under
+// them. Now both scopes are buttons, always with the same words, and the one
+// you are in is lit — aria-pressed says the same thing to a screen reader.
+function setScope(lot: boolean): void {
+  if (theLot.value === lot) return
+  theLot.value = lot
+  const ids = lot ? visible.value.map((e) => e.id) : []
   open.value = new Set(ids)
   prose.value = new Set(ids)
 }
@@ -244,11 +251,21 @@ onMounted(() => {
         :placeholder="t('schools.handbookPage.searchPlaceholder', 'Search the handbook')"
         :aria-label="t('schools.handbookPage.searchAriaLabel', 'Search the handbook')"
       />
-      <div class="handbook-toggles">
-        <span class="handbook-scope">{{ theLot
-          ? t('schools.handbookPage.everything', 'Everything')
-          : t('schools.handbookPage.justWhatICanDo', 'Just what I can do') }}</span>
-        <button type="button" class="btn-ghost" @click="readTheLot">{{ theLot ? t('schools.handbookPage.justMineAgain', 'Just what I can do') : t('schools.handbookPage.readTheLot', 'Read the lot') }}</button>
+      <div class="handbook-toggles" role="group" :aria-label="t('schools.handbookPage.scopeAriaLabel', 'Which capabilities to show')">
+        <button
+          type="button"
+          class="btn-ghost scope-tab"
+          :class="{ 'is-on': mineOnly }"
+          :aria-pressed="mineOnly"
+          @click="setScope(false)"
+        >{{ t('schools.handbookPage.justWhatICanDo', 'Just what I can do') }}</button>
+        <button
+          type="button"
+          class="btn-ghost scope-tab"
+          :class="{ 'is-on': theLot }"
+          :aria-pressed="theLot"
+          @click="setScope(true)"
+        >{{ t('schools.handbookPage.readTheLot', 'Read the lot') }}</button>
       </div>
     </div>
 
@@ -334,7 +351,15 @@ onMounted(() => {
   background: var(--schools-card, #fff); color: var(--schools-fg, #0F1212);
 }
 .handbook-toggles { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.handbook-scope { font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078); }
+.handbook-toggles .scope-tab { flex: 1 1 auto; }
+/* The scope you are in is lit: the control states which half of the handbook
+   you are reading without a separate caption doing it. */
+.handbook-toggles .scope-tab.is-on {
+  background: var(--schools-red, #DB1E17);
+  border-color: var(--schools-red, #DB1E17);
+  color: #fff;
+  font-weight: var(--font-semibold);
+}
 .handbook-next { display: flex; flex-direction: column; gap: var(--space-2); }
 .next-list { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: var(--space-2); }
 .next-item { color: var(--schools-fg-2, #555); }

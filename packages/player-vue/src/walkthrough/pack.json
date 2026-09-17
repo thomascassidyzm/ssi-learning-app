@@ -1,6 +1,6 @@
 {
-  "version": "e5ad5ac76500",
-  "generatedAt": "2026-09-16",
+  "version": "40fd0f32c50a",
+  "generatedAt": "2026-09-17",
   "walks": [
     {
       "id": "add-a-class-under-a-group",
@@ -6432,7 +6432,7 @@
         "Tap your name at the top right, then **Report a bug**.",
         "Write what happened, add a screenshot if you have one, and tap **Send**."
       ],
-      "note": "Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else."
+      "note": "Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it."
     },
     {
       "id": "say-what-happened",

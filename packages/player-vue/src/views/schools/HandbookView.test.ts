@@ -101,6 +101,37 @@ describe('HandbookView', () => {
     expect(body.text()).toContain(entry.how[0].replace(/\*\*/g, ''))
   })
 
+  /**
+   * Tom, 2026-09-17 (job #68): "'Just what I can do' is not a link". It was a
+   * grey caption next to one button whose label flipped. Both scopes are now
+   * buttons with fixed words, and the one you are in is pressed.
+   */
+  it('both scopes are real controls and the one you are in is pressed', async () => {
+    const wrapper = await mountAs(TEACHER)
+    const tabs = wrapper.findAll('.scope-tab')
+    expect(tabs).toHaveLength(2)
+    const mine = tabs.find((b) => b.text().includes('Just what I can do'))!
+    const lot = tabs.find((b) => b.text().includes('Read the lot'))!
+    expect(mine.attributes('aria-pressed')).toBe('true')
+    expect(lot.attributes('aria-pressed')).toBe('false')
+    // No plain-text caption doing the job a control should do.
+    expect(wrapper.find('.handbook-scope').exists()).toBe(false)
+
+    await lot.trigger('click')
+    expect(lot.attributes('aria-pressed')).toBe('true')
+    expect(mine.attributes('aria-pressed')).toBe('false')
+    expect(mine.text()).toBe('Just what I can do')
+    expect(lot.text()).toBe('Read the lot')
+    // Tapping the scope you are already in changes nothing.
+    await lot.trigger('click')
+    expect(lot.attributes('aria-pressed')).toBe('true')
+
+    await mine.trigger('click')
+    expect(mine.attributes('aria-pressed')).toBe('true')
+    const theirs = handbookEntries().filter((e) => !e.personas.includes('teacher'))
+    expect(wrapper.text()).not.toContain(theirs[0].title)
+  })
+
   it('searches locally and finds nothing gracefully', async () => {
     const wrapper = await mountAs(TEACHER)
     await wrapper.find('.handbook-search').setValue('zzzznotacapability')

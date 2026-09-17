@@ -19,6 +19,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from '@/composables/useI18n'
 import { useBugReport } from '@/composables/useBugReport'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useUserRole } from '@/composables/useUserRole'
 
 const emit = defineEmits<{ close: []; sent: [] }>()
 
@@ -26,6 +27,11 @@ const { t } = useI18n()
 const route = useRoute()
 const { submit, supabase } = useBugReport()
 const { currentUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+// View-as (job #68): an admin looking at someone else's dashboard may still
+// report what they see. The note is theirs, filed under their own bearer —
+// nothing is written as the persona — so the modal says so out loud and the
+// persona rides in the context.
+const { isViewingAs, viewingAs } = useUserRole()
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const MAX_CHARS = 2000
@@ -93,6 +99,7 @@ function contextInView(): Record<string, string | null | undefined> {
     class_id: onClass ? first(params.id) ?? first(params.classId) : first(params.classId),
     node_id: String(route?.path ?? '').startsWith('/org/') ? first(params.id) ?? first(params.nodeId) : undefined,
     page_title: typeof document !== 'undefined' ? document.title : undefined,
+    viewing_as: isViewingAs.value ? `${viewingAs.value?.role ?? ''} ${viewingAs.value?.name ?? ''}`.trim() : undefined,
   }
 }
 
@@ -136,6 +143,7 @@ function onKeydown(e: KeyboardEvent) {
           </button>
         </header>
         <p class="rb-lede">{{ t('schools.bugReport.lede', 'A bug or a suggestion. The page you are on is attached for you.') }}</p>
+        <p v-if="isViewingAs" class="rb-note">{{ t('schools.bugReport.viewAsNote', 'You are viewing as {name}. This goes from your own account, with that noted.').replace('{name}', viewingAs?.name || '') }}</p>
 
         <!-- HANDBOOK Say what happened on the dashboard
              section: your-own-account

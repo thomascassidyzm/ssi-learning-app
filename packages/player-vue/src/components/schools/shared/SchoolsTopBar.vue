@@ -75,11 +75,19 @@ const auth = inject<any>('auth', null)
 // REPORT A BUG (Tom's ruling, 2026-09-14): a bug or a suggestion, filed from
 // the dashboard itself "because the bug might be with the dashboard side of
 // things" — the same postbox as the player's Settings, with source and the
-// page in view attached. HIDDEN UNDER VIEW-AS: an ssi_admin looking as a
-// persona writes nothing (jobs #606/#615/#618), and hiding the door is
-// simpler than attributing a report to the real admin through a persona
-// screen. The route refuses a view-as header too. The thank-you toast is
-// the whole reply — one way, no thread.
+// page in view attached. The thank-you toast is the whole reply — one way,
+// no thread.
+//
+// SHOWN UNDER VIEW-AS TOO (Tom, 2026-09-17, job #68): it used to be hidden
+// while an ssi_admin viewed as a persona, so the walkthrough step described a
+// control that was not on screen — Tom hit exactly that on staging as
+// "leejames". The hide was the wrong belt: "view-as writes nothing" (jobs
+// #606/#615/#618) is about the PERSONA's data, and a bug report is the real
+// admin's own note about what they are looking at. Nothing is written as the
+// persona — submit carries no view-as header, so /api/report/bug files it
+// under the admin's own bearer — and the persona rides in the report's
+// context so the row says which screen produced it. Inbox stays hidden: that
+// IS the persona's data.
 const bugModalOpen = ref(false)
 const bugToast = ref(false)
 let bugToastTimer: ReturnType<typeof setTimeout> | null = null
@@ -429,10 +437,10 @@ if (typeof document !== 'undefined') {
                How you do it.
                1. Tap your name at the top right, then **Report a bug**.
                2. Write what happened, add a screenshot if you have one, and tap **Send**.
-               Worth knowing. Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
-               checked: 37290b79.8d741e37
+               Worth knowing. Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
+               checked: 26c8017c.494a054c
           -->
-          <button v-if="!isViewingAs" type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
+          <button type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
                existed, the only exit in the menu was "Sign out", which reads
