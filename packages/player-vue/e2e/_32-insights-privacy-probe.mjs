@@ -68,11 +68,25 @@ const url = `${BASE}/org/${SCHOOL_NODE}/insights?window=last_week&course=eng_for
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
 await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(6000)
+// The why? chip: at school level it must say what the cohort is COUNTED IN.
+await page.click('.wk-why').catch(() => {})
+await page.waitForTimeout(500)
+const whyText = await page.$eval('.wk-why-text', (el) => el.textContent?.trim() || '').catch(() => '')
+console.log('WHY:', whyText)
 // Open everything behind a tap — the ruling covers behind a tap too.
 for (const sum of await page.$$('details.niv-more > summary')) { await sum.click(); await page.waitForTimeout(2500) }
 await page.waitForTimeout(4000)
 
-const h = await page.evaluate(() => Math.max(document.scrollingElement?.scrollHeight || 0, document.documentElement.scrollHeight, document.body.scrollHeight))
+// The shell scrolls an INNER container, so document.scrollingElement stays
+// one viewport tall and a fullPage shot would show only the first screen.
+const h = await page.evaluate(() => {
+  let best = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
+  for (const el of Array.from(document.querySelectorAll('div, main, section'))) {
+    const s = getComputedStyle(el)
+    if (s.overflowY === 'auto' || s.overflowY === 'scroll') best = Math.max(best, el.scrollHeight)
+  }
+  return best
+})
 await page.setViewportSize({ width: 390, height: Math.min(Math.max(h, 844), 12000) })
 await page.waitForTimeout(1000)
 const shot = path.join(SHOTS, 'leader-lastweek-marathi-expanded.png')
@@ -117,6 +131,7 @@ const report = {
   url,
   apiCalls: calls.map(c => `${c.status} ${c.url}`),
   privacy: { pupilsChecked: pupils.length, responseHits: hits, pageTextHits: textHits },
+  whyText,
   scope,
   contentHeight: h,
   screenshot: shot,
