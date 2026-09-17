@@ -18,6 +18,7 @@
  */
 
 import { inject, type Ref } from 'vue'
+import { buildPairs } from './buildLegoPairs'
 import { useUserRole } from '@/composables/useUserRole'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -33,39 +34,10 @@ export interface RecordCyclePlayOptions {
   legoIds: string[]
 }
 
-/**
- * Build the unordered-pair array from a deduped LEGO id list. Returns a
- * 2D string array suitable for the `record_lego_pairings` RPC. Order
- * within each pair doesn't matter - the function canonicalises server-side.
- *
- * Exported for unit-test visibility.
- */
-export function buildPairs(legoIds: string[]): string[][] {
-  // Dedupe + filter empties. We rely on the RPC to dedupe further across
-  // pairs that happen to canonicalise identically, but doing it here
-  // first cuts payload size for the common case.
-  const unique: string[] = []
-  const seen = new Set<string>()
-  for (const id of legoIds) {
-    if (!id) continue
-    if (seen.has(id)) continue
-    seen.add(id)
-    unique.push(id)
-  }
-
-  // Fewer than 2 unique LEGOs? No pairs to record.
-  if (unique.length < 2) return []
-
-  // Generate every unordered pair. The RPC will canonicalise (lego_a <
-  // lego_b) and dedupe.
-  const pairs: string[][] = []
-  for (let i = 0; i < unique.length; i++) {
-    for (let j = i + 1; j < unique.length; j++) {
-      pairs.push([unique[i], unique[j]])
-    }
-  }
-  return pairs
-}
+// The pairing rule itself lives in `buildLegoPairs.ts`, with no imports, so
+// the job #59 history backfill can replay the EXACT function rather than a
+// second copy of it. Re-exported here: every existing importer is unaffected.
+export { buildPairs } from './buildLegoPairs'
 
 /**
  * The class route (job #52). While playing AS A CLASS the tally belongs to the
