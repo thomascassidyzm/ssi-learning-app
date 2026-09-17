@@ -5,10 +5,11 @@ the workers are not tempted to read them"* — the whole documentation estate mo
 history, to **`archive/docs-retired-2026-08-24/`**. Go there only for archaeology, never to answer
 a question about how the system behaves today.
 
-It did not stay empty. `docs/` now carries 427 tracked files, and 105 of its 124 markdown files
-were written after that ruling. So read this directory for what it is: mostly a dated record of
-what somebody found on the day they wrote it, plus a handful of files that are genuinely current
-and a set of build outputs.
+It did not stay empty. On `dev` at 2026-09-17 this directory carried 427 tracked files, 105 of its
+124 markdown files written after that ruling; `main` lags a promotion or two behind and is
+otherwise the same tree. So read this directory for what it is: mostly a dated record of what
+somebody found on the day they wrote it, plus a handful of files that are genuinely current and a
+set of build outputs.
 
 **The code and the live DB are gospel.** Before acting on any claim you find in a document here —
 an audit, a design note, a report, this README — verify it against the running code. If the code
