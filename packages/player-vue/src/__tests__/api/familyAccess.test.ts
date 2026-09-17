@@ -49,13 +49,42 @@ describe('resolveEffectiveSubscription', () => {
     expect(result.sub?.id).toBe('own-1')
   })
 
-  it('returns the own row even when its status is not active — own row always wins over family', async () => {
+  it('returns a lapsed own row when there is no family to fall back to', async () => {
     const supabase = fakeSupabase({
       subscriptions: [{ data: { id: 'own-cancelled', learner_id: 'me', status: 'cancelled', plan_name: 'SSi Premium', current_period_end: PAST }, error: null }],
+      family_members: [{ data: null, error: null }],
     })
     const result = await resolveEffectiveSubscription(supabase as any, 'me')
     expect(result.viaFamily).toBe(false)
     expect(result.sub?.id).toBe('own-cancelled')
+  })
+
+  // THE UNION RULE. An expired source contributes nothing and never blocks
+  // another: a lapsed personal subscription must not mask valid family cover.
+  it('falls through to family cover when the own row has lapsed', async () => {
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: { id: 'own-expired', learner_id: 'member-1', status: 'active', plan_name: 'SSi Premium', current_period_end: PAST }, error: null },
+        { data: { id: 'owner-family', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Family', current_period_end: FUTURE }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.viaFamily).toBe(true)
+    expect(result.sub?.id).toBe('owner-family')
+  })
+
+  it('falls through to family cover when the own row is cancelled', async () => {
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: { id: 'own-cancelled', learner_id: 'member-1', status: 'cancelled', plan_name: 'SSi Premium', current_period_end: FUTURE }, error: null },
+        { data: { id: 'owner-family', learner_id: 'owner-1', status: 'active', plan_name: 'SSi Family', current_period_end: FUTURE }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    const result = await resolveEffectiveSubscription(supabase as any, 'member-1')
+    expect(result.viaFamily).toBe(true)
+    expect(result.sub?.id).toBe('owner-family')
   })
 
   it('resolves via the family owner\'s row when the learner has no own row and is an active member', async () => {
@@ -214,6 +243,17 @@ describe('isEffectivelySubscribed', () => {
     const supabase = fakeSupabase({
       subscriptions: [
         { data: null, error: null },
+        { data: { status: 'active', plan_name: 'SSi Family', current_period_end: FUTURE }, error: null },
+      ],
+      family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],
+    })
+    expect(await isEffectivelySubscribed(supabase as any, 'member-1')).toBe(true)
+  })
+
+  it('true for a member whose own personal sub has expired but whose family is live', async () => {
+    const supabase = fakeSupabase({
+      subscriptions: [
+        { data: { status: 'active', current_period_end: PAST }, error: null },
         { data: { status: 'active', plan_name: 'SSi Family', current_period_end: FUTURE }, error: null },
       ],
       family_members: [{ data: { owner_learner_id: 'owner-1' }, error: null }],

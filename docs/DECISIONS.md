@@ -1,3 +1,31 @@
+## 2026-09-17 — Three more ways a name reached Insights, and one dead endpoint (job #32, the capture)
+
+**What the live capture found that the local gate could not.** With all the unit suites green and
+the three Insights endpoints clean by their own tests, running the real page against the real
+deployment as the Pune leader found three further defects in a row.
+
+**`/api/org/vad` was answering 500 to everybody.** The handler imported `summariseVad` from
+`packages/player-vue`, whose package.json declares `"type": "module"` while the repo root and
+`packages/core` do not; the serverless function loaded that file under the wrong module system and
+died with FUNCTION_INVOCATION_FAILED on every request — the new aggregate read and the admin
+board's old named read alike. Typecheck, the unit suites and the local build were all green on it.
+The summary moved to `packages/core/src/audio/vadSummary.ts`, the shared home a dozen routes
+already import from, with player-vue re-exporting it so there is still one analysis behind two
+doors, and `api/_utils/apiImportBoundary.test.ts` now fails on any api file importing runnable code
+from player-vue.
+
+**The roster prefetch, and then the school-totals read.** `SchoolsContainer` hoists the dashboard's
+fetches to route entry; one of them, `/api/school/roster`, carries every teacher and pupil by name.
+It was gated off the Insights routes — and the capture then showed 82 names still arriving, because
+the one prefetch left running, the school's own totals, fetches the SAME endpoint and reads only
+`.school` from it. So the second fix is at the boundary rather than in the route: `?part=school`
+answers one `school_summary` row and runs no class, staff or pupil query at all, and the in-flight
+coalescer keys on the part as well as the token.
+
+**The lesson worth keeping.** Every one of these was invisible to the suites and visible in the
+first minute of a signed-in capture. A privacy ruling is verified by reading what the page
+RECEIVED, not by reading what it renders or what the endpoint tests assert in isolation.
+
 ## 2026-09-16 — Insights receives no pupil, and no panel answers a different question from the card (job #32, fixing up #22)
 
 **What the cold cross-family check found, and what held.** All four claims held against the live
