@@ -25,7 +25,7 @@ import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { resolveVisibleScope } from '../../_utils/schoolScope'
 import { applyCors } from '../../_utils/cors'
 import { inAppSecondsByLearner, secondsToMinutesUp } from '../../_utils/inAppTime'
-import { buildBrain, type PlayRow, type PhraseRow } from '../../_utils/classBrain'
+import { buildBrain, chooseAxis, type PlayRow, type PhraseRow } from '../../_utils/classBrain'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -35,8 +35,6 @@ export const BRAIN_WINDOW_DAYS = 180
 /** PostgREST caps one response at 1,000 rows. */
 const PAGE = 1000
 const MAX_PAGES = 12
-/** Chunks beyond the class's reach kept on the axis, so the ink has somewhere to go. */
-const HEADROOM = 3
 /**
  * A ceiling on the answer, not a lens. The card folds whatever it is sent, so
  * this only exists to bound the response for a class deeper into a course than
@@ -190,11 +188,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const brain = buildBrain({ courseCode, rows: diary, skips, ordinalOf, seedOf, phrases })
 
     // THE AXIS. The whole course is thousands of chunks; the card gets the
-    // stretch the class has reached, all of it, plus a little headroom so the
-    // ink has somewhere to go. The fold is what makes it readable.
-    const reachOrd = brain.events.reduce((m, e) => Math.max(m, ...e.fires), -1)
-    const axisTo = Math.min(legos.length, Math.max(reachOrd + 1 + HEADROOM, 12))
-    const axisFrom = Math.max(0, axisTo - MAX_AXIS)
+    // stretch the class has actually played — from just before its first lit
+    // chunk to just past its frontier. The rules are in chooseAxis.
+    const { axisFrom, axisTo, reachOrd } = chooseAxis(legos.length, brain.events, MAX_AXIS)
     const reachedSeed = reachOrd >= 0 ? (legos[reachOrd]?.seed ?? 0) : 0
 
     let minutes = 0

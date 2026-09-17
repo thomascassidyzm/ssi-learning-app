@@ -309,3 +309,49 @@ export function buildBrain(input: BuildBrainInput): BuiltBrain {
 
   return { events, tally, sittings, introducedCount: introduced.size, distinctPhrases: distinct.size, phraseText }
 }
+
+/** Chunks beyond the class's reach kept on the axis, so the ink has somewhere to go. */
+export const AXIS_HEADROOM = 3
+/**
+ * Chunks kept BEFORE the class's first lit chunk, so a class that started
+ * partway in can still see there is course behind it.
+ */
+export const AXIS_LEADIN = 3
+/** The shortest axis drawn, so a class one sitting in still gets a line. */
+export const AXIS_MIN = 12
+
+/**
+ * THE AXIS — which stretch of the course the card is sent.
+ *
+ * It ends just past the class's frontier, and it BEGINS just before the class's
+ * first lit chunk. The second half of that is job #126: the fold compresses by
+ * AGE, not by whether a chunk was ever met, so an axis that always started at
+ * chunk 0 spent most of its width on chunks nobody had met the moment a class
+ * started partway in — a class resuming at chunk 150 and playing 24 chunks got
+ * 70% of the drawn line as untouched grey (Tom, 2026-09-17: "Some classes might
+ * have done some of this last year… It's possible anyway that they don't all
+ * start from LEGO #1"). Anchoring the start on first light spends the width on
+ * what the class has actually done.
+ *
+ * `maxAxis` is a ceiling on the answer, not a lens: past it the oldest chunks
+ * give way.
+ */
+export function chooseAxis(
+  legosLength: number,
+  events: { fires: number[] }[],
+  maxAxis: number,
+): { axisFrom: number; axisTo: number; reachOrd: number } {
+  let reachOrd = -1
+  let firstOrd = Number.POSITIVE_INFINITY
+  for (const e of events) {
+    for (const f of e.fires) {
+      if (f > reachOrd) reachOrd = f
+      if (f < firstOrd) firstOrd = f
+    }
+  }
+  const axisTo = Math.min(legosLength, Math.max(reachOrd + 1 + AXIS_HEADROOM, AXIS_MIN))
+  const lead = Number.isFinite(firstOrd) ? Math.max(0, firstOrd - AXIS_LEADIN) : 0
+  // Never shorter than AXIS_MIN, and never longer than the ceiling.
+  const axisFrom = Math.max(0, Math.max(axisTo - maxAxis, Math.min(lead, Math.max(0, axisTo - AXIS_MIN))))
+  return { axisFrom, axisTo, reachOrd }
+}

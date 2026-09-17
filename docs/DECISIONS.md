@@ -1,3 +1,32 @@
+## 2026-09-17 — The course journey axis anchors on first light, not on chunk 1 (job #126)
+
+#120's fold was only ever drawn against a class #120 synthesised, because no real CLASS is more
+than about forty chunks in. Drawn against a REAL learner instead — 7434474c on cym_n_for_eng, 616
+chunks met, reach 633, 67 sittings, 8,230 counted cycles — the fold itself holds: 635 dots, the
+frontier legible, the whole stretch on one phone screen, and the unfolded expand walks it with real
+Welsh labels.
+
+**Two things the synthetic class could not show.**
+
+**The axis wasted its width on a mid-course start.** Tom, same day: "Some classes might have done
+some of this last year… It's possible anyway that they don't all start from LEGO #1". The fold
+compresses by AGE, not by whether a chunk was ever met, and the server always started the axis at
+chunk 0 — so a class resuming at chunk 150 and playing 24 chunks this term spent 71% of the drawn
+line on untouched grey. `chooseAxis` in `api/_utils/classBrain.ts` now begins the axis three chunks
+before the class's first lit chunk and ends three past its frontier, with MAX_AXIS still the
+ceiling. A class that started at the beginning is unchanged. Proved on the real learner's own diary
+cut to a mid-course start: 177 chunks of axis with 150 never met, down to 30 chunks all but three of
+them the class's own.
+
+**Phrase identity does not survive the diary, so the arcs and the cloth are nearly empty on real
+data.** The player logs `cycleId` as `S0120L01_build_2042`, where the trailing number is a GLOBAL
+script counter of one to five digits; `phraseIdFromCycleId` reads exactly two digits of it, so it
+names the right phrase only by accident. On the real learner: 5 phrases resolved out of 8,230
+cycles, 10 arcs where the synthetic class had thousands, and `spaced_rep` cycles — about a third of
+all plays estate-wide — never resolve at all. The card therefore reads "PRACTISED 5 phrases" against
+610 met. NOT fixed here: the fix is player-side, logging the phrase id on the event rather than
+guessing it back out of a cycle id, and that is a change to what is written, not to what is drawn.
+
 ## 2026-09-17 — The course journey folds rather than forgets (job #120)
 
 Tom's ruling: "I think log-fold plus cloth sounds perfect". A class three hundred chunks into a

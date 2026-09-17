@@ -32,7 +32,8 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 const results = {}
 
 for (const mode of (process.env.MODES || 'truncated,full').split(',')) {
-  await page.goto(`http://localhost:4327/?mode=${mode}`, { waitUntil: 'networkidle' })
+  const fixture = process.env.FIXTURE || 'synthetic'
+  await page.goto(`http://localhost:4327/?mode=${mode}&fixture=${fixture}`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.cb-draw svg')
   results[mode] = await page.evaluate(() => ({
     dots: document.querySelectorAll('.cb-draw circle').length,
