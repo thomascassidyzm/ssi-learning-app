@@ -28,7 +28,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 const replace = vi.fn()
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn(), replace, currentRoute: ref({ query: {} }) }),
-  useRoute: () => ({ name: 'classes', params: {}, query: {} }),
+  useRoute: () => ({ name: 'classes', path: '/schools/classes', params: {}, query: {} }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
