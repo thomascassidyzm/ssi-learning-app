@@ -1342,7 +1342,7 @@ const listPayload = computed(() => {
                    drawing above it. -->
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} new phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
                 </template>
                 <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
                 <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
