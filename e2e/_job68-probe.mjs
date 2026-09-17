@@ -13,7 +13,7 @@ async function session(email) {
   if (!s.access_token) throw new Error('no token: '+JSON.stringify(s).slice(0,200))
   return s
 }
-const BASE = 'http://localhost:5199'
+const BASE = process.env.BASE || 'http://localhost:5199'
 const OUT = process.env.CS_SCRATCH
 const browser = await chromium.launch({ executablePath: process.env.CHROME })
 // 1. A real school leader, no view-as.
