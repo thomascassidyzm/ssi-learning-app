@@ -157,4 +157,64 @@ describe('ClassBrain', () => {
     expect(w.text()).toContain('Nothing to draw yet')
     expect(w.find('svg').exists()).toBe(false)
   })
+
+  // ── the long class ──────────────────────────────────────────────────────
+  // A class three hundred chunks in. Before the fold the card could only fit
+  // this by having the server throw 240 chunks away, and with the whole axis
+  // sent it drew every dot 1.7 units apart — one blue smear.
+  const longPayload: ClassBrainPayload = (() => {
+    const N = 300
+    const legos = Array.from({ length: N }, (_, i) => ({ id: `S${String(i + 1).padStart(4, '0')}L01`, seed: i + 1, t: `t${i}`, k: `k${i}` }))
+    const events = [
+      { t: '2026-01-08T09:00:00.000Z', lego: 3, phrase: null, fires: [3], kind: 'intro', hearings: 2, s: 0 },
+      { t: '2026-05-08T09:00:00.000Z', lego: 40, phrase: null, fires: [4, 40], kind: 'build', hearings: 6, s: 1 },
+      { t: '2026-09-08T09:00:00.000Z', lego: 290, phrase: null, fires: [3, 290], kind: 'use', hearings: 4, s: 2 },
+      { t: '2026-09-09T09:00:00.000Z', lego: 299, phrase: null, fires: [296, 299], kind: 'use', hearings: 2, s: 3 },
+    ]
+    return { ...payload, legos, legosTotal: 900, axisFrom: 0, events, sittings: ['a', 'b', 'c', 'd'], phrases: {} } as ClassBrainPayload
+  })()
+
+  async function mountLong() {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => longPayload })) as never)
+    const w = mountBrain()
+    await flushPromises()
+    return w
+  }
+
+  it('THE FOLD: three hundred chunks all stand on the card, and the frontier is still readable', async () => {
+    const w = await mountLong()
+    const cx = w.findAll('svg circle').map((c) => Number(c.attributes('cx')))
+    expect(cx).toHaveLength(300)
+    // The oldest chunk is ON the picture: nothing is thrown away any more.
+    expect(cx[0]).toBeGreaterThanOrEqual(0)
+    // Chunk 3 and chunk 290 are two different places, half the width apart.
+    expect(cx[290] - cx[3]).toBeGreaterThan(200)
+    // And the newest chunks keep a dot's worth of room between them, which a
+    // straight line across three hundred chunks cannot give them.
+    expect(cx[299] - cx[298]).toBeGreaterThan(6)
+  })
+
+  it('THE CLOTH: old arcs weave into a band, and a reach back to the frontier stays a line', async () => {
+    const w = await mountLong()
+    // The 4→40 pair is deep in the folded past: cloth, not a line.
+    expect(w.findAll('.cb-cloth').length).toBeGreaterThan(0)
+    // The 3→290 pair reaches the legible frontier, so it is still drawn.
+    const arcs = w.findAll('path.cb-arc')
+    expect(arcs.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('the replay still works at every position on a folded axis', async () => {
+    const w = await mountLong()
+    const range = w.find('.cb-transport input[type=range]')
+    expect(range.exists()).toBe(false) // the transport lives behind Replay
+    await w.findAll('button').find((b) => b.text().includes('Replay'))!.trigger('click')
+    const scrub = w.find('.cb-transport input[type=range]')
+    expect(scrub.attributes('max')).toBe('4')
+    for (const k of ['0', '1', '2', '3', '4']) {
+      await scrub.setValue(k)
+      await flushPromises()
+      expect(w.findAll('svg circle')).toHaveLength(300)
+    }
+    expect(w.text()).toContain('cycle 4 of 4')
+  })
 })

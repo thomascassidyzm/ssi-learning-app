@@ -103,3 +103,4 @@ packages/player-vue/android/.gradle/
 packages/player-vue/android/build/
 packages/player-vue/android/app/build/
 packages/player-vue/android/capacitor-cordova-android-plugins/
+packages/player-vue/e2e/_120-classbrain-harness/dist
