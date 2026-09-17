@@ -200,8 +200,8 @@ const TRANSPORT = `<div class="transport" role="group" aria-label="replay">
 const STRIP = `<div class="strip">
 <div class="stat-card"><span class="stat-word">Final position</span><span class="stat-value">sentence ${seedReached}</span><span class="stat-d">${esc(D.seeds[seedReached].k)}</span></div>
 <div class="stat-card"><span class="stat-word">In-app minutes</span><span class="stat-value">${D.totalMinutes}</span><span class="stat-d">across ${D.sittings.length} sittings</span></div>
-<div class="stat-card"><span class="stat-word">Phrases played</span><span class="stat-value">${distinctAll} distinct</span><span class="stat-d">&nbsp;</span></div>
-<div class="stat-card"><span class="stat-word">Phrases introduced</span><span class="stat-value">${D.introducedCount}</span><span class="stat-d">&nbsp;</span></div></div>`
+<div class="stat-card"><span class="stat-word">Practised</span><span class="stat-value">${distinctAll} phrases</span><span class="stat-d">heard ${D.tally.hearings} times</span></div>
+<div class="stat-card"><span class="stat-word">New phrases</span><span class="stat-value">${D.introducedCount}</span><span class="stat-d">met for the first time</span></div></div>`
 const BRAIN_CAP = `<p class="cap">Chunks stand on one line in the order the course introduces them, so how far right the ink reaches is how far into the course the class is. A dot lights when the class has met that chunk; it grows with repetition. An arc joins two chunks the class has said together inside one phrase, and thickens with every repeat.</p>`
 
 // ---------------------------------------------------------------- chrome

@@ -93,7 +93,7 @@ function freq(S){const ids=[...S.ph.keys()].sort((a,b)=>orderKey(a)-orderKey(b))
 function statsFinal(){
   const S=stateAt(E.length);const seed=D.seeds[S.reach];
   const tile=(l,v,d)=>'<div class="stat"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="d">'+esc(d||'')+'</div></div>';
-  return tile('Final position',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('In-app minutes',D.totalMinutes,'across '+D.sittings.length+' sittings')+tile('Phrases played',S.ph.size+' distinct','')+tile('Phrases introduced',D.introducedCount,'');
+  return tile('Final position',S.reach?'sentence '+S.reach:'—',seed?seed.k:'')+tile('In-app minutes',D.totalMinutes,'across '+D.sittings.length+' sittings')+tile('Practised',S.ph.size+' phrases','heard '+T.hearings+' times')+tile('New phrases',D.introducedCount,'met for the first time');
 }
 function fmt(t){return new Date(t).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
 // --- transport (the Zenjin idiom: one interval, rebuilt on speed change, stops itself at the end)

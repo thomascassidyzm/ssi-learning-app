@@ -101,11 +101,11 @@ export const HERO_RATES: HeroRate[] = [
   },
   {
     id: 'newLegosHr',
-    label: 'New phrases introduced',
+    label: 'New phrases',
     unit: 'phrases',
     per: 'hour',
     description:
-      'New phrases introduced per active hour — the introduction rate (efficiency of new exposure). High means the session keeps reaching for new material; low means it dwells.',
+      'New phrases per active hour — the rate at which the class meets material for the first time (efficiency of new exposure). High means the session keeps reaching for new material; low means it dwells.',
     entityLevels: ['learner', 'class', 'course'],
     dp: 1,
     range: [3, 22],

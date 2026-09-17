@@ -57,11 +57,11 @@
     },
     {
       "anchor": "insights-more",
-      "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open.",
+      "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview.",
       "advance": {
         "on": "next"
       },
-      "checked": "e7777d92.91bc482a"
+      "checked": "ad71c53f.0a5d62e1"
     },
     {
       "anchor": "insights-org-journey",
