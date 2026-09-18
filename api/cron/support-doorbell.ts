@@ -52,16 +52,24 @@ export interface DoorbellReply {
   created_at: string
 }
 
-/** Replies old enough, unopened since, and not yet rung for. Pure, so the selection is testable. */
+/**
+ * Replies old enough, unopened since, and not yet rung for. Pure, so the
+ * selection is testable.
+ *
+ * A learner-owned thread (job #221) never rings this bell: its copy below is
+ * written for a school ("your school's Support thread"), and her own inbox
+ * already shows the reply again the moment it lands — the fan-out trigger
+ * clears her origin message's read_at, which is her real doorbell.
+ */
 export function repliesDue(
   replies: DoorbellReply[],
-  threads: Record<string, { last_read_at: string | null; language: string | null }>,
+  threads: Record<string, { last_read_at: string | null; language: string | null; learner_user_id?: string | null }>,
   now = Date.now(),
 ): DoorbellReply[] {
   const cutoff = now - DOORBELL_AFTER_HOURS * 3600_000
   return replies.filter((r) => {
     const t = threads[r.thread_id]
-    if (!t) return false
+    if (!t || t.learner_user_id) return false
     const created = Date.parse(r.created_at)
     if (created > cutoff) return false
     const read = t.last_read_at ? Date.parse(t.last_read_at) : 0
@@ -120,10 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .limit(50)
     const rows = (replies ?? []) as DoorbellReply[]
     const threadIds = [...new Set(rows.map((r) => r.thread_id))]
-    const threads: Record<string, { last_read_at: string | null; language: string | null }> = {}
+    const threads: Record<string, { last_read_at: string | null; language: string | null; learner_user_id: string | null }> = {}
     if (threadIds.length) {
-      const { data: ts } = await svc.from('support_threads').select('id, last_read_at, language').in('id', threadIds)
-      for (const t of (ts ?? []) as Array<{ id: string; last_read_at: string | null; language: string | null }>) threads[t.id] = { last_read_at: t.last_read_at, language: t.language }
+      const { data: ts } = await svc.from('support_threads').select('id, last_read_at, language, learner_user_id').in('id', threadIds)
+      for (const t of (ts ?? []) as Array<{ id: string; last_read_at: string | null; language: string | null; learner_user_id: string | null }>) {
+        threads[t.id] = { last_read_at: t.last_read_at, language: t.language, learner_user_id: t.learner_user_id }
+      }
     }
 
     let rang = 0
