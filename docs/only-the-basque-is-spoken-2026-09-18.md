@@ -104,6 +104,23 @@ read them.
 Proven by `packages/player-vue/src/providers/seedSandwichSurvives.test.ts`: three tests that are red
 on the pre-fix generator — the sandwich arrives as 1 slot of 4 — and green after.
 
+## Proved live on staging
+
+Staging serving the promoted build `245d510`, a phone-width session at 390x844 as the Mr Tom Tester
+account, Basque parked at S0148L01, forced onto the walk with `?fullscript=walk`. The seed review for
+S0092 wrote this, all four slots, in order:
+
+```
+01:13:06.004  S0092L01_seed_rep_8315  target1   Basque
+01:13:10.603  S0092L01_seed_rep_8316  known     ENGLISH
+01:13:15.291  S0092L01_seed_rep_8317  target1   Basque
+01:13:19.929  S0092L01_seed_rep_8318  target1   Basque
+```
+
+The 4.6 s spacing is the clip plus the new hold. Before the fix this same review wrote exactly one
+line, `target1`, and nothing else. Probe:
+`packages/player-vue/e2e/_149-seed-sandwich-probe.mjs`, all four checks green.
+
 ## Defect versus gap
 
 - **Defect, fixed:** three of four clips discarded, including the English one. Every course, every
