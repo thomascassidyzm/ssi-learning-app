@@ -1,0 +1,172 @@
+[
+ {
+  "school": "Rogiet Primary School",
+  "school_id": "5c8e6b3e-0e54-4b18-82bd-2cb2a0400852",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/rogiet-primary-school"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Rogiet Primary School",
+  "school_id": "c98bd987-1639-4823-a751-5b9ddcccc424",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/rogiet-primary-school"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "LA SIS (EAS)",
+  "school_id": "e2e9adc3-9697-4d6f-a57a-4149257ec8ba",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/la-sis-eas-"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Newport High School",
+  "school_id": "14710516-b26d-4daa-bbf7-01eef06c52ce",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/newport-high-school"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Ysgol Croesyceiliog",
+  "school_id": "07b9d48b-d735-41a4-8bb6-f216070cded9",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-croesyceiliog"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Ysgol Gyfun Tredegar",
+  "school_id": "1389a525-e04a-45d3-a718-9403ea2e48e1",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-tredegar"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "St Alban's RC High School, Pontypool",
+  "school_id": "12128dd8-393d-4918-a1fd-843a90f9bdd6",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/st-alban-s-rc-high-school-pontypool"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Ysgol Cas-gwent Chepstow School",
+  "school_id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-cas-gwent-chepstow-school"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Ysgol Gyfun Trefynwy/ Monmouth Comprehensive School",
+  "school_id": "5ec6cb90-f25c-4bc9-9e63-b4a93317737b",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-trefynwy-monmouth-comprehensive-school"
+  },
+  "status": [
+   200,
+   200
+  ]
+ },
+ {
+  "school": "Ysgol Gyfun Tredegar",
+  "school_id": "468d8132-c1ff-4e0d-8cf8-8ee786d60c95",
+  "before": {
+   "group_id": null,
+   "node_parent_id": null
+  },
+  "after": {
+   "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+   "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-tredegar"
+  },
+  "status": [
+   200,
+   200
+  ]
+ }
+]
