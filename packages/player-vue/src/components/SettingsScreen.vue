@@ -30,7 +30,8 @@ import { platform } from '../platform/capabilities'
 import { insetDiagnosticLine } from '../platform/shellSafeArea'
 import { appIsStale, checkAppStaleness } from '../composables/useAppStaleness'
 import { nothingSavedOnThisOrigin } from '../platform/shellOriginState'
-import { shaPrefixEq } from '../platform/buildStaleness'
+import { needsStoreUpdate } from '../platform/nativeContract'
+import { shaPrefixEq, normaliseBuildId } from '../platform/buildStaleness'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { openInApp } from '../composables/useInAppBrowser'
@@ -403,6 +404,21 @@ const stalenessLine = computed(() => {
 // saved on this origin.
 const freshStorageLine = computed(() =>
   nothingSavedOnThisOrigin() ? t('settings.nothingSavedYet') : '')
+
+// THE ONE THING A TAP CANNOT FIX — see platform/nativeContract.ts.
+//
+// Web code reaches this app on its next launch, so "your app is out of date"
+// is almost never true any more and the staleness line above is correspondingly
+// silent. The exception is a NATIVE change: a build whose web half needs a
+// plugin, permission or WebView setting the installed APK does not have. No
+// reload, no tap and no amount of clearing storage brings that in — only the
+// Play Store does — so this sentence, like the stale-APK one it replaces in
+// practice, promises only the resolution that actually exists.
+//
+// Silent unless it is TRUE, which today means silent: WEB_REQUIRES_NATIVE_LEVEL
+// is 0 and nothing in the web asks the shell for anything.
+const storeUpdateLine = computed(() =>
+  needsStoreUpdate() ? t('settings.needsStoreUpdate') : '')
 
 // What's new — latest curated release notes from Supabase
 const { notes: releaseNotes, isLoading: notesLoading, load: loadReleaseNotes } = useReleaseNotes()
@@ -1632,12 +1648,37 @@ const runFixFlow = async (
 }
 
 // Light action — get the newest version without touching audio or progress.
+//
+// THIS WORKS ON ANDROID, and did not always. A shell that bundled its web
+// assets could not fetch new web code at all, so the button lied there; since
+// Tom's ruling of 2026-09-08 the WebView is a window onto the deployment, the
+// reload at the end of this flow is a real navigation to it, and the same tap
+// means the same thing on the phone as on the web. What it could still not do
+// was SAY so — every tap read "getting the latest version" whether or not
+// there was one — so the check step now reads the deployment's own
+// /version.json and reports, in plain words, which of the two just happened.
+// Silent when unsure, like every other build line here: no network, no answer,
+// no claim.
 const handleUpdateToLatest = () => {
   if (fixOverlayOpen.value) return
   void runFixFlow('Getting the latest version…', [
     {
       key: 'check', label: 'Checking for the latest version',
       run: async () => {
+        // What the deployment is serving right now. Cross-origin on a bundled
+        // shell, same-origin everywhere today — either way this is the only
+        // source that can disagree with the running build.
+        try {
+          const res = await fetch('/version.json', { cache: 'no-store' })
+          if (res.ok) {
+            const live = String((await res.json())?.buildNumber || '')
+            if (live) {
+              fixSteps.value[0].label = shaPrefixEq(normaliseBuildId(live), normaliseBuildId(buildNumber))
+                ? 'You already have the latest version'
+                : 'A newer version is ready'
+            }
+          }
+        } catch { /* offline or no version.json — say nothing */ }
         const reg = await navigator.serviceWorker?.getRegistration?.()
         if (reg) { try { await reg.update() } catch { /* offline / no SW */ } }
       },
@@ -2132,6 +2173,11 @@ const confirmReset = async () => {
            gate: plain text, nothing tappable, no modal, and absent entirely
            whenever the app is current or we cannot tell. -->
       <p v-if="stalenessLine" class="build-stale" role="status">{{ stalenessLine }}</p>
+
+      <!-- The installed native app is older than the web code it is running,
+           and only the store can fix that. Same quiet slot, same rules as the
+           line above: a description, nothing tappable, absent unless true. -->
+      <p v-if="storeUpdateLine" class="build-stale" role="status">{{ storeUpdateLine }}</p>
 
       <!-- Nothing is saved on this origin yet. A DESCRIPTION, like the line
            above: plain text, nothing tappable, gone as soon as anything is

@@ -1,3 +1,57 @@
+## 2026-09-18 — The Android live-update channel is the deployment itself; what was missing was the native declaration (job #214)
+
+**The brief's premise had been overturned ten days earlier, and the reversal is live on `main`.**
+The job was to add `@capawesome/capacitor-live-update` self-hosted: ship a zip of the built web
+assets to installed phones, boot it over the bundle in the APK, fall back to the bundle, hold a
+server-side pin. That describes the wrapper Tom ruled on 4 September. **He overturned it on
+8 September** (`a607ee6e`, `0ed4a7ec`, then `b7c9a9ec` on the 10th): the APK carries no web code at
+all, `server.url` points at a deployment, and the service worker runs inside the WebView precaching
+the deployment's own shell. His stated reason is the same one the live-update brief was written to
+solve — a bundled APK's "Tap to update" can never fetch new web code, so the button lied.
+
+**So three of the five requirements were already true.** A Vercel deploy reaches an installed app on
+its next launch, because the app IS a window onto that deploy. Settings' "Tap to update" updates the
+service worker, drops the navigation caches and reloads — a real navigation to live code. And
+rollback already exists in a stronger form than a plugin's pin: reverting the Vercel deployment
+reverts every installed phone at once, and `/api/sw-config`'s kill switch reaches the WebView because
+the WebView is on the deployment's own origin.
+
+**The plugin fails better × simpler × cheaper against that.** It delivers the same code the WebView
+already loads, one step later; it adds a plugin, a per-ship zip artefact, a manifest and a second
+updater racing the service worker; and it costs a permanent maintenance surface. The one thing it
+buys that today's posture lacks is a boot floor for a phone that has never reached the network — and
+that is one config line.
+
+**Decision: build the gap, not the plugin.** Three things landed.
+
+**One. The build declares which KIND of change it is.** `SHELL_NATIVE_LEVEL` in
+`capacitor.config.ts` is what the native shell HAS, and bumping it is the only line in the repo that
+says "this needs a Play Store release". `WEB_REQUIRES_NATIVE_LEVEL` in
+`src/platform/nativeContract.ts` is what the web code NEEDS, and it stays 0 until a web change
+genuinely depends on a native one. A web-only change touches neither, which keeps the common case
+free. The shell declares its level in the user agent as `SSiShell/android/1`; `capabilities.ts`, the
+one platform door, parses it; a pre-contract APK says plain `SSiShell/android` and reads as level 0,
+which is the truth about it. When the web needs more than the shell has, Settings says so in the
+build card's quiet slot — the staleness line the 8 September ruling retired, reborn with a condition
+that can actually be true. `shouldDescribeStaleness()` stays false.
+
+**Two. A boot floor for the cold start.** `server.errorPath` now loads an `error.html` shipped
+inside the APK, with a Try again button and an `online` listener, instead of the WebView's own
+"webpage not available". That is deliberately the whole built-in floor: after the first successful
+open the service worker holds the shell and audio plays from IndexedDB.
+
+**Three. The tap reports its outcome.** "Tap to update" reads the deployment's `/version.json` and
+says which happened — already latest, or a newer version is ready — and stays silent when it cannot
+tell.
+
+**The gap, stated plainly: none of it has run on Android.** watson-1 has no `/dev/kvm`, so no
+emulator, and no device is attached. What was proved is that the config compiles into the artefact —
+`assets/capacitor.config.json` in the built APK carries `errorPath` and `SSiShell/android/1`, and
+`assets/public/error.html` is in it. The four device behaviours the brief asked to see remain
+unobserved.
+
+Full record: `docs/android-update-channel-2026-09-18.md`.
+
 ## 2026-09-18 — The average divides by who practised, and the week was never wrong (job #207, second pass)
 
 Two rulings from Tom within eleven minutes of reading Chepstow's dashboard, plus one thing he asked

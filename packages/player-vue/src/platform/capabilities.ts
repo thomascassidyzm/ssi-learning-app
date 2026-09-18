@@ -48,6 +48,15 @@ export interface PlatformConfig {
    * the App Store, which own that conversation entirely.
    */
   os: ShellOs
+  /**
+   * The NATIVE CONTRACT LEVEL of the shell — what native capabilities the
+   * installed app actually has, declared by the shell itself. 0 on the web,
+   * where the question is meaningless, and 0 for any shell built before the
+   * contract existed, which is the truth about those builds rather than a
+   * fallback. See nativeContract.ts for what the number means and who bumps
+   * it; this door only reads it.
+   */
+  nativeLevel: number
 }
 
 /**
@@ -106,14 +115,24 @@ function readUserAgent(): string {
   }
 }
 
-/** `SSiShell/android` in the UA → { shell: 'webview', os: 'android' }. */
+/**
+ * `SSiShell/android/1` in the UA → { shell: 'webview', os: 'android',
+ * nativeLevel: 1 }.
+ *
+ * The level is OPTIONAL and its absence is an answer, not a failure: every APK
+ * built before the native contract existed says plain `SSiShell/android`, and
+ * those shells are level 0 because they genuinely have none of it. The os is
+ * read with `startsWith` precisely so appending `/<level>` could not break the
+ * builds already installed on phones.
+ */
 function readShellUserAgent(): Partial<PlatformConfig> {
   const ua = readUserAgent()
   const at = ua.indexOf(SHELL_UA_MARKER)
   if (at === -1) return {}
   const rest = ua.slice(at + SHELL_UA_MARKER.length)
   const os = rest.startsWith('ios') ? 'ios' : rest.startsWith('android') ? 'android' : ''
-  return { shell: 'webview', os }
+  const level = /^(?:ios|android)\/(\d+)/.exec(rest)
+  return { shell: 'webview', os, nativeLevel: level ? Number(level[1]) : 0 }
 }
 
 function detect(): PlatformConfig {
@@ -136,7 +155,15 @@ function detect(): PlatformConfig {
   const osRaw = String(injected.os || readEnv('VITE_APP_SHELL_OS') || ua.os || '')
   const os: ShellOs = osRaw === 'android' || osRaw === 'ios' ? osRaw : ''
 
-  return { shell, apiOrigin, os }
+  // `||` and not `??`, for the same reason as the os line above — readEnv
+  // returns '' rather than undefined, so a nullish chain would stop there and
+  // never reach the user agent, which is where the remote shell declares it.
+  // Falling through a declared 0 costs nothing: a shell that says level 0 and a
+  // shell that says nothing mean the same thing. Junk is 0, never NaN.
+  const levelRaw = Number(injected.nativeLevel || readEnv('VITE_APP_SHELL_NATIVE_LEVEL') || ua.nativeLevel || 0)
+  const nativeLevel = Number.isFinite(levelRaw) && levelRaw > 0 ? Math.floor(levelRaw) : 0
+
+  return { shell, apiOrigin, os, nativeLevel }
 }
 
 let current: PlatformConfig = detect()
@@ -155,6 +182,7 @@ export function configurePlatform(patch: Partial<PlatformConfig>): Readonly<Plat
     shell: patch.shell ?? current.shell,
     apiOrigin: (patch.apiOrigin ?? current.apiOrigin).replace(/\/+$/, ''),
     os: patch.os ?? current.os,
+    nativeLevel: patch.nativeLevel ?? current.nativeLevel,
   }
   return current
 }
