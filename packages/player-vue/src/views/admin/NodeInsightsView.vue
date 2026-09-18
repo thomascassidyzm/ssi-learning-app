@@ -152,10 +152,12 @@ const labelWord = computed(() => {
   return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : t('org.insights.labelGroup', 'Group')
 })
 const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
+// The page opens on All time (Tom, 2026-09-17), so the standing subtitle says
+// what it opens on; a reader who switches to a week is told by the card itself.
 const subtitle = computed(() =>
   isClass.value
-    ? t('org.insights.subtitleClass', 'This class’s week, beside the average you choose.')
-    : t('org.insights.subtitleDefault', 'This week, then each class, quietest first.'))
+    ? t('org.insights.subtitleClassAllTime', 'This class’s totals, and its week beside the average you choose.')
+    : t('org.insights.subtitleAllTime', 'The totals here, then each class, quietest first.'))
 
 // An organisation with no class structure anywhere below it (the neutral
 // preset, derived from the same /home payload the node home reads). The
