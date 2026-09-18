@@ -2,10 +2,10 @@
   "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor — remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
   "capabilities": {
     "obvious": {
-      "insights-org-practising": "Job #32, 2026-09-16: \"Which classes practised this week\" now mounts only on the insights page of an organisation that runs no classes anywhere below it, where it is the whole page — one question, one sentence, nothing to find. Every school and group answers it with the card and the class list above, which the reading-insights walk steps on, so a step here would point at an element those personas never see.",
-      "mailbox-banner-confirm": "Job #188, 2026-09-18: a one-line strip across the top of every schools page with a single six-digit field and a Confirm button beside it, shown only while the leader's own address is unconfirmed. One field, one button, and the strip itself says what goes in the box, so a clip would show a person typing six digits into the only box on the line."
+      "insights-org-practising": "Job #32, 2026-09-16: \"Which classes practised this week\" now mounts only on the insights page of an organisation that runs no classes anywhere below it, where it is the whole page — one question, one sentence, nothing to find. Every school and group answers it with the card and the class list above, which the reading-insights walk steps on, so a step here would point at an element those personas never see."
     },
-    "missing": {}
+    "missing": {
+    }
   },
   "pages": {
     "obvious": {

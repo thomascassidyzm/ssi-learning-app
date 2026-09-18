@@ -440,10 +440,6 @@
     "eGYsgolGymraeg": "e.g. Ysgol Gymraeg…",
     "canChangeTheseAnytime": "You can change these anytime in your settings.",
     "enterCodeSentTo": "Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive.",
-    "returningEnterCodeSentTo": "You already have an account here, so we sent a sign-in code to {email}. Enter it to carry on into your school. It can take a couple of minutes to arrive.",
-    "setUpMySchool": "Set up my school",
-    "schoolReadyStraightAway": "Your school is ready straight away. We'll email you a code to confirm your address — you can enter it any time from your dashboard.",
-    "codeDidNotWork": "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh code below and use the newest one, or try a different email address.",
     "stillNothingWorkFilters": "Still nothing? Some work email filters block these codes outright. Try entering a personal email address instead — you can add your work email later."
   },
   "driving": {
@@ -3155,24 +3151,6 @@
         "tabUpgrade": "Upgrade",
         "userFallback": "User",
         "userMenuAriaLabel": "User menu"
-      },
-      "mailboxBanner": {
-        "lead": "Your school is live. When our code reaches {email}, pop it in here to confirm it's yours.",
-        "codePlaceholder": "6-digit code",
-        "codeLabel": "Your code",
-        "confirm": "Confirm",
-        "resend": "Send a fresh code",
-        "other": "Use a different address",
-        "later": "Later",
-        "otherPlaceholder": "you@somewhere-else.com",
-        "otherLabel": "Which address should we use?",
-        "sendThere": "Send it there",
-        "sent": "Sent. Codes from school mail systems can take a while — use the newest one.",
-        "invalidEmail": "That doesn't look like an email address.",
-        "notConnected": "Not connected — try again in a moment.",
-        "codeTooShort": "The code is six digits.",
-        "codeDidNotWork": "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh one and use the newest.",
-        "done": "Lovely — that mailbox reaches you. You are sorted for good."
       }
     },
     "support": {

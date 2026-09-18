@@ -126,10 +126,7 @@ const REVOCABLE_MINTS = new Set(['buyer_account'])
  * and only their explicit `contested: true` fires the sweep. Their "that was
  * me" retires the marker instead. Either way the account is settled once.
  */
-const CONTESTABLE_MINTS = new Set(['possession_redeem', 'possession_adopt', 'setup_door'])
-// 'setup_door' (job #188, 2026-09-18): the school signup door mints on the
-// typed address with no code, exactly like possession_redeem, and its
-// password — if the head sets one — is the head's own. Same shape, same rule.
+const CONTESTABLE_MINTS = new Set(['possession_redeem', 'possession_adopt'])
 
 /** Was this mint made by a path whose credentials revocation may destroy
  *  WITHOUT asking? False for a schools mint (contestable, never automatic),
