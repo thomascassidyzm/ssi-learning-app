@@ -1,3 +1,27 @@
+## 2026-09-18 — A broken diary read is an error, never zero practice (job #180)
+
+Job #170 made class minutes come from the diary alone for any class with a class
+account, and dropped the legacy RPC rows that used to sit beside them. Cross-family
+verification (Astra, job #179) found the consequence: every read in
+`api/_utils/diarySessionRows.ts` discarded its PostgREST `error`, and
+`loadScopedSessionRows` swallowed a rejection into `[]`, so a `player_events`
+timeout returned success with a real school's minutes missing — and nothing left
+to mask it. Now each read throws `DiaryReadError`, `loadScopedSessionRows` returns
+it in the `{ data, error }` shape the call sites already handle, and both
+rate-compare routes answer 500. Two calls in `api/groups/[id]/rate-compare.ts`
+that only logged were promoted to 500 for the same reason: the all-time totals
+would otherwise be computed off twelve weeks for a two-year-old class, and the
+course census decides `hasData`, so its failure printed "No practice recorded in
+this class yet." over a school that had practised. Pupil-account paths are
+unchanged, and an empty-but-healthy diary is still a success. Regressions: the
+util-level tests and the endpoint test both failed on the pre-fix code (200 with
+a smaller total) and pass after; six scoped api suites pass (141 tests);
+`typecheck:api` carries the same three pre-existing `bundle.ts` errors as before.
+
+KNOWN FOLLOW-UP, deliberately out of scope here: the grant-check/deletion race in
+`api/email/verify.ts` — the entitlement/subscription count and the delete are
+separate reads, so a grant written between them can still be lost.
+
 ## 2026-09-18 — Count class-account practice from the diary once (job #170)
 
 The restarted lesson recorder invalidated Insights' assumption that class_sessions

@@ -66,3 +66,56 @@ describe('sessionRowsFromDiary', () => {
     expect(rows.map((r) => [r.duration_seconds, r.start_ord, r.end_ord])).toEqual([[30, 1, 2], [32, null, null]])
   })
 })
+
+// ─── A FAILED READ IS NOT AN EMPTY WINDOW (job #180) ───
+// Before this, every read in the module discarded its `error` and
+// loadScopedSessionRows swallowed the rejection into [], so a PostgREST
+// failure on player_events returned success with the class's minutes missing.
+import { loadDiarySessionRows, loadScopedSessionRows, DiaryReadError } from './diarySessionRows'
+
+const CLASS_ROW = { id: 'c-7p', course_code: 'cym_s_for_eng', class_learner_id: 'L-7p', school_id: null }
+
+/** Minimal PostgREST double: every table answers `rows`, except `failOn`. */
+function fakeSvc(opts: { failOn?: string; rows?: Record<string, any[]>; rpc?: any } = {}): any {
+  const rows = opts.rows ?? { classes: [CLASS_ROW] }
+  const make = (table: string): any => {
+    const b: any = {}
+    for (const m of ['select', 'eq', 'in', 'is', 'not', 'gte', 'order', 'range', 'limit']) b[m] = () => b
+    b.then = (resolve: any) =>
+      resolve(table === opts.failOn
+        ? { data: null, error: { message: `${table} statement timeout` } }
+        : { data: rows[table] ?? [], error: null })
+    return b
+  }
+  return {
+    from: make,
+    rpc: () => Promise.resolve(opts.rpc ?? { data: [], error: null }),
+  }
+}
+
+describe('a diary read failure propagates', () => {
+  it('loadDiarySessionRows throws DiaryReadError when player_events fails', async () => {
+    await expect(loadDiarySessionRows(fakeSvc({ failOn: 'player_events' }), ['c-7p'], 30, false))
+      .rejects.toBeInstanceOf(DiaryReadError)
+  })
+
+  it('loadDiarySessionRows throws when the classes read fails', async () => {
+    await expect(loadDiarySessionRows(fakeSvc({ failOn: 'classes' }), ['c-7p'], 30, false))
+      .rejects.toBeInstanceOf(DiaryReadError)
+  })
+
+  it('loadScopedSessionRows reports the failure instead of returning legacy rows alone', async () => {
+    const legacy = [{ class_id: 'c-legacy', course_code: 'cym_s_for_eng', start_lego_id: null, end_lego_id: null,
+      start_ord: null, end_ord: null, duration_seconds: 1800, started_at: new Date().toISOString() }]
+    const svc = fakeSvc({ failOn: 'player_events', rpc: { data: legacy, error: null } })
+    const out = await loadScopedSessionRows(svc, ['c-7p'], 30, false)
+    expect(out.error?.message).toContain('player_events')
+    expect(out.data).toEqual([])
+  })
+
+  it('a healthy but empty diary is still a success', async () => {
+    const out = await loadScopedSessionRows(fakeSvc(), ['c-7p'], 30, false)
+    expect(out.error).toBeNull()
+    expect(out.data).toEqual([])
+  })
+})
