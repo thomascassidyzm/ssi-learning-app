@@ -4473,3 +4473,12 @@ The code is right and both checks were reading the old wording, so both were re-
 and `_306-top-three-probe.mjs` now asserts "Phrases practised in total". The probe's real ruling —
 the headline never says "spoken" (job #306) — is untouched and still asserted. Verified against
 deployed staging: 13/13, the headline read "PHRASES PRACTISED IN TOTAL".
+
+**Addendum, same night, job #160.** The recompile above fixes the truth manifest, which is derived;
+it cannot fix the hand-written rulings, which are not. The leader ruling still told a leader to
+watch "**Minutes in the app this week**" — a card that no longer says that — so `rulings/leader.md`
+now names the live label and the pack was recompiled with it (`697b02eac132` → `f03bcb4b9d98`). The
+lesson for the next rename: the drift gate compares the pack against the SURFACES, so stale prose
+inside a ruling passes it silently. Grep `tools/explainer/rulings/` for the old words whenever a
+stat word changes. The year-group tiles are still weekly and their handbook comments stay as they
+are.
