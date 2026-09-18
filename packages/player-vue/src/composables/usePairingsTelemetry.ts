@@ -70,12 +70,16 @@ export function usePairingsTelemetry(classRoute?: Ref<PairingsClassRoute | null 
    * Safe to call from the cycle loop; never throws.
    */
   function recordCyclePlay(opts: RecordCyclePlayOptions): void {
+    // eslint-disable-next-line no-console
+    console.warn('[DEBUG-155] recordCyclePlay', JSON.stringify(opts))
     // Guard guest/anonymous flows - the schema requires a real learners.id FK.
     if (!opts.learnerId || opts.learnerId.startsWith('guest-')) return
     // Refused at creation too: a pair fired while viewing-as must not sit in
     // the tally waiting for a flush that happens after the admin has exited.
     if (useUserRole().isViewingAs.value) return
     const pairs = buildPairs(opts.legoIds)
+    // eslint-disable-next-line no-console
+    console.warn('[DEBUG-155] pairs', JSON.stringify(pairs), 'tallySizeBefore', tally.size)
     if (pairs.length === 0) return
     pendingLearnerId = opts.learnerId
     pendingCourseCode = opts.courseCode
@@ -97,6 +101,8 @@ export function usePairingsTelemetry(classRoute?: Ref<PairingsClassRoute | null 
    */
   async function flush(): Promise<void> {
     const supabase = supabaseRef?.value
+    // eslint-disable-next-line no-console
+    console.warn('[DEBUG-155] flush called', { hasSupabase: !!supabase, tallySize: tally.size, pendingLearnerId, pendingCourseCode, hasClassRoute: !!classRoute?.value, hasRecordLegoPairings: typeof classRoute?.value?.recordLegoPairings })
     if (!supabase || tally.size === 0 || !pendingLearnerId || !pendingCourseCode) return
     // View-as: record_lego_pairings is a WRITE that travels as an RPC, and the
     // view-as fetch guard lets every RPC through as "the read path". A tally
