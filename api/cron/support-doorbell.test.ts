@@ -23,6 +23,12 @@ describe('support doorbell', () => {
     expect(repliesDue(rows, opened, now)).toEqual([])
   })
 
+  it('never rings for a learner-owned thread (job #221) — her own inbox carries the reply, and this copy is written for a school', () => {
+    const rows = [reply('due', DOORBELL_AFTER_HOURS + 1)]
+    const threads = { t1: { last_read_at: null, language: 'eng', learner_user_id: 'auth-learner' } }
+    expect(repliesDue(rows, threads, now)).toEqual([])
+  })
+
   it('names Tom when the reply is his and SSi when it is the agent\'s, in the thread\'s language', () => {
     const tom = doorbellMessage(reply('r', 4), 'eng', 'head@ysgol.example')
     expect(tom.subject).toBe("Tom replied on your school's Support thread")

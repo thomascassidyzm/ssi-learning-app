@@ -28,13 +28,21 @@ beforeEach(async () => {
   DB = {
     support_threads: [
       { id: 'th-1', school_id: 'sch-1', group_id: null, created_at: T(1), last_message_at: T(4), last_read_at: T(2), language: 'eng', standing_notes: {} },
+      { id: 'th-2', school_id: null, group_id: null, learner_user_id: 'auth-learner', origin_message_id: 'msg-1', created_at: T(1), last_message_at: T(3), last_read_at: null, language: 'eng', standing_notes: {} },
     ],
     support_messages: [
       { id: 'm-1', thread_id: 'th-1', body: 'Our hours look wrong', direction: 'in', author_source: 'human', author_name: 'Bethan', author_user_id: 'school-admin-uid', answered_at: null, created_at: T(4), envelope: null, signal_key: null },
+      { id: 'm-2', thread_id: 'th-2', body: 'Are more Spanish pods coming?', direction: 'in', author_source: 'human', author_name: 'Sam', author_user_id: 'auth-learner', answered_at: null, created_at: T(3), envelope: null, signal_key: null },
     ],
     schools: [{ id: 'sch-1', school_name: 'Ysgol Bryn' }],
     groups: [],
-    learners: [{ user_id: 'admin-uid', display_name: 'Kai' }],
+    learners: [
+      { id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', user_id: 'admin-uid', display_name: 'Kai' },
+      { id: 'ffffffff-1111-2222-3333-444444444444', user_id: 'auth-learner', display_name: 'Sam' },
+    ],
+    bug_reports: [],
+    tester_feedback: [],
+    user_messages: [{ id: 'msg-1', title: 'New pods coming', body: 'Just to let you know…' }],
   }
 })
 
@@ -50,8 +58,15 @@ describe('GET /api/admin/support', () => {
     const res = makeRes()
     await list(makeReq(), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.unanswered).toBe(1)
+    expect(res.body.unanswered).toBe(2)
     expect(res.body.threads[0]).toMatchObject({ id: 'th-1', who: 'Ysgol Bryn', person: 'Bethan', unanswered: 1, kind: 'school' })
+  })
+
+  it('lists a learner thread too, named by her display name and never by email', async () => {
+    const res = makeRes()
+    await list(makeReq(), res)
+    const learnerRow = res.body.threads.find((t: any) => t.id === 'th-2')
+    expect(learnerRow).toMatchObject({ kind: 'learner', who: 'Sam', person: null, unanswered: 1 })
   })
 
   it('opens one thread with every turn, and never marks it read', async () => {
@@ -61,7 +76,14 @@ describe('GET /api/admin/support', () => {
     expect(DB.support_threads[0].last_read_at).toBe(T(2))
   })
 
-  it('404s on a thread that is not a school or org thread', async () => {
+  it('opens a learner thread with what she was replying to', async () => {
+    const res = makeRes()
+    await list(makeReq({ query: { id: 'th-2' } }), res)
+    expect(res.body.thread.messages.map((m: any) => m.id)).toEqual(['m-2'])
+    expect(res.body.thread.originMessage).toEqual({ title: 'New pods coming', body: 'Just to let you know…' })
+  })
+
+  it('404s on a thread that is not a school, org or learner thread', async () => {
     const res = makeRes()
     await list(makeReq({ query: { id: 'nope' } }), res)
     expect(res.statusCode).toBe(404)
@@ -80,6 +102,16 @@ describe('POST /api/admin/support/reply', () => {
     expect(out[0].author_user_id).not.toBe('school-admin-uid')
     expect(DB.support_messages[0].answered_at).toBeTruthy()
     expect(DB.support_threads[0].last_read_at).toBe(T(2))
+  })
+
+  it('answers a learner thread through the same route, authored as the admin', async () => {
+    const res = makeRes()
+    await reply(makeReq({ method: 'POST', body: { threadId: 'th-2', text: 'Yes — Welsh Spanish pods are coming next month.' } }), res)
+    expect(res.statusCode).toBe(200)
+    const out = DB.support_messages.filter((m) => m.thread_id === 'th-2' && m.direction === 'out')
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ author_user_id: 'admin-uid', author_name: 'Kai' })
+    expect(DB.support_messages.find((m) => m.id === 'm-2')!.answered_at).toBeTruthy()
   })
 
   it('refuses the write outright while the admin is touring under View As', async () => {
