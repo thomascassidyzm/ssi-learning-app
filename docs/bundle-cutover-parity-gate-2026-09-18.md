@@ -12,7 +12,7 @@ cut-over courses asserting, as properties:
 
 ## 1. Does the test exist?
 
-**Yes for both parts, in one file:** `packages/core/src/script/selectionParity.test.ts` (523 lines,
+**Yes for both parts, in one file:** `packages/core/src/script/selectionParity.test.ts` (509 lines,
 landed in `522bcfe56` "fix(script): one selection algorithm, called by both producers"). It is the
 only executable assertion of either part anywhere in the repo. Everything else named below is a
 hand-run harness, not a test.
