@@ -1,3 +1,103 @@
+## 2026-09-18 — The not-ready tap is answered, not held; and a tap_pause row now means a pause tap (job #223)
+
+**Two defects, both diagnosed by job #219 against production telemetry.** `togglePlayback()` opened
+with a bare `if (isAwakening && !isAudioPlaying) return`, so while the player was not ready every
+transport tap was discarded with no state change, no telemetry and no learner-visible response. That
+window is not short: over the week to 2026-09-18 `cold_start.mountToReadyMs` ran p50 2.3s, p90 10.5s,
+p99 46s, with 96 cold starts over 10s and 44 over 20s. Tom's own session 5aec7f60 reports 47,350ms,
+and two of his seven opens that lunchtime never reached ready at all — which is exactly his report
+from his phone: the app "often just falls over itself and often needs to be quit and then loaded up
+again". Separately, `handlePause()` logged `tap_pause` unconditionally from seven call sites, six of
+which are not the transport: the Library and Settings overlays, entering and leaving Listening and
+Pronunciation mode, the bottom-nav exit, and an in-app course change. 1,305 `tap_pause` rows against
+849 `tap_play` in the week; 32 sessions logged a pause BEFORE their own `cold_start`.
+
+**Decision: VISIBLE REFUSAL, not held intent.** Both shapes were on the table. Held intent — bank the
+tap, honour it at `loadingStage === 'ready'` — loses on *simpler* and on *better* for one concrete
+reason: the iOS audio unlock lives INSIDE the user gesture (`handleResume` sets `audioEngaged` and
+the silent-loop keepalive hooks that gesture), so a play started later, outside the gesture, can be
+refused by iOS and leave the machine believing it is playing — the very silent-playing state job
+#217 wrongly hypothesised. Honouring a tap from 46 seconds ago is also not obviously what the learner
+still wants. A visible refusal closes the trap completely and carries none of that: *better* (the
+learner is told the app heard them, which is the same complaint Tom made about updates one screen
+down), *simpler* (no queued-intent state machine, no watcher, no gesture question, and it deletes a
+branch in BottomNav rather than adding one), *cheaper* (a ref, a computed, one CSS rule and one
+event). The ready-guard itself is untouched in what it BLOCKS, so the reverted-`bf281cd1` hazard —
+`handleResume` running concurrently with `onMounted`'s engine init, Tom's 2026-06-08 "audio the pause
+button couldn't stop" — stays shut by construction.
+
+**What landed.** A not-ready tap now calls `acknowledgeNotReadyTap()`: it emits
+`tap_ignored {reason, loadingStage, msSinceMount}` so the refusal is measurable rather than inferred,
+and it takes over the awakening line the learner is already reading with "Got you — still getting
+your session ready…", pulsing once so the change cannot be missed. The bottom-nav play button no
+longer drops the tap at its own `isPlayDisabled` guard — it hands it to the player, which is the one
+place that decides; its spinner stays until the player is genuinely ready. **The welded door is
+open**: `progressLoadFailed` pins `isAwakening` true permanently while the screen says "Your progress
+is safe — have another go", and every go was swallowed, leaving the retry link's reload as the only
+exit. A transport tap on that screen IS the learner having another go, so it now runs the same retry.
+**And the event is separated**: `handlePause` split into `stopEverything()` — the shared halt routine,
+deliberately silent, what the six non-transport callers want — and `handleTransportPause()`, which
+logs `tap_pause` and is called only from `togglePlayback`. From this build on, a `tap_pause` row is a
+pause tap and the estate's play/pause figures are trustworthy.
+
+**Proof.** `LearningPlayer.tapIntent.test.ts` AST-extracts the component's real functions and runs
+them against a stub harness (the `pendingHydration` idiom). All nine assertions fail on the pre-fix
+sources and pass on these — seen both ways, not believed.
+
+## 2026-09-18 — The Android live-update channel is the deployment itself; what was missing was the native declaration (job #214)
+
+**The brief's premise had been overturned ten days earlier, and the reversal is live on `main`.**
+The job was to add `@capawesome/capacitor-live-update` self-hosted: ship a zip of the built web
+assets to installed phones, boot it over the bundle in the APK, fall back to the bundle, hold a
+server-side pin. That describes the wrapper Tom ruled on 4 September. **He overturned it on
+8 September** (`a607ee6e`, `0ed4a7ec`, then `b7c9a9ec` on the 10th): the APK carries no web code at
+all, `server.url` points at a deployment, and the service worker runs inside the WebView precaching
+the deployment's own shell. His stated reason is the same one the live-update brief was written to
+solve — a bundled APK's "Tap to update" can never fetch new web code, so the button lied.
+
+**So three of the five requirements were already true.** A Vercel deploy reaches an installed app on
+its next launch, because the app IS a window onto that deploy. Settings' "Tap to update" updates the
+service worker, drops the navigation caches and reloads — a real navigation to live code. And
+rollback already exists in a stronger form than a plugin's pin: reverting the Vercel deployment
+reverts every installed phone at once, and `/api/sw-config`'s kill switch reaches the WebView because
+the WebView is on the deployment's own origin.
+
+**The plugin fails better × simpler × cheaper against that.** It delivers the same code the WebView
+already loads, one step later; it adds a plugin, a per-ship zip artefact, a manifest and a second
+updater racing the service worker; and it costs a permanent maintenance surface. The one thing it
+buys that today's posture lacks is a boot floor for a phone that has never reached the network — and
+that is one config line.
+
+**Decision: build the gap, not the plugin.** Three things landed.
+
+**One. The build declares which KIND of change it is.** `SHELL_NATIVE_LEVEL` in
+`capacitor.config.ts` is what the native shell HAS, and bumping it is the only line in the repo that
+says "this needs a Play Store release". `WEB_REQUIRES_NATIVE_LEVEL` in
+`src/platform/nativeContract.ts` is what the web code NEEDS, and it stays 0 until a web change
+genuinely depends on a native one. A web-only change touches neither, which keeps the common case
+free. The shell declares its level in the user agent as `SSiShell/android/1`; `capabilities.ts`, the
+one platform door, parses it; a pre-contract APK says plain `SSiShell/android` and reads as level 0,
+which is the truth about it. When the web needs more than the shell has, Settings says so in the
+build card's quiet slot — the staleness line the 8 September ruling retired, reborn with a condition
+that can actually be true. `shouldDescribeStaleness()` stays false.
+
+**Two. A boot floor for the cold start.** `server.errorPath` now loads an `error.html` shipped
+inside the APK, with a Try again button and an `online` listener, instead of the WebView's own
+"webpage not available". That is deliberately the whole built-in floor: after the first successful
+open the service worker holds the shell and audio plays from IndexedDB.
+
+**Three. The tap reports its outcome.** "Tap to update" reads the deployment's `/version.json` and
+says which happened — already latest, or a newer version is ready — and stays silent when it cannot
+tell.
+
+**The gap, stated plainly: none of it has run on Android.** watson-1 has no `/dev/kvm`, so no
+emulator, and no device is attached. What was proved is that the config compiles into the artefact —
+`assets/capacitor.config.json` in the built APK carries `errorPath` and `SSiShell/android/1`, and
+`assets/public/error.html` is in it. The four device behaviours the brief asked to see remain
+unobserved.
+
+Full record: `docs/android-update-channel-2026-09-18.md`.
+
 ## 2026-09-18 — The average divides by who practised, and the week was never wrong (job #207, second pass)
 
 Two rulings from Tom within eleven minutes of reading Chepstow's dashboard, plus one thing he asked
@@ -4726,3 +4826,72 @@ banner counts as proof for enrolment; "live" for the session count means not exp
 within thirty days, so a dead GoTrue row cannot show the line to a teacher with one device; the
 second-device line lives in the founder's banner only, not in Settings' own verify row; the class
 list's short code on the teacher home is not masked — the server refuses it and the pupil reads why.
+
+## 2026-09-18 — the update that happens on open is said out loud, and holds the screen (job #217)
+
+Tom, from his phone on production: "when I open the app and it automatically checks for updates,
+it's not letting the user know what it's doing — and it often just falls over itself and often
+needs to be quit and then loaded up again."
+
+**What shipped.** `composables/useOpenUpdateGate.ts` asks once, at open, whether the live build is
+PROVABLY newer than the running one — `isProvablyStale`, not `isDifferentBuild`, so offline, a dead
+endpoint and an unreadable answer all mean "carry on" rather than "hold the app". When it is,
+`components/UpdateOnOpenOverlay.vue` says so in the app's own voice and holds the surface, and the
+reload fires 700ms later so the screen is READ before the document goes away. No update, or
+offline, or anything sounding: nothing paints, nothing is fetched twice, boot is untouched.
+
+**Four rules that are each somebody's bad morning.** Never over playing audio (Tom, 2026-05-21).
+On open means on open — past an 8s window the non-blocking banner owns it, because a screen taking
+over mid-use is an interruption rather than an explanation. ONE attempt per target build, recorded
+in sessionStorage: the reload can land on the old build anyway when the 3s navigation timeout fires
+and the precached shell answers, and reloading again would be a reload LOOP, which is worse than
+being one build behind. And a held screen escalates at 10s to "Keep waiting" / "Reload", because on
+iOS standalone a programmatic `location.reload()` can silently not take and a user gesture is the
+only thing that unsticks it — the same escape, for the same reason, as the boot watchdog's
+"tap to relaunch".
+
+**What was NOT changed, deliberately.** The waiting service worker is still never told to skip
+waiting; taking an update is still a plain reload. That ruling (PwaUpdatePrompt.vue's long comment)
+is why an old document does not have its own chunks deleted under it. The offline path, the boot
+heal ladder and the precached-shell fallback are untouched.
+
+**The telemetry finding behind it (read-only, production, 7 days).** The stated hypothesis — that
+silent updates on open are eating sessions, visible as cold_start-followed-by-nothing clustering
+after deploys — is NOT SUPPORTED. Dead-session rate is flat against deploy distance (0-30m after a
+new build first appears: 14.3%; 2-8h: 15.1%; >8h: 24.0%) and a client running a stale build is only
+marginally worse than one already current (25.0% vs 19.7%, n=64 stale — not significant). The
+instrument also cannot see the thing it was asked about: `cold_start` is emitted at player-READY,
+so a boot that never mounts writes nothing at all, and the heal ladder emits no telemetry whatever.
+What the data DOES show is Tom's own four sessions of 2026-09-18 12:10-12:32 UTC: cold_start,
+then a single tap_pause 2-3s later, then nothing, with ZERO audio_play and ZERO tap_play in any of
+them — the learner opened the app, tapped the big control expecting play, and the app read the tap
+as PAUSE. That is a separate defect from the update flow and is under investigation (job #219·H).
+## 2026-09-18 — Every school's support thread lands in Admin → Support (job #220)
+
+Tom, 14:16Z: platform admins should be able to see in-app support messages
+somewhere in the app, even though agents will handle most of them. Job #218 had
+already proved the gap by reading the code: `resolveSupportScope` resolves a
+school_admin's one school or a govt_admin's one group and nothing else, so an
+ssi_admin could open no school's thread at all — not even under View As.
+
+**What was decided.** The schools channel joins the learner reports in the ONE
+list at `/admin/support`, ordered the same way: waiting first, newest first. No
+second page, no dashboard. Server side, the cross-school read is a passthrough
+behind `verifyAdmin` (`api/_utils/platformSupport.ts` + `api/admin/support/*`),
+modelled on `scopeForSchoolRead` — NOT a new branch in `resolveSupportScope`,
+which is left exactly as it was so a school still reads only its own thread
+through its own scope, under the same RLS and the same column-scoped grant.
+
+**The reply is the watcher's own row.** An ssi_admin's answer is an ordinary
+`support_messages` 'out' row: the `user_messages_from_support_reply` trigger
+fans it into the school admins' inboxes, `GET /api/support/thread` marks those
+read when she opens it, and `api/cron/support-doorbell` emails her if it sits
+unopened. Nothing new had to be built to deliver it, and `last_read_at` is
+deliberately untouched — it is the SCHOOL's reading, and the doorbell keys on
+it. Open questions in the thread are stamped `answered_at` so the watson-1
+watcher does not answer them a second time.
+
+**THE ONE GUARD kept (Tom, 2026-09-14).** The reply is authored from
+verifyAdmin's own verified uid and can be nobody else's, and a write carrying
+the View-As header is refused outright by `refuseViewAsWrite`. Both are pinned
+by tests that were watched to fail on a mutated route and pass on this one.

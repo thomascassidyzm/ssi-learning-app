@@ -727,7 +727,12 @@
     "tapRelaunch": "Tapiwch i ailgychwyn",
     "newVersionAvailable": "Fersiwn newydd ar gael",
     "later": "Yn nes ymlaen",
-    "update": "Diweddaru"
+    "update": "Diweddaru",
+    "updatingTitle": "Yn diweddaru i'r fersiwn ddiweddaraf",
+    "updatingBody": "Mae hyn yn cymryd ychydig eiliadau.",
+    "updatingSlow": "Mae hyn yn cymryd yn hirach nag arfer.",
+    "keepWaiting": "Dal i aros",
+    "reloadNow": "Ail-lwytho"
   },
   "me": {
     "pointsEarned": "Pwyntiau wedi'u hennill",

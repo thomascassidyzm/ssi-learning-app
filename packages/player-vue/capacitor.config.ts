@@ -45,6 +45,35 @@ import type { CapacitorConfig } from '@capacitor/cli'
 const SHELL_DEFAULT_ORIGIN = 'https://staging.saysomethingin.app'
 const SHELL_ORIGIN = (process.env.SSI_SHELL_ORIGIN || SHELL_DEFAULT_ORIGIN).replace(/\/+$/, '')
 
+/**
+ * WHAT THIS SHELL HAS, AND THEREFORE WHICH KIND OF CHANGE A CHANGE IS.
+ *
+ * The shell carries no web code, so web changes reach installed phones on
+ * their next launch with no Play review — the point of the 2026-09-08 posture.
+ * Native changes cannot: a Capacitor plugin, a permission, a manifest entry or
+ * a WebView setting only arrives in a new APK through the store. This integer
+ * is the declaration of which is which, and it is the ONLY place in the repo
+ * that says "this change needs a store release":
+ *
+ *   BUMP IT  → the change is NATIVE. A new APK must go to the Play Store, and
+ *              no web deploy can substitute for it.
+ *   LEAVE IT → the change is WEB-ONLY. It ships with the next Vercel deploy and
+ *              needs nothing from anybody.
+ *
+ * The web half of the seam is WEB_REQUIRES_NATIVE_LEVEL in
+ * src/platform/nativeContract.ts — what the running web code NEEDS. When the
+ * web starts depending on something this level provides, that constant is
+ * raised to match, and every phone still on an older APK is told, in plain
+ * words in Settings, to update from the store. nativeContract.test.ts pins the
+ * two halves together and fails if the shell ever declares less than the web
+ * requires.
+ *
+ * LEVEL 1 IS THE FIRST DECLARED LEVEL. Builds before it appended a bare
+ * `SSiShell/android` and are read as level 0 — the truth about them, since
+ * they predate the contract entirely.
+ */
+const SHELL_NATIVE_LEVEL = 1
+
 const config: CapacitorConfig = {
   appId: 'com.saysomethingin.devwrap',
   appName: 'SSi (dev wrap)',
@@ -66,6 +95,23 @@ const config: CapacitorConfig = {
      */
     url: SHELL_ORIGIN,
     cleartext: false,
+    /**
+     * THE FLOOR UNDER A SHELL THAT OWNS NO WEB CODE. A window onto a
+     * deployment has one failure the bundled build could not have: the very
+     * first launch, on a phone with no network or on a device that has never
+     * reached the origin, has nothing to show. Capacitor's own answer to a
+     * failed `server.url` load is the WebView's error page — "webpage not
+     * available", in Chrome's words, about an address the learner never typed.
+     *
+     * `errorPath` replaces that with a page WE wrote, shipped inside the APK,
+     * which says what happened and offers to try again. It is deliberately the
+     * whole of the built-in floor: once the app has opened ONCE the service
+     * worker holds the shell and the learner plays offline from IndexedDB, so
+     * the only hole left is the cold one, and a local page that explains it and
+     * retries is the honest size of the fix. See scripts/build-android-apk.sh,
+     * which writes it, and the note there on what it deliberately is not.
+     */
+    errorPath: 'error.html',
   },
   android: {
     // Debug builds only. Cleartext stays off — the deployment is https.
@@ -78,7 +124,7 @@ const config: CapacitorConfig = {
      * src/platform/capabilities.ts reads it there. Keep this string in step
      * with SHELL_UA_MARKER in that file — its test pins both.
      */
-    appendUserAgent: 'SSiShell/android',
+    appendUserAgent: `SSiShell/android/${SHELL_NATIVE_LEVEL}`,
   },
   plugins: {
     /**

@@ -68,3 +68,34 @@ describe(`support_inbox view as defined by ${latest}`, () => {
     expect(viewBody).toMatch(/COALESCE\(b\.reporter_email, l\.verified_emails\[1\]\)/)
   })
 })
+
+/**
+ * The platform inbox (job #220) is the second reader of these tables, and it
+ * is a DIRECT read rather than a read of the view. The same invariant has to
+ * hold on it: no auth.users anywhere, service-role only, and the identity of
+ * the person who wrote a turn taken from the public columns.
+ */
+describe('the platform support inbox reads the tables directly, and still never touches auth.users', () => {
+  const read = (rel: string) => readFileSync(resolve(here, '../..', rel), 'utf-8')
+  const FILES = ['api/_utils/platformSupport.ts', 'api/admin/support/index.ts', 'api/admin/support/reply.ts']
+
+  it('names no auth.users relation and no admin auth API', () => {
+    for (const f of FILES) {
+      expect(read(f), `${f} must not reach for auth.users`).not.toMatch(/auth\.users|auth\.admin|listUsers/)
+    }
+  })
+
+  it('takes the asker\'s name from support_messages.author_name and the school\'s from schools/groups', () => {
+    const util = read('api/_utils/platformSupport.ts')
+    expect(util).toContain('author_name')
+    expect(util).toContain("svc.from('schools').select('id, school_name')")
+    expect(util).toContain("svc.from('groups').select('id, name')")
+  })
+
+  it('is service-role only: the routes run under the admin caller\'s service client, never the browser', () => {
+    for (const f of ['api/admin/support/index.ts', 'api/admin/support/reply.ts']) {
+      expect(read(f)).toContain('resolveAdminCaller')
+    }
+    expect(read('api/admin/messages/_shared.ts')).toContain('SUPABASE_SERVICE_ROLE_KEY')
+  })
+})

@@ -13,6 +13,23 @@
  *
  * TWO POSTBOXES, ONE LIST: the player's Report a bug writes bug_reports, the
  * older tester panel writes tester_feedback. Both are read here.
+ *
+ * AND THE SCHOOLS CHANNEL, IN THE SAME LIST (job #220, Tom 2026-09-18). A
+ * school's or an org's support thread sits among the learner reports, ordered
+ * the same way: waiting first, newest first. A row names the school and the
+ * person; opening it shows the whole exchange, what her screen said when she
+ * wrote, and a reply box. The reply goes out as SSi, authored as the admin who
+ * typed it — never as the school admin, even while touring under View As.
+ *
+ * AND A LEARNER'S OWN THREAD, IN THE SAME LIST (job #221). Once a learner
+ * replies to an admin message from /me/inbox the channel goes live for her
+ * too (job #821) — a row names her (display name, or her support id, never
+ * her email) and opens to the whole exchange and what she was replying to.
+ * The reply goes out through the SAME /api/admin/support/reply this file
+ * already calls; the difference is entirely server-side. A learner thread
+ * already reachable from her own bug_report/tester_feedback row is left out
+ * of this list — see platformSupport.ts's repliedReportOriginIds — so the
+ * same conversation is never shown twice.
  */
 import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
@@ -40,9 +57,58 @@ interface Report {
   replySeenAt: string | null
 }
 
+interface ThreadSummary {
+  id: string
+  kind: 'school' | 'group' | 'learner'
+  who: string
+  person: string | null
+  language: string | null
+  createdAt: string
+  lastMessageAt: string | null
+  lastBody: string
+  lastDirection: 'in' | 'out' | null
+  unanswered: number
+  messageCount: number
+  lastReadAt: string | null
+}
+interface ThreadMessage {
+  id: string
+  body: string
+  direction: 'in' | 'out'
+  author_source: string
+  author_name: string | null
+  created_at: string
+}
+interface ThreadContext {
+  route: string | null
+  anchor: string | null
+  displayedLabel: string | null
+  displayedValue: string | null
+  build: string | null
+  device: string | null
+  server: Record<string, any> | null
+  signalKey: string | null
+  computedAt: string | null
+}
+interface ThreadDetail extends ThreadSummary {
+  messages: ThreadMessage[]
+  context: ThreadContext | null
+  /** What she was replying to — only set for a learner-owned thread (job #221). */
+  originMessage: { title: string; body: string } | null
+}
+
+/** One row of the list, whichever door it came in by. */
+type Row =
+  | { kind: 'report'; key: string; answered: boolean; at: string; report: Report }
+  | { kind: 'thread'; key: string; answered: boolean; at: string; thread: ThreadSummary }
+
 const { getAuthToken } = useAdminClient()
 
 const reports = ref<Report[]>([])
+const threads = ref<ThreadSummary[]>([])
+const openThread = ref<ThreadDetail | null>(null)
+const threadLoading = ref(false)
+const threadError = ref('')
 const unanswered = ref(0)
 const loading = ref(true)
 const loadError = ref('')
@@ -54,7 +120,19 @@ const showAnswered = ref(false)
 
 const key = (r: Report) => `${r.source}:${r.id}`
 
-const shown = computed(() => (showAnswered.value ? reports.value : reports.value.filter((r) => !r.repliedAt)))
+/** Waiting first, then newest first — across both doors, one order. */
+const rows = computed<Row[]>(() => {
+  const all: Row[] = [
+    ...reports.value.map((r) => ({ kind: 'report' as const, key: `report:${key(r)}`, answered: !!r.repliedAt, at: r.createdAt, report: r })),
+    ...threads.value.map((t) => ({ kind: 'thread' as const, key: `thread:${t.id}`, answered: t.unanswered === 0, at: t.lastMessageAt ?? t.createdAt, thread: t })),
+  ]
+  return all.sort((a, b) => {
+    if (a.answered !== b.answered) return a.answered ? 1 : -1
+    return (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0)
+  })
+})
+
+const shown = computed(() => (showAnswered.value ? rows.value : rows.value.filter((r) => !r.answered)))
 
 async function api(path: string, init: RequestInit = {}): Promise<any> {
   const token = await getAuthToken()
@@ -68,9 +146,10 @@ async function load(): Promise<void> {
   loading.value = true
   loadError.value = ''
   try {
-    const data = await api('/api/admin/reports')
-    reports.value = data.reports ?? []
-    unanswered.value = data.unanswered ?? 0
+    const [reportData, threadData] = await Promise.all([api('/api/admin/reports'), api('/api/admin/support')])
+    reports.value = reportData.reports ?? []
+    threads.value = threadData.threads ?? []
+    unanswered.value = (reportData.unanswered ?? 0) + (threadData.unanswered ?? 0)
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : 'Could not load'
   } finally {
@@ -79,8 +158,50 @@ async function load(): Promise<void> {
 }
 onMounted(load)
 
-function toggle(r: Report): void {
-  openId.value = openId.value === key(r) ? null : key(r)
+function toggle(row: Row): void {
+  const next = openId.value === row.key ? null : row.key
+  openId.value = next
+  if (row.kind === 'thread' && next) void openThreadDetail(row.thread.id)
+  if (row.kind === 'thread' && !next) openThread.value = null
+}
+
+async function openThreadDetail(id: string): Promise<void> {
+  threadLoading.value = true
+  threadError.value = ''
+  openThread.value = null
+  try {
+    const data = await api(`/api/admin/support?id=${encodeURIComponent(id)}`)
+    openThread.value = data.thread ?? null
+  } catch (err) {
+    threadError.value = err instanceof Error ? err.message : 'Could not open the thread'
+  } finally {
+    threadLoading.value = false
+  }
+}
+
+function recount(): void {
+  unanswered.value = reports.value.filter((r) => !r.repliedAt).length + threads.value.filter((t) => t.unanswered > 0).length
+}
+
+async function sendThreadReply(t: ThreadSummary): Promise<void> {
+  const k = `thread:${t.id}`
+  const text = (drafts.value[k] ?? '').trim()
+  if (!text || sending.value) return
+  sending.value = k
+  sendError.value = { ...sendError.value, [k]: '' }
+  try {
+    const out = await api('/api/admin/support/reply', { method: 'POST', body: JSON.stringify({ threadId: t.id, text }) })
+    if (out.thread) {
+      openThread.value = out.thread
+      threads.value = threads.value.map((x) => (x.id === t.id ? { ...x, ...out.thread, messages: undefined } as ThreadSummary : x))
+    }
+    drafts.value = { ...drafts.value, [k]: '' }
+    recount()
+  } catch (err) {
+    sendError.value = { ...sendError.value, [k]: err instanceof Error ? err.message : 'Could not send' }
+  } finally {
+    sending.value = null
+  }
 }
 
 async function send(r: Report): Promise<void> {
@@ -93,7 +214,7 @@ async function send(r: Report): Promise<void> {
     const out = await api('/api/admin/reports/reply', { method: 'POST', body: JSON.stringify({ source: r.source, id: r.id, text }) })
     reports.value = reports.value.map((x) => (key(x) === k && out.report ? out.report : x))
     drafts.value = { ...drafts.value, [k]: '' }
-    unanswered.value = reports.value.filter((x) => !x.repliedAt).length
+    recount()
   } catch (err) {
     sendError.value = { ...sendError.value, [k]: err instanceof Error ? err.message : 'Could not send' }
   } finally {
@@ -106,6 +227,20 @@ function when(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : stamp.format(d)
+}
+
+/** What a thread's kind reads as, in a few words. */
+function threadKindWords(kind: ThreadSummary['kind']): string {
+  return kind === 'school' ? 'school' : kind === 'group' ? 'organisation' : 'her own message'
+}
+
+/** What a thread's row says about its state, in a few words. */
+function threadState(t: ThreadSummary): string {
+  if (t.unanswered > 0) return `Waiting since ${when(t.lastMessageAt ?? t.createdAt)}`
+  if (t.lastDirection !== 'out') return `${t.messageCount} messages`
+  const read = t.lastReadAt ? Date.parse(t.lastReadAt) : 0
+  const sent = Date.parse(t.lastMessageAt ?? t.createdAt) || 0
+  return read > sent ? `Answered ${when(t.lastMessageAt)} · read` : `Answered ${when(t.lastMessageAt)} · not opened yet`
 }
 
 /** What the row says about the reply, in a few words. */
@@ -121,7 +256,7 @@ function replyState(r: Report): string {
     <header class="support-head">
       <h1>Support</h1>
       <p class="support-sub">
-        Every report sent from inside the app. {{ unanswered }} not answered.
+        Every report sent from inside the app, every school's support thread, and every learner's own reply. {{ unanswered }} not answered.
       </p>
       <label class="support-toggle">
         <input type="checkbox" v-model="showAnswered" />
@@ -133,60 +268,124 @@ function replyState(r: Report): string {
     <p v-else-if="loadError" class="support-error" role="alert">{{ loadError }}</p>
     <p v-else-if="!shown.length" class="support-state">Nothing waiting.</p>
 
-    <article
-      v-for="r in shown"
-      :key="key(r)"
-      class="report"
-      :class="{ 'is-open': openId === key(r), 'is-answered': !!r.repliedAt }"
-    >
-      <button type="button" class="report-head" @click="toggle(r)" :aria-expanded="openId === key(r)">
-        <span class="report-dot" aria-hidden="true"></span>
-        <span class="report-lines">
-          <span class="report-who">{{ r.who }}<span v-if="r.courseCode" class="report-course"> · {{ r.courseCode }}</span></span>
-          <span class="report-snippet">{{ r.title || r.body }}</span>
-          <span class="report-state">{{ replyState(r) }}</span>
-        </span>
-        <time class="report-time" :datetime="r.createdAt">{{ when(r.createdAt) }}</time>
-      </button>
+    <template v-for="row in shown" :key="row.key">
+      <!-- A learner's report from inside the player. -->
+      <article
+        v-if="row.kind === 'report'"
+        class="report"
+        :class="{ 'is-open': openId === row.key, 'is-answered': row.answered }"
+      >
+        <button type="button" class="report-head" @click="toggle(row)" :aria-expanded="openId === row.key">
+          <span class="report-dot" aria-hidden="true"></span>
+          <span class="report-lines">
+            <span class="report-who">{{ row.report.who }}<span v-if="row.report.courseCode" class="report-course"> · {{ row.report.courseCode }}</span></span>
+            <span class="report-snippet">{{ row.report.title || row.report.body }}</span>
+            <span class="report-state">{{ replyState(row.report) }}</span>
+          </span>
+          <time class="report-time" :datetime="row.report.createdAt">{{ when(row.report.createdAt) }}</time>
+        </button>
 
-      <div v-if="openId === key(r)" class="report-body">
-        <p v-if="r.title" class="report-title">{{ r.title }}</p>
-        <p class="report-text">{{ r.body }}</p>
+        <div v-if="openId === row.key" class="report-body">
+          <p v-if="row.report.title" class="report-title">{{ row.report.title }}</p>
+          <p class="report-text">{{ row.report.body }}</p>
 
-        <dl class="report-facts">
-          <div v-if="r.position"><dt>Where</dt><dd>{{ r.position }}</dd></div>
-          <div v-if="r.device"><dt>Device</dt><dd>{{ r.device }}</dd></div>
-          <div v-if="r.appVersion"><dt>Build</dt><dd>{{ r.appVersion }}<span v-if="r.deploymentEnv"> · {{ r.deploymentEnv }}</span></dd></div>
-          <div v-if="r.status"><dt>Status</dt><dd>{{ r.status }}</dd></div>
-          <div><dt>Sent</dt><dd>{{ when(r.createdAt) }} · {{ r.source === 'bug_report' ? 'Report a bug' : 'tester panel' }}</dd></div>
-        </dl>
+          <dl class="report-facts">
+            <div v-if="row.report.position"><dt>Where</dt><dd>{{ row.report.position }}</dd></div>
+            <div v-if="row.report.device"><dt>Device</dt><dd>{{ row.report.device }}</dd></div>
+            <div v-if="row.report.appVersion"><dt>Build</dt><dd>{{ row.report.appVersion }}<span v-if="row.report.deploymentEnv"> · {{ row.report.deploymentEnv }}</span></dd></div>
+            <div v-if="row.report.status"><dt>Status</dt><dd>{{ row.report.status }}</dd></div>
+            <div><dt>Sent</dt><dd>{{ when(row.report.createdAt) }} · {{ row.report.source === 'bug_report' ? 'Report a bug' : 'tester panel' }}</dd></div>
+          </dl>
 
-        <a v-if="r.screenshotUrl" class="report-shot" :href="r.screenshotUrl" target="_blank" rel="noopener">Screenshot</a>
+          <a v-if="row.report.screenshotUrl" class="report-shot" :href="row.report.screenshotUrl" target="_blank" rel="noopener">Screenshot</a>
 
-        <div v-if="r.repliedAt" class="report-reply-sent">
-          <p class="report-reply-label">{{ replyState(r) }}</p>
-          <p class="report-text">{{ r.replyText }}</p>
+          <div v-if="row.report.repliedAt" class="report-reply-sent">
+            <p class="report-reply-label">{{ replyState(row.report) }}</p>
+            <p class="report-text">{{ row.report.replyText }}</p>
+          </div>
+
+          <div v-else-if="!row.report.authUserId" class="report-reply-sent">
+            <p class="report-reply-label">Sent by a guest, so there is no inbox to reply to.</p>
+          </div>
+
+          <div v-else class="report-reply">
+            <label :for="`reply-${key(row.report)}`">Reply</label>
+            <textarea
+              :id="`reply-${key(row.report)}`"
+              v-model="drafts[key(row.report)]"
+              rows="5"
+              placeholder="She reads this in the app, under her own report."
+            ></textarea>
+            <button type="button" class="report-send" :disabled="sending === key(row.report) || !(drafts[key(row.report)] || '').trim()" @click="send(row.report)">
+              {{ sending === key(row.report) ? 'Sending…' : 'Send reply' }}
+            </button>
+            <p v-if="sendError[key(row.report)]" class="support-error" role="alert">{{ sendError[key(row.report)] }}</p>
+          </div>
         </div>
+      </article>
 
-        <div v-else-if="!r.authUserId" class="report-reply-sent">
-          <p class="report-reply-label">Sent by a guest, so there is no inbox to reply to.</p>
-        </div>
+      <!-- A school's or an org's support thread. -->
+      <article
+        v-else
+        class="report"
+        :class="{ 'is-open': openId === row.key, 'is-answered': row.answered }"
+      >
+        <button type="button" class="report-head" @click="toggle(row)" :aria-expanded="openId === row.key">
+          <span class="report-dot" aria-hidden="true"></span>
+          <span class="report-lines">
+            <span class="report-who">
+              {{ row.thread.who }}
+              <span class="report-course"> · {{ threadKindWords(row.thread.kind) }}<span v-if="row.thread.person"> · {{ row.thread.person }}</span></span>
+            </span>
+            <span class="report-snippet">{{ row.thread.lastBody }}</span>
+            <span class="report-state">{{ threadState(row.thread) }}</span>
+          </span>
+          <time class="report-time" :datetime="row.thread.lastMessageAt || row.thread.createdAt">{{ when(row.thread.lastMessageAt || row.thread.createdAt) }}</time>
+        </button>
 
-        <div v-else class="report-reply">
-          <label :for="`reply-${key(r)}`">Reply</label>
-          <textarea
-            :id="`reply-${key(r)}`"
-            v-model="drafts[key(r)]"
-            rows="5"
-            placeholder="She reads this in the app, under her own report."
-          ></textarea>
-          <button type="button" class="report-send" :disabled="sending === key(r) || !(drafts[key(r)] || '').trim()" @click="send(r)">
-            {{ sending === key(r) ? 'Sending…' : 'Send reply' }}
-          </button>
-          <p v-if="sendError[key(r)]" class="support-error" role="alert">{{ sendError[key(r)] }}</p>
+        <div v-if="openId === row.key" class="report-body">
+          <p v-if="threadLoading" class="support-state">Loading…</p>
+          <p v-else-if="threadError" class="support-error" role="alert">{{ threadError }}</p>
+
+          <template v-else-if="openThread && openThread.id === row.thread.id">
+            <div v-if="openThread.originMessage" class="report-reply-sent">
+              <p class="report-reply-label">What she was replying to</p>
+              <p v-if="openThread.originMessage.title" class="report-title">{{ openThread.originMessage.title }}</p>
+              <p class="report-text">{{ openThread.originMessage.body }}</p>
+            </div>
+
+            <div v-for="m in openThread.messages" :key="m.id" class="turn" :class="m.direction === 'out' ? 'turn-out' : 'turn-in'">
+              <p class="report-reply-label">
+                {{ m.direction === 'out' ? (m.author_name || 'SSi') : (m.author_name || row.thread.who) }} · {{ when(m.created_at) }}
+              </p>
+              <p class="report-text">{{ m.body }}</p>
+            </div>
+
+            <dl v-if="openThread.context" class="report-facts">
+              <div v-if="openThread.context.route"><dt>Where</dt><dd>{{ openThread.context.route }}<span v-if="openThread.context.anchor"> · {{ openThread.context.anchor }}</span></dd></div>
+              <div v-if="openThread.context.displayedLabel"><dt>Tile</dt><dd>{{ openThread.context.displayedLabel }}<span v-if="openThread.context.displayedValue"> showed {{ openThread.context.displayedValue }}</span></dd></div>
+              <div v-if="openThread.context.device"><dt>Device</dt><dd>{{ openThread.context.device }}</dd></div>
+              <div v-if="openThread.context.build"><dt>Build</dt><dd>{{ openThread.context.build }}</dd></div>
+              <div v-if="openThread.context.signalKey"><dt>Signal</dt><dd>{{ openThread.context.signalKey }}</dd></div>
+            </dl>
+
+            <div class="report-reply">
+              <label :for="`reply-${row.key}`">Reply as SSi</label>
+              <textarea
+                :id="`reply-${row.key}`"
+                v-model="drafts[row.key]"
+                rows="5"
+                :placeholder="row.thread.kind === 'learner' ? 'She reads this in her own inbox, under the message she replied to.' : 'She reads this in her school\'s Support thread, and gets an email if she misses it.'"
+              ></textarea>
+              <button type="button" class="report-send" :disabled="sending === row.key || !(drafts[row.key] || '').trim()" @click="sendThreadReply(row.thread)">
+                {{ sending === row.key ? 'Sending…' : 'Send reply' }}
+              </button>
+              <p v-if="sendError[row.key]" class="support-error" role="alert">{{ sendError[row.key] }}</p>
+            </div>
+          </template>
         </div>
-      </div>
-    </article>
+      </article>
+    </template>
   </div>
 </template>
 
@@ -217,6 +416,8 @@ function replyState(r: Report): string {
 .report-facts dt { flex: 0 0 64px; color: var(--schools-fg-3, #8A8078); }
 .report-facts dd { margin: 0; color: var(--schools-fg-2, #6B635C); word-break: break-word; }
 .report-shot { font-size: 13px; color: var(--schools-accent, #c23a3a); }
+.turn { border-left: 3px solid var(--schools-border, #e5e1dc); padding-left: 12px; display: flex; flex-direction: column; gap: 4px; }
+.turn-out { border-left-color: var(--schools-accent, #c23a3a); }
 .report-reply-sent { border-left: 3px solid var(--schools-border, #e5e1dc); padding-left: 12px; display: flex; flex-direction: column; gap: 6px; }
 .report-reply-label { margin: 0; font-size: 12px; color: var(--schools-fg-3, #8A8078); }
 .report-reply { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }

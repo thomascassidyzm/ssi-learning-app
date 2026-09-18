@@ -7581,7 +7581,7 @@ function clearInfPlayIntro(): void {
 // cycle engine: pod laps, commentary, the course welcome, LEGO introductions,
 // plus the preparing window between a play tap and the first audible sound
 // (so the tap is reflected instantly and a second tap can abort it —
-// togglePlayback routes all of these to handlePause). The container PULLS
+// togglePlayback routes all of these to handleTransportPause). The container PULLS
 // this via the template ref (no event hop): a consumer that attaches late
 // still reads the current truth, not a missed edge.
 // Every source that is actually SOUNDING right now (cycle engine OR pod lap
@@ -7774,6 +7774,56 @@ const retryProgressLoad = () => {
   if (typeof window !== 'undefined') window.location.reload()
 }
 
+// ── A TAP THE PLAYER CANNOT HONOUR YET IS STILL ANSWERED (job #223) ─────────
+//
+// togglePlayback's ready-guard used to `return` silently: no state change, no
+// telemetry, no learner-visible response. That window is not short — over the
+// week to 2026-09-18 production cold_start.mountToReadyMs ran p50 2.3s, p90
+// 10.5s, p99 46s, with 96 cold starts over 10s — long enough for a learner to
+// tap, see nothing, tap again, see nothing, and force-quit. Tom, on his phone
+// the same lunchtime: the app "often just falls over itself and often needs to
+// be quit and then loaded up again".
+//
+// The shape chosen is a VISIBLE REFUSAL, not held intent. Held intent — bank
+// the tap, play it at ready — was rejected on the gesture: the iOS audio
+// unlock lives INSIDE the user gesture (handleResume sets audioEngaged and the
+// silent-loop keepalive hooks that gesture), so a play started later, out of
+// the gesture, can be refused by iOS and leave the machine believing it is
+// playing. A refusal the learner can see costs none of that and closes the
+// trap completely.
+const NOT_READY_ACK_MS = 2600
+const notReadyTapAck = ref(false)
+let notReadyAckTimer: ReturnType<typeof setTimeout> | null = null
+// The instant this player's setup ran — the clock tap_ignored's msSinceMount
+// is measured on, so a refusal is directly comparable with the cold_start
+// row's mountToReadyMs on the same session.
+const playerSetupAtMs = Date.now()
+
+const acknowledgeNotReadyTap = () => {
+  // The refusal stops being invisible. Whoever reads this next gets the shape
+  // of the window from the data instead of inferring it from a diagnosis.
+  logEvent('tap_ignored', {
+    reason: progressLoadFailed.value ? 'progress_load_failed' : 'not_ready',
+    loadingStage: loadingStage.value,
+    msSinceMount: Date.now() - playerSetupAtMs,
+  })
+
+  // THE WELDED DOOR. progressLoadFailed pins isAwakening true permanently
+  // while the screen says "Your progress is safe — have another go" — and
+  // every go was swallowed, leaving the retry link's reload as the only exit.
+  // A transport tap on that screen IS the learner having another go, so it
+  // runs the same retry the link does.
+  if (progressLoadFailed.value) {
+    retryProgressLoad()
+    return
+  }
+
+  notReadyTapAck.value = true
+  if (notReadyAckTimer) clearTimeout(notReadyAckTimer)
+  notReadyAckTimer = setTimeout(() => { notReadyTapAck.value = false }, NOT_READY_ACK_MS)
+}
+onUnmounted(() => { if (notReadyAckTimer) clearTimeout(notReadyAckTimer) })
+
 // PER-CONTROL READINESS (Tom, 2026-08-08: "once it APPEARS ready, then it
 // should actually be ready").
 //
@@ -7800,6 +7850,16 @@ const contributionSettled = ref(false)
 const isBeltScreenReady = computed(() => contributionSettled.value || !!contribution.data.value)
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
+
+// The awakening line the learner actually reads. While a not-ready tap is
+// being acknowledged it takes this slot outright — same place their eye
+// already is, nothing new drawn, nothing to miss. It falls back to the
+// typewriter the moment the acknowledgement expires.
+const awakeningLine = computed(() => (
+  notReadyTapAck.value
+    ? t('player.notReadyAck', "Got you — still getting your session ready…")
+    : currentLoadingMessage.value
+))
 
 // First-ever-boot brand moment (archive/docs-retired-2026-08-24/first-boot-experience.md, 2026-07-03 rethink):
 // a global, language-independent welcome sound + one localized text line, shown
@@ -9479,19 +9539,18 @@ const handleRingTap = () => {
   togglePlayback()
 }
 
-const handlePause = () => {
-  logEvent('tap_pause', {
-    during: isPlayingIntroduction.value ? 'intro'
-      : isPlayingWelcome.value ? 'welcome'
-      : playingPodLapAudio.value ? 'pod_lap'
-      : playingCommentaryAudio.value ? 'commentary'
-      : 'cycle',
-    roundIndex: simplePlayer.roundIndex.value,
-    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
-    legoId: simplePlayer.currentRound.value?.legoId ?? null,
-  })
-  behaviouralEvidence.onPlayerEvent('tap_pause', { phase: currentPhase.value }, simplePlayer.currentCycle.value)
-
+// STOP EVERYTHING — the shared halt routine. Deliberately SILENT (job #223).
+//
+// Six of this routine's seven callers are not the transport at all: opening
+// the Library, opening Settings, entering or leaving Listening or
+// Pronunciation mode, the bottom-nav exit, and an in-app course change. When
+// it logged tap_pause itself, every one of those wrote a row claiming the
+// learner had tapped pause during a cycle — 1,305 tap_pause rows against 849
+// tap_play in the week to 2026-09-18, 32 sessions logging a pause BEFORE
+// their own cold_start, and a whole diagnosis (job #219) spent finding out
+// that the event meant nothing. The telemetry belongs to the TAP, so it lives
+// on handleTransportPause below and nowhere else.
+const stopEverything = () => {
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
     skipIntroduction()
@@ -9523,6 +9582,24 @@ const handlePause = () => {
   void pairingsTelemetry.flush()
   // DB-01: persist any pending mid-round cursor on pause.
   flushCursor()
+}
+
+// The ONE pause that is a learner tapping the transport. Its only caller is
+// togglePlayback; everything else halts through stopEverything() above, so
+// from this build on a tap_pause row is a pause tap and nothing else.
+const handleTransportPause = () => {
+  logEvent('tap_pause', {
+    during: isPlayingIntroduction.value ? 'intro'
+      : isPlayingWelcome.value ? 'welcome'
+      : playingPodLapAudio.value ? 'pod_lap'
+      : playingCommentaryAudio.value ? 'commentary'
+      : 'cycle',
+    roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
+  behaviouralEvidence.onPlayerEvent('tap_pause', { phase: currentPhase.value }, simplePlayer.currentCycle.value)
+  stopEverything()
 }
 
 const handleResume = async () => {
@@ -9602,7 +9679,7 @@ const handleResume = async () => {
   // Reflect the tap IMMEDIATELY: isPreparingToPlay flips the derived
   // isAudioPlaying true (button reads stop, resting overlay hides) before
   // any audio exists — and a stop tap during this window routes to
-  // handlePause, which raises firstPlayPauseRequested so we bail below.
+  // stopEverything, which raises firstPlayPauseRequested so we bail below.
   startPreparingState()
 
   // Ensure audio for first 2 rounds is fully cached before starting
@@ -12400,7 +12477,7 @@ const endTimingCycle = (modelDurationMs) => {
 // Open listening mode overlay
 const handleListeningMode = () => {
   // Stop main player using the proper pause method (handles all audio/animation states)
-  handlePause()
+  stopEverything()
 
   // CRITICAL: Also abort any playing intro/welcome audio (these use separate audio elements)
   if (isPlayingIntroduction.value) {
@@ -12428,7 +12505,7 @@ const exitListeningMode = () => {
     showListeningOverlay.value = false
   }
   // Stop all audio immediately
-  handlePause()
+  stopEverything()
 }
 
 // ============================================
@@ -12436,7 +12513,7 @@ const exitListeningMode = () => {
 // ============================================
 
 const handlePronunciationMode = () => {
-  handlePause()
+  stopEverything()
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
   showPronunciationOverlay.value = true
@@ -12450,7 +12527,7 @@ const exitPronunciationMode = () => {
   if (showPronunciationOverlay.value) {
     showPronunciationOverlay.value = false
   }
-  handlePause()
+  stopEverything()
 }
 
 const handlePronunciationToggle = () => {
@@ -12479,7 +12556,7 @@ const exitAllModes = () => {
   if (showPronunciationOverlay.value) {
     showPronunciationOverlay.value = false
   }
-  handlePause()
+  stopEverything()
 }
 
 /**
@@ -17046,7 +17123,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   console.log(`[LearningPlayer] COURSE CHANGED: ${oldCourseCode} → ${newCourseCode}`)
 
   // 1. Stop all audio immediately
-  handlePause()
+  stopEverything()
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
   {
@@ -17185,13 +17262,18 @@ const togglePlayback = () => {
   // half-initialised (Tom's 2026-06-08 repro: audio the pause button
   // couldn't stop). Soft form: only swallow the tap when nothing is
   // audible — if audio IS sounding, always let the tap through to stop it.
-  if (isAwakening.value && !isAudioPlaying.value) return
+  // Swallowed, but never in silence: the tap is answered on screen and
+  // recorded — see acknowledgeNotReadyTap.
+  if (isAwakening.value && !isAudioPlaying.value) {
+    acknowledgeNotReadyTap()
+    return
+  }
   // Welcome / introduction / preparing window: the button reads "stop"
-  // (per isAudioPlaying) — a tap must PAUSE (handlePause skips the
+  // (per isAudioPlaying) — a tap must PAUSE (handleTransportPause skips the
   // welcome/intro and raises firstPlayPauseRequested for any in-flight
   // first-play await), never fall through to a second handleResume.
   if (isPlayingWelcome.value || isPlayingIntroduction.value || isPreparingToPlay.value) {
-    handlePause()
+    handleTransportPause()
     return
   }
   // If a pod lap or commentary is playing, the big button reads "stop"
@@ -17210,7 +17292,7 @@ const togglePlayback = () => {
     return
   }
   if (isPlaying.value) {
-    handlePause()
+    handleTransportPause()
   } else {
     handleResume()
   }
@@ -17298,7 +17380,7 @@ defineExpose({
   // not just on the lesson existing. PlayerContainer ANDs it with isAwakening.
   isFirstClipReady,
   togglePlayback,
-  handlePause,
+  stopEverything,
   handleResume,
   handleRevisit,
   handleSkip,
@@ -17773,8 +17855,8 @@ defineExpose({
                 <p class="progress-load-failed-text">{{ t('player.progressLoadFailed', "We couldn't load where you got to. Your progress is safe — have another go.") }}</p>
                 <button type="button" class="progress-load-failed-retry" @click="retryProgressLoad">{{ t('common.tryAgain', 'Try again') }}</button>
               </div>
-              <p v-else-if="isAwakening" class="hero-known loading-text">
-                {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+              <p v-else-if="isAwakening" class="hero-known loading-text" :class="{ 'tap-acknowledged': notReadyTapAck }">
+                {{ awakeningLine }}<span v-if="!notReadyTapAck" class="loading-cursor">▌</span>
               </p>
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
                 {{ preparingMessage }}<span class="loading-cursor">▌</span>
@@ -18350,8 +18432,8 @@ defineExpose({
           <p v-else-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
             {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
-          <p v-else-if="isAwakening" class="known-text loading-text">
-            {{ currentLoadingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
+          <p v-else-if="isAwakening" class="known-text loading-text" :class="{ 'tap-acknowledged': notReadyTapAck }">
+            {{ awakeningLine }}<span v-if="!notReadyTapAck" class="loading-cursor" aria-hidden="true">▌</span>
           </p>
           <p v-else-if="isPreparingToPlay" class="known-text loading-text preparing-text">
             {{ preparingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
@@ -20939,6 +21021,23 @@ button.phase-segment:active:not(.is-active) {
 .loading-text {
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-secondary);
+}
+
+/* A tap the player cannot honour yet, answered (job #223). The line the
+ * learner is already reading changes to say the tap was heard, and pulses
+ * once so the change cannot be missed by someone whose eye was on the same
+ * words a moment ago. Same visual language as the belt pill saying it is not
+ * loadable yet rather than swallowing the tap (Tom, 2026-08-08: "we should
+ * show this by the belt buttons still flashing until they are ready"). */
+.loading-text.tap-acknowledged {
+  color: var(--text-primary);
+  animation: not-ready-ack 0.9s ease-out 1;
+}
+
+@keyframes not-ready-ack {
+  0% { opacity: 0.35; transform: scale(0.99); }
+  35% { opacity: 1; transform: scale(1.015); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 /* Terminal "we couldn't load your position" state. Calm, not alarming:
