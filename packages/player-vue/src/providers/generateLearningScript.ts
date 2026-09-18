@@ -106,11 +106,11 @@ export interface ScriptShape {
 }
 
 export const DEFAULT_SCRIPT_SHAPE: ScriptShape = {
-  // Extended to span a full course (≈1200–2000 LEGOs), mirroring the dashboard
-  // generator (services/learning-script-generator.cjs). Offsets ≥144 are
-  // SEED-PHASE production reviews (whole parent seed sentence). The live
-  // algorithm_config.script_shape row is the runtime source of truth; this is
-  // the fallback when that fetch fails.
+  // The ten Fibonacci offsets, stopping at 89 — the last review a LEGO gets
+  // (Tom, 2026-09-18; see the ceiling note below). The live
+  // algorithm_config.script_shape row is the runtime source of truth and still
+  // carries the retired ≥144 tail, which `reviewOffsets()` filters off; this
+  // is only the fallback when that fetch fails.
   spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
   maxBuildPhrases: 7,
   useConsolidationCount: 2,

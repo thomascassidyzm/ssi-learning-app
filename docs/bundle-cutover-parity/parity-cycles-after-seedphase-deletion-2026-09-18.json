@@ -1,0 +1,439 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "mode": "generator",
+  "generatedAt": "2026-09-18T21:01:23.185Z",
+  "cases": [
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 44,
+      "oldCyclesOnWire": 44,
+      "newCycles": 44,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0068L01",
+      "roundIndex": 194,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 134,
+      "oldCyclesOnWire": 134,
+      "newCycles": 134,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 68,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 68,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0157L01",
+      "roundIndex": 464,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 112,
+      "oldCyclesOnWire": 112,
+      "newCycles": 112,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 46,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 46,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 42,
+      "oldCyclesOnWire": 42,
+      "newCycles": 42,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0052L01",
+      "roundIndex": 141,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 133,
+      "oldCyclesOnWire": 133,
+      "newCycles": 133,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0146L01",
+      "roundIndex": 338,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 47,
+      "oldCyclesOnWire": 47,
+      "newCycles": 47,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0054L04",
+      "roundIndex": 167,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 134,
+      "oldCyclesOnWire": 134,
+      "newCycles": 134,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0146L04",
+      "roundIndex": 400,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 49,
+      "oldCyclesOnWire": 49,
+      "newCycles": 49,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0072L01",
+      "roundIndex": 211,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0167L01",
+      "roundIndex": 505,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    }
+  ]
+}

@@ -53,9 +53,12 @@
  *
  * KNOWN GAPS vs the walk, deliberate and documented rather than silently
  * approximated:
- *   - SEED-PHASE reviews (offsets ≥144, the drained target→known→target→target
- *     sandwich) are not emitted: they need course_seeds rows and the walk's
- *     graduation bookkeeping. Offsets [1..89] — every use-phrase review — are.
+ *   - SEED-PHASE reviews are no longer a gap between the two: the tier is
+ *     DELETED on every path (Tom, 2026-09-18 — "Delete the additional SEED
+ *     once it's dropped out of the Spaced Rep. Because the cups handle it.").
+ *     The walk's configured offsets are capped below 144 by @ssi/core's
+ *     `reviewOffsets`, so both producers stop at 89 and a drained seed reaches
+ *     the learner only through the cups listening interlude.
  *   - The walk's algorithm_config-driven pools (phrase-length cap, known-side
  *     review pull filter, sliding word cap) are not applied here: they need the
  *     course's algorithm_config, which this single-RPC path deliberately does
@@ -120,9 +123,9 @@ const MAX_LIMIT = 50
 // standalone (see tsconfig.api.json) and must not pull the Vue package's
 // dependency graph into a serverless bundle on the instant path.
 //
-// Only the use-phrase offsets are listed. The walk's tail (144, 233, 377, …)
-// is the SEED-PHASE production review, which this endpoint does not emit —
-// see the KNOWN GAPS note in the file header.
+// Only the use-phrase offsets are listed, and 89 is now the last review on
+// EVERY path: the old tail (144, 233, 377, …) carried the SEED-PHASE review,
+// which is deleted — see the file header.
 export const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 /** N-1 (the LEGO introduced last round) contributes three review phrases; every
  *  other offset contributes one. */

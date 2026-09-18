@@ -1,0 +1,464 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "mode": "generator",
+  "generatedAt": "2026-09-18T20:46:44.853Z",
+  "cases": [
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 44,
+      "oldCyclesOnWire": 44,
+      "newCycles": 44,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 22,
+          "use": 5,
+          "spaced_rep": 5
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0068L01",
+      "roundIndex": 194,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 134,
+      "oldCyclesOnWire": 134,
+      "newCycles": 137,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 68,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 71,
+          "use": 12
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0019L01|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f",
+        "spaced_rep|S0019L02|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f",
+        "spaced_rep|S0019L03|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 3,
+      "firstOrderDiff": {
+        "index": 89,
+        "old": "use|S0069L01|he was not thinking about how to give an answer when we were talking|ní raibh sé ag smaoineamh ar conas freagra a thabhairt nuair a bhí muid ag caint|4604be7b-c312-4cec-9a70-060646098207|9fce1379-e4c7-4dd9-9115-2752bb9cd649|b7820c74-7583-4c41-8d95-7ac5837c22b0",
+        "new": "spaced_rep|S0019L01|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "gle_for_eng",
+      "previewOnly": false,
+      "from": "S0157L01",
+      "roundIndex": 464,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 112,
+      "oldCyclesOnWire": 112,
+      "newCycles": 130,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 46,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 64,
+          "use": 12
+        }
+      },
+      "identical": false,
+      "onlyInOld": [],
+      "onlyInNew": [
+        "spaced_rep|S0110L03|we're friends, and after we finish i'd like to relax|is cairde muid, agus tar éis dúinn críochnú ba mhaith liom scíth a ligean|7df8bf9b-9a19-4dc2-b7fb-e73d0807c548|2861a726-c387-4283-ad66-8fd742d97225|58791f30-d036-428f-b2f9-5e60aeb491b2",
+        "spaced_rep|S0080L01|i'm not sure when i'll be ready|níl mé cinnte cathain a bheidh mé réidh|7fdeed0c-8565-44dc-85ef-1966a8d40a01|cdf4f0ca-f591-4aff-a279-647a29c48c17|f0720e17-9516-4155-8354-736cf5bdfe72",
+        "spaced_rep|S0031L01|you wanted to speak with me tonight|bhí tú ag iarraidh labhairt liom anocht|c6fa4ec6-b956-4c03-80ba-6f339936c77e|f19cf6cb-7f66-45bf-bc35-1b33e6b14f61|740449dc-d1dc-49e7-b64a-9dc8721fc56b",
+        "spaced_rep|S0110L04|we're friends, and after we finish i'd like to relax|is cairde muid, agus tar éis dúinn críochnú ba mhaith liom scíth a ligean|7df8bf9b-9a19-4dc2-b7fb-e73d0807c548|2861a726-c387-4283-ad66-8fd742d97225|58791f30-d036-428f-b2f9-5e60aeb491b2",
+        "spaced_rep|S0081L01|when do you want to start?|cathain a bhfuil tú ag iarraidh tosú?|27dc593e-3d7a-4442-92b0-7c793bf05a80|1b1e6ba7-75e1-4a5f-9293-08aa5efe23c9|a44a9622-b0cf-4aed-80bc-9f6eb0a52c03",
+        "spaced_rep|S0032L01|did you want to show me something?|an raibh tú ag iarraidh rud éigin a thaispeáint dom?|984ab8eb-66b7-48c4-b3d8-20815ea31375|896f0c6a-a1ab-4dc0-82f5-ddd08864636b|cbad33fd-f2ad-4436-95ed-cb187808d52d",
+        "spaced_rep|S0110L05|we're friends, and after we finish i'd like to relax|is cairde muid, agus tar éis dúinn críochnú ba mhaith liom scíth a ligean|7df8bf9b-9a19-4dc2-b7fb-e73d0807c548|2861a726-c387-4283-ad66-8fd742d97225|58791f30-d036-428f-b2f9-5e60aeb491b2",
+        "spaced_rep|S0082L01|i'm not going to wait for you. why not?|nílim chun fanacht leat. cén fáth nach bhfuil?|673f6df7-9aba-4c9b-b0ea-81c2d6ac3f25|ff1add99-0e8d-498f-a6e8-60b2d66ffa02|db78bdb8-8c8f-4437-bb5c-2e526343382d",
+        "spaced_rep|S0032L02|did you want to show me something?|an raibh tú ag iarraidh rud éigin a thaispeáint dom?|984ab8eb-66b7-48c4-b3d8-20815ea31375|896f0c6a-a1ab-4dc0-82f5-ddd08864636b|cbad33fd-f2ad-4436-95ed-cb187808d52d",
+        "spaced_rep|S0110L06|we're friends, and after we finish i'd like to relax|is cairde muid, agus tar éis dúinn críochnú ba mhaith liom scíth a ligean|7df8bf9b-9a19-4dc2-b7fb-e73d0807c548|2861a726-c387-4283-ad66-8fd742d97225|58791f30-d036-428f-b2f9-5e60aeb491b2",
+        "spaced_rep|S0082L02|i'm not going to wait for you. why not?|nílim chun fanacht leat. cén fáth nach bhfuil?|673f6df7-9aba-4c9b-b0ea-81c2d6ac3f25|ff1add99-0e8d-498f-a6e8-60b2d66ffa02|db78bdb8-8c8f-4437-bb5c-2e526343382d",
+        "spaced_rep|S0033L01|how long have you been learning irish?|cé chomh fada is atá tú ag foghlaim gaeilge?|31278e4a-a77c-4867-aa8d-e9057b422275|16590dca-5591-4d2c-94b2-361f88776b1d|1a1a2081-6882-4d20-ab87-699db9a918ae"
+      ],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 18,
+      "firstOrderDiff": {
+        "index": 14,
+        "old": "use|S0157L01|i won't be able to do it next month|ní bheidh mé ábalta é a dhéanamh an mhí seo chugainn|dcd7d59c-1b2e-4bfb-b608-de9c7e5dc6a6|1b0d0a90-05dd-430d-9b68-eb7a0d14ae9f|683236e8-13eb-452d-9a38-45d2c9af18d5",
+        "new": "spaced_rep|S0110L03|we're friends, and after we finish i'd like to relax|is cairde muid, agus tar éis dúinn críochnú ba mhaith liom scíth a ligean|7df8bf9b-9a19-4dc2-b7fb-e73d0807c548|2861a726-c387-4283-ad66-8fd742d97225|58791f30-d036-428f-b2f9-5e60aeb491b2"
+      },
+      "extrasAreAllSeedPhase": true,
+      "verdict": "SUPERSET_SEED_PHASE_ONLY"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 42,
+      "oldCyclesOnWire": 42,
+      "newCycles": 42,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 16,
+          "use": 6,
+          "spaced_rep": 8
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0052L01",
+      "roundIndex": 141,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 133,
+      "oldCyclesOnWire": 133,
+      "newCycles": 133,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 37,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "nld_for_eng",
+      "previewOnly": false,
+      "from": "S0146L01",
+      "roundIndex": 338,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 47,
+      "oldCyclesOnWire": 47,
+      "newCycles": 47,
+      "oldPages": 3,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 15,
+          "use": 8,
+          "spaced_rep": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0054L04",
+      "roundIndex": 167,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 134,
+      "oldCyclesOnWire": 134,
+      "newCycles": 134,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 38,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "hun_for_eng",
+      "previewOnly": false,
+      "from": "S0146L04",
+      "roundIndex": 400,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 136,
+      "oldCyclesOnWire": 136,
+      "newCycles": 136,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 40,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0001L01",
+      "roundIndex": 1,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 49,
+      "oldCyclesOnWire": 49,
+      "newCycles": 49,
+      "oldPages": 2,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 18,
+          "use": 8,
+          "spaced_rep": 11
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0072L01",
+      "roundIndex": 211,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    },
+    {
+      "course": "tur_for_eng",
+      "previewOnly": false,
+      "from": "S0167L01",
+      "roundIndex": 505,
+      "roundLimit": 6,
+      "oldDroppedUnplayable": 0,
+      "oldCycles": 138,
+      "oldCyclesOnWire": 138,
+      "newCycles": 138,
+      "oldPages": 6,
+      "byType": {
+        "old": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        },
+        "new": {
+          "intro": 6,
+          "debut": 6,
+          "build": 42,
+          "spaced_rep": 72,
+          "use": 12
+        }
+      },
+      "identical": true,
+      "onlyInOld": [],
+      "onlyInNew": [],
+      "onlyInOldCount": 0,
+      "onlyInNewCount": 0,
+      "firstOrderDiff": null,
+      "extrasAreAllSeedPhase": true,
+      "verdict": "IDENTICAL"
+    }
+  ]
+}
