@@ -4530,3 +4530,20 @@ lesson for the next rename: the drift gate compares the pack against the SURFACE
 inside a ruling passes it silently. Grep `tools/explainer/rulings/` for the old words whenever a
 stat word changes. The year-group tiles are still weekly and their handbook comments stay as they
 are.
+
+## 2026-09-18 — ieuan422@gmail.com premium-for-life: already granted, no second row written (job #196)
+
+**Decision.** Tom asked for a no-expiry premium grant on production for ieuan422@gmail.com, a £12
+subscriber on the old app who keeps paying there. The account was already in exactly that state:
+one auth user, one learner (`c430906f-7c05-47c7-b0ed-9c3407f505d2`), and a `user_entitlements` row
+`451f4aef-20a3-4ce1-80b7-708d2977dcd3` — access_type full, granted_courses null, expires_at null,
+source email_allowlist — redeemed 2026-09-15 19:43 UTC from an `email_access_grants` row Deborah
+created with label "£12 subscription rate in old app". Main's own resolver
+(`api/_utils/resolveEntitlements.ts` + `packages/core/src/pricing/access.ts`) returns that row as
+active and answers `entitled` for premium courses even with his Paddle trial removed. Writing a
+second lifetime full row through `api/admin/grant-entitlement` would duplicate it, which the brief
+forbade, so nothing was written. His Paddle trial (`sub_01m29x6z0frf3dmf6ng916vh8n`, cancel at
+period end 2026-10-12) was left alone; it lapses on its own and the allowlist grant carries him.
+
+**Reversal.** Delete entitlement `451f4aef-…` via `POST /api/admin/revoke-entitlement` and set
+`email_access_grants.7fa00f98-4379-4cc0-8ede-89512756a84c.is_active = false` so it is not re-applied.
