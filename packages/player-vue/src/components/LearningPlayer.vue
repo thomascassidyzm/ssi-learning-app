@@ -731,8 +731,13 @@ const runGenerateScript = async (
     // the cached script data" buys.
     1,
     MODE_NEUTRAL_WALK_OPTIONS,
-    // Pod-lap firing cadence from the pods config — keeps the generator's
-    // L1-outro merge decision in sync with the runtime scheduler.
+    // Pod-lap firing cadence from the GLOBAL pods config — it feeds only the
+    // generator's retained-for-rollback L2 helpers (l2FiresAt /
+    // podRoundForMainRound), none of which is called. The cadence that
+    // actually fires is per-mode and lives on the runtime scheduler below
+    // (Tom, 2026-09-18: 2 rounds on Easy, 4 on Fast); the walk stays
+    // mode-neutral, which is why the mode value is deliberately NOT passed
+    // here — one cached script still serves both modes.
     podsConfig.value.roundInterval ?? 1,
     // Seeded INF-PLAY USE tail. The whole revival tail (SR drain + the
     // random-USE steady-state after it) is generated deterministically from a

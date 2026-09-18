@@ -1,0 +1,1551 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "generatedAt": "2026-09-18T20:47:42.208Z",
+  "cases": [
+    {
+      "course": "hun_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 3,
+              "newCycleCount": 4,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": null,
+                "new": "use|i want to speak|szeretnék beszélni|2b4dd4eb-f417-4b01-85d1-8120d1423c7d.v2|fa4af8ff-d294-4707-8097-1d91ff05921b|78250629-e2e6-4622-b048-6411a9a207e6"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak|szeretnék beszélni|2b4dd4eb-f417-4b01-85d1-8120d1423c7d.v2|fa4af8ff-d294-4707-8097-1d91ff05921b|78250629-e2e6-4622-b048-6411a9a207e6"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 266,
+          "legoFrom": "S0094L01",
+          "legoTo": "S0098L01",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 565,
+          "legoFrom": "S0237L02",
+          "legoTo": "S0243L02",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 665,
+      "newMainRoundCount": 665,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "gle_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0004L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L04",
+              "oldCycleCount": 6,
+              "newCycleCount": 7,
+              "firstOrderDiff": {
+                "index": 6,
+                "old": null,
+                "new": "use|i want to speak irish with you|tá mé ag iarraidh gaeilge a labhairt leat|06393d99-b2d9-4d61-aa37-0c6e685b19a7|e99ee2e8-4da3-4e9d-9cbd-0e7342ea7614|de92532d-691b-4434-a9f4-2f8bf87179f8"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak irish with you|tá mé ag iarraidh gaeilge a labhairt leat|06393d99-b2d9-4d61-aa37-0c6e685b19a7|e99ee2e8-4da3-4e9d-9cbd-0e7342ea7614|de92532d-691b-4434-a9f4-2f8bf87179f8"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 308,
+          "legoFrom": "S0106L05",
+          "legoTo": "S0109L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0106L05",
+              "oldCycleCount": 11,
+              "newCycleCount": 6,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail||f94c95ed-6ae1-4e44-9a95-c6d589fce1f2|",
+                "new": "spaced_rep|she is very happy with how much i have already learned and she wants to learn more|tá sí an-sásta leis an méid atá foghlamtha agam cheana féin agus tá sí ag iarraidh níos mó a fhoghlaim|bed22afa-6d02-4b37-8a44-47e6d2c8c1ca|e0fbee60-9855-44c3-9f99-95baad082384|45702e9b-ea18-4d61-a553-f95ddb0272ad"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail||f94c95ed-6ae1-4e44-9a95-c6d589fce1f2|",
+                "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail||f94c95ed-6ae1-4e44-9a95-c6d589fce1f2|",
+                "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail||f94c95ed-6ae1-4e44-9a95-c6d589fce1f2|",
+                "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail|82a3089b-4e19-4251-8ec4-7f2ed8584f13||",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt||6d8b49bb-1367-45ba-8aca-919fcd7e5541|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|she is very happy with how much i have already learned and she wants to learn more|tá sí an-sásta leis an méid atá foghlamtha agam cheana féin agus tá sí ag iarraidh níos mó a fhoghlaim|bed22afa-6d02-4b37-8a44-47e6d2c8c1ca|e0fbee60-9855-44c3-9f99-95baad082384|45702e9b-ea18-4d61-a553-f95ddb0272ad",
+                "spaced_rep|it's interesting when you understand enough words|tá sé suimiúil nuair a thuigeann tú go leor focail|82a3089b-4e19-4251-8ec4-7f2ed8584f13|f94c95ed-6ae1-4e44-9a95-c6d589fce1f2|91f2b4da-1f6a-4cae-9c02-1f28d3b3dcac",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt|4056a2ac-55e9-4a84-880d-76007d2e4075.v2|6d8b49bb-1367-45ba-8aca-919fcd7e5541|c5b2f8b0-a87c-4305-9ebe-ea911dd18b35"
+              ]
+            },
+            {
+              "legoId": "S0106L06",
+              "oldCycleCount": 21,
+              "newCycleCount": 15,
+              "firstOrderDiff": {
+                "index": 11,
+                "old": "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "new": "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2|582cfa3a-f015-4e92-af37-d41eafcc595a|4ebe8ab1-d40c-48bd-a490-1993dbc36616"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2||",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt||6d8b49bb-1367-45ba-8aca-919fcd7e5541|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2|582cfa3a-f015-4e92-af37-d41eafcc595a|4ebe8ab1-d40c-48bd-a490-1993dbc36616",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt|4056a2ac-55e9-4a84-880d-76007d2e4075.v2|6d8b49bb-1367-45ba-8aca-919fcd7e5541|c5b2f8b0-a87c-4305-9ebe-ea911dd18b35"
+              ]
+            },
+            {
+              "legoId": "S0107L01",
+              "oldCycleCount": 22,
+              "newCycleCount": 16,
+              "firstOrderDiff": {
+                "index": 12,
+                "old": "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "new": "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2|582cfa3a-f015-4e92-af37-d41eafcc595a|4ebe8ab1-d40c-48bd-a490-1993dbc36616"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn||582cfa3a-f015-4e92-af37-d41eafcc595a|",
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2||",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt||6d8b49bb-1367-45ba-8aca-919fcd7e5541|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i know how to do what i need to do next week|tá a fhios agam conas a dhéanamh cad atá le déanamh agam an tseachtain seo chugainn|6efadf57-aeb4-4b65-ae7f-fc987dac0b3a.v2|582cfa3a-f015-4e92-af37-d41eafcc595a|4ebe8ab1-d40c-48bd-a490-1993dbc36616",
+                "spaced_rep|i don't like taking too much time to answer|ní maith liom an iomarca ama a thógáil le freagra a thabhairt|4056a2ac-55e9-4a84-880d-76007d2e4075.v2|6d8b49bb-1367-45ba-8aca-919fcd7e5541|c5b2f8b0-a87c-4305-9ebe-ea911dd18b35"
+              ]
+            },
+            {
+              "legoId": "S0107L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 20,
+              "firstOrderDiff": {
+                "index": 16,
+                "old": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "new": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22||",
+                "spaced_rep|it's useful to start talking as soon as you can|tá sé úsáideach tosú ag caint chomh luath agus is féidir leat||5e854209-23ec-4a21-9d2d-e39d2e4973b2|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526",
+                "spaced_rep|it's useful to start talking as soon as you can|tá sé úsáideach tosú ag caint chomh luath agus is féidir leat|6d1faf70-80ab-4fc3-8813-052ee4f25a99|5e854209-23ec-4a21-9d2d-e39d2e4973b2|686cf44a-4554-40e2-8015-f4f1faa61fc3"
+              ]
+            },
+            {
+              "legoId": "S0108L01",
+              "oldCycleCount": 23,
+              "newCycleCount": 17,
+              "firstOrderDiff": {
+                "index": 15,
+                "old": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "new": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22||",
+                "spaced_rep|it's useful to start talking as soon as you can|tá sé úsáideach tosú ag caint chomh luath agus is féidir leat||5e854209-23ec-4a21-9d2d-e39d2e4973b2|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526",
+                "spaced_rep|it's useful to start talking as soon as you can|tá sé úsáideach tosú ag caint chomh luath agus is féidir leat|6d1faf70-80ab-4fc3-8813-052ee4f25a99|5e854209-23ec-4a21-9d2d-e39d2e4973b2|686cf44a-4554-40e2-8015-f4f1faa61fc3"
+              ]
+            },
+            {
+              "legoId": "S0108L02",
+              "oldCycleCount": 23,
+              "newCycleCount": 17,
+              "firstOrderDiff": {
+                "index": 13,
+                "old": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "new": "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós||70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|",
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22||",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|tá mé ag tnúth le labhairt níos fearr chomh luath agus is féidir liom||fb7100e0-9f78-48ad-a5c1-bb7f6d863184|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i don't know how to say enough different words yet|níl a fhios agam conas go leor focail éagsúla a rá fós|75418d73-5b75-468f-91e4-48bbfaf9bd22|70bc4c8c-3d02-4e7c-abe4-116a8c23d07e|cafa3649-deb1-4961-bca9-5c621ac02526",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|tá mé ag tnúth le labhairt níos fearr chomh luath agus is féidir liom|855659d5-d9b8-4dab-bb16-3e7aa0c83b6b|fb7100e0-9f78-48ad-a5c1-bb7f6d863184|b859e25a-47b2-44c1-99ed-5e87b5437288"
+              ]
+            },
+            {
+              "legoId": "S0108L03",
+              "oldCycleCount": 22,
+              "newCycleCount": 16,
+              "firstOrderDiff": {
+                "index": 13,
+                "old": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "new": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2||",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|tá mé ag tnúth le labhairt níos fearr chomh luath agus is féidir liom||fb7100e0-9f78-48ad-a5c1-bb7f6d863184|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|tá mé ag tnúth le labhairt níos fearr chomh luath agus is féidir liom|855659d5-d9b8-4dab-bb16-3e7aa0c83b6b|fb7100e0-9f78-48ad-a5c1-bb7f6d863184|b859e25a-47b2-44c1-99ed-5e87b5437288"
+              ]
+            },
+            {
+              "legoId": "S0108L04",
+              "oldCycleCount": 18,
+              "newCycleCount": 12,
+              "firstOrderDiff": {
+                "index": 10,
+                "old": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "new": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2||",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné||f1576941-c6c7-4103-9b2a-732f65329ee7|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné|f165218e-2aae-49a6-98cc-ea35c88de311.v2|f1576941-c6c7-4103-9b2a-732f65329ee7|5f95912e-7e14-4e4c-a856-9d46967417ab"
+              ]
+            },
+            {
+              "legoId": "S0108L05",
+              "oldCycleCount": 20,
+              "newCycleCount": 15,
+              "firstOrderDiff": {
+                "index": 10,
+                "old": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "new": "spaced_rep|i do not understand all of it and i do not care about making mistakes|ní thuigim é ar fad agus is cuma liom faoi botúin a dhéanamh|87b6d8a5-d659-448d-91ee-fe7e3903ae89|fe998d2b-3511-4fa0-b8c9-958d9b3cfc97|03977542-a875-43b4-b00a-3f300bccad2f"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2||",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné||f1576941-c6c7-4103-9b2a-732f65329ee7|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i do not understand all of it and i do not care about making mistakes|ní thuigim é ar fad agus is cuma liom faoi botúin a dhéanamh|87b6d8a5-d659-448d-91ee-fe7e3903ae89|fe998d2b-3511-4fa0-b8c9-958d9b3cfc97|03977542-a875-43b4-b00a-3f300bccad2f",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné|f165218e-2aae-49a6-98cc-ea35c88de311.v2|f1576941-c6c7-4103-9b2a-732f65329ee7|5f95912e-7e14-4e4c-a856-9d46967417ab"
+              ]
+            },
+            {
+              "legoId": "S0109L01",
+              "oldCycleCount": 25,
+              "newCycleCount": 20,
+              "firstOrderDiff": {
+                "index": 15,
+                "old": "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "new": "spaced_rep|when do you want to start practising speaking with someone else|cathain a bhfuil tú ag iarraidh tosú ag cleachtadh labhairt le duine éigin eile|23ed4989-9647-4490-a47b-e3c60e1b15b2|422dc0ed-0bc5-4555-94e0-fc05054c1048|aa9761cd-4725-404b-9751-5c329cd0af83"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?||703d908b-554b-4256-ac18-be2433fa98f3|",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2||",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné||f1576941-c6c7-4103-9b2a-732f65329ee7|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|when do you want to start practising speaking with someone else|cathain a bhfuil tú ag iarraidh tosú ag cleachtadh labhairt le duine éigin eile|23ed4989-9647-4490-a47b-e3c60e1b15b2|422dc0ed-0bc5-4555-94e0-fc05054c1048|aa9761cd-4725-404b-9751-5c329cd0af83",
+                "spaced_rep|could you say that again a little more slowly?|an bhféadfá é sin a rá arís beagán níos moille?|4fa7f9b4-f81a-44da-96b0-caea4db2e5e2|703d908b-554b-4256-ac18-be2433fa98f3|a3d8a154-c89c-4bd8-b2d7-7bf6881b6b14",
+                "spaced_rep|i wanted to ask you something yesterday|bhí mé ag iarraidh rud éigin a fhiafraí díot inné|f165218e-2aae-49a6-98cc-ea35c88de311.v2|f1576941-c6c7-4103-9b2a-732f65329ee7|5f95912e-7e14-4e4c-a856-9d46967417ab"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 656,
+          "legoFrom": "S0242L03",
+          "legoTo": "S0248L02",
+          "roundDiffs": [
+            {
+              "legoId": "S0242L03",
+              "oldCycleCount": 21,
+              "newCycleCount": 10,
+              "firstOrderDiff": {
+                "index": 5,
+                "old": "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "new": "spaced_rep|he was not sure how to answer the question and that was why he said nothing at all|ní raibh sé cinnte conas an cheist a fhreagairt agus sin é an fáth nach raibh sé ag iarraidh labhairt ar chor ar bith|4c532ad4-73c4-4f55-bb6b-91705793ff76|8037b5cf-d862-41d0-901e-edeedd915515|4fa94566-bf95-4b0f-8acb-5d84da8867aa"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill|c77ef2a9-72f0-40ee-8531-92e7ccfd8fc7.v2||",
+                "spaced_rep|why are you not happy any more?|cén fáth nach bhfuil tú sásta a thuilleadh?||64a7abd9-72f2-4b24-9b4f-9227c792afd9|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|he was not sure how to answer the question and that was why he said nothing at all|ní raibh sé cinnte conas an cheist a fhreagairt agus sin é an fáth nach raibh sé ag iarraidh labhairt ar chor ar bith|4c532ad4-73c4-4f55-bb6b-91705793ff76|8037b5cf-d862-41d0-901e-edeedd915515|4fa94566-bf95-4b0f-8acb-5d84da8867aa",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill|c77ef2a9-72f0-40ee-8531-92e7ccfd8fc7.v2|1b87c65e-5064-424e-bb9c-f38072bbce4d|ac1a0215-c6f2-42a2-8c8d-6a0831df23ef",
+                "spaced_rep|why are you not happy any more?|cén fáth nach bhfuil tú sásta a thuilleadh?|5477b08e-81fe-427c-8fa7-ca1d7fadd915|64a7abd9-72f2-4b24-9b4f-9227c792afd9|ac96745c-243f-426c-b306-27ad38c49863",
+                "spaced_rep|you should ask yourself why it's not working|ba cheart duit tú féin a cheistiú cén fáth nach bhfuil sé ag obair|d739dac6-2424-4514-82a0-11b7c5041e73|1c489f86-99d6-42a2-bb31-8d0d106ef940|c7e1b8d6-447b-45c6-9d78-4918b643ad76",
+                "spaced_rep|she wants to find out what the answer is|tá sí ag iarraidh fáil amach cad é an freagra|cc3536a9-27c4-486b-a326-d73feef50b62|c1c4f9c5-8e87-4a1a-aa96-e034641d0fa9|6077f652-1b96-437e-837d-e4302a643209"
+              ]
+            },
+            {
+              "legoId": "S0243L02",
+              "oldCycleCount": 20,
+              "newCycleCount": 8,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "new": "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill|c77ef2a9-72f0-40ee-8531-92e7ccfd8fc7.v2|1b87c65e-5064-424e-bb9c-f38072bbce4d|ac1a0215-c6f2-42a2-8c8d-6a0831df23ef"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill||1b87c65e-5064-424e-bb9c-f38072bbce4d|",
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill|c77ef2a9-72f0-40ee-8531-92e7ccfd8fc7.v2||",
+                "spaced_rep|why are you not happy any more?|cén fáth nach bhfuil tú sásta a thuilleadh?||64a7abd9-72f2-4b24-9b4f-9227c792afd9|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i'd like to read my book for a while|ba mhaith liom mo leabhar a léamh ar feadh tamaill|c77ef2a9-72f0-40ee-8531-92e7ccfd8fc7.v2|1b87c65e-5064-424e-bb9c-f38072bbce4d|ac1a0215-c6f2-42a2-8c8d-6a0831df23ef",
+                "spaced_rep|why are you not happy any more?|cén fáth nach bhfuil tú sásta a thuilleadh?|5477b08e-81fe-427c-8fa7-ca1d7fadd915|64a7abd9-72f2-4b24-9b4f-9227c792afd9|ac96745c-243f-426c-b306-27ad38c49863",
+                "spaced_rep|you should ask yourself why it's not working|ba cheart duit tú féin a cheistiú cén fáth nach bhfuil sé ag obair|d739dac6-2424-4514-82a0-11b7c5041e73|1c489f86-99d6-42a2-bb31-8d0d106ef940|c7e1b8d6-447b-45c6-9d78-4918b643ad76",
+                "spaced_rep|she wants to find out what the answer is|tá sí ag iarraidh fáil amach cad é an freagra|cc3536a9-27c4-486b-a326-d73feef50b62|c1c4f9c5-8e87-4a1a-aa96-e034641d0fa9|6077f652-1b96-437e-837d-e4302a643209"
+              ]
+            },
+            {
+              "legoId": "S0243L03",
+              "oldCycleCount": 19,
+              "newCycleCount": 7,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "new": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|you should ask yourself why it's not working|ba cheart duit tú féin a cheistiú cén fáth nach bhfuil sé ag obair|d739dac6-2424-4514-82a0-11b7c5041e73|1c489f86-99d6-42a2-bb31-8d0d106ef940|c7e1b8d6-447b-45c6-9d78-4918b643ad76",
+                "spaced_rep|we want to meet at six o'clock this evening|tá muid ag iarraidh bualadh le chéile ar a sé a chlog tráthnóna|6809277a-7d5c-4b70-9cfc-8381611328c4|517a2fbe-25d1-46b2-adb9-66aa502b61ab|5825fe9a-6337-476a-a48c-adfa8e0e8235"
+              ]
+            },
+            {
+              "legoId": "S0243L04",
+              "oldCycleCount": 20,
+              "newCycleCount": 8,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "new": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|you shouldn't worry about doing something similar|níor cheart duit a bheith buartha faoi rud éigin cosúil a dhéanamh|e0ab288a-7b60-45ae-a64e-58609c631c35|315d5101-136e-4396-b3b1-9c7e1d651018|25eb880b-dfbe-4726-9de5-1a402b1f6eb2",
+                "spaced_rep|we want to meet at six o'clock this evening|tá muid ag iarraidh bualadh le chéile ar a sé a chlog tráthnóna|6809277a-7d5c-4b70-9cfc-8381611328c4|517a2fbe-25d1-46b2-adb9-66aa502b61ab|5825fe9a-6337-476a-a48c-adfa8e0e8235"
+              ]
+            },
+            {
+              "legoId": "S0244L01",
+              "oldCycleCount": 21,
+              "newCycleCount": 9,
+              "firstOrderDiff": {
+                "index": 5,
+                "old": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "new": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|you shouldn't worry about doing something similar|níor cheart duit a bheith buartha faoi rud éigin cosúil a dhéanamh|e0ab288a-7b60-45ae-a64e-58609c631c35|315d5101-136e-4396-b3b1-9c7e1d651018|25eb880b-dfbe-4726-9de5-1a402b1f6eb2",
+                "spaced_rep|we want to meet at six o'clock this evening|tá muid ag iarraidh bualadh le chéile ar a sé a chlog tráthnóna|6809277a-7d5c-4b70-9cfc-8381611328c4|517a2fbe-25d1-46b2-adb9-66aa502b61ab|5825fe9a-6337-476a-a48c-adfa8e0e8235"
+              ]
+            },
+            {
+              "legoId": "S0245L01",
+              "oldCycleCount": 19,
+              "newCycleCount": 7,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "new": "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir||5007ea61-4da9-4ffb-9a12-45375037701b|",
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|but i have to take my mother to the doctor|ach caithfidh mé mo mháthair a thabhairt chuig an dochtúir|7139b5e3-cf8d-4528-8726-498aa79381c1|5007ea61-4da9-4ffb-9a12-45375037701b|b2104982-8719-44ee-a701-e282ee025a75",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|you shouldn't worry about doing something similar|níor cheart duit a bheith buartha faoi rud éigin cosúil a dhéanamh|e0ab288a-7b60-45ae-a64e-58609c631c35|315d5101-136e-4396-b3b1-9c7e1d651018|25eb880b-dfbe-4726-9de5-1a402b1f6eb2",
+                "spaced_rep|we want to meet at six o'clock this evening|tá muid ag iarraidh bualadh le chéile ar a sé a chlog tráthnóna|6809277a-7d5c-4b70-9cfc-8381611328c4|517a2fbe-25d1-46b2-adb9-66aa502b61ab|5825fe9a-6337-476a-a48c-adfa8e0e8235"
+              ]
+            },
+            {
+              "legoId": "S0245L03",
+              "oldCycleCount": 29,
+              "newCycleCount": 17,
+              "firstOrderDiff": {
+                "index": 11,
+                "old": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "new": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|i'm enjoying finding out more about this language|tá mé ag baint taitnimh as níos mó a fháil amach faoin teanga seo|e67ef257-a706-42ae-a3c3-2fd9c40082ad|9a4739b1-4ca1-4452-a106-79bf4a97117c|2d80799a-b378-4782-887c-018ecdaa91c5",
+                "spaced_rep|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+              ]
+            },
+            {
+              "legoId": "S0246L04",
+              "oldCycleCount": 32,
+              "newCycleCount": 20,
+              "firstOrderDiff": {
+                "index": 14,
+                "old": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "new": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17||",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú||539448c1-d5fa-4c6c-820f-6c1badb1561a|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540",
+                "spaced_rep|nothing seems to be working since we tried to fix it|ní cosúil go bhfuil aon rud ag obair ó d'iarr muid é a dheisiú|226aa025-79a0-4ceb-86c5-94906e109b0e|539448c1-d5fa-4c6c-820f-6c1badb1561a|9c2ef4d0-1705-442d-abf6-d5b3db50a9db",
+                "spaced_rep|i'm enjoying finding out more about this language|tá mé ag baint taitnimh as níos mó a fháil amach faoin teanga seo|e67ef257-a706-42ae-a3c3-2fd9c40082ad|9a4739b1-4ca1-4452-a106-79bf4a97117c|2d80799a-b378-4782-887c-018ecdaa91c5",
+                "spaced_rep|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+              ]
+            },
+            {
+              "legoId": "S0247L01",
+              "oldCycleCount": 33,
+              "newCycleCount": 21,
+              "firstOrderDiff": {
+                "index": 15,
+                "old": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "new": "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?||5545639a-50bb-4609-a84d-9b2f7129dc16|",
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17||",
+                "spaced_rep|she was very kind when she saw me feeling nervous|bhí sí an-deas nuair a chonaic sí mé ag mothú neirbhíseach||5ee9c275-0d36-41c2-8ef4-4a9f57c20ccc|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|have you seen my keys anywhere?|an bhfaca tú m'eochracha in áit ar bith?|fefaa770-ba2e-4d19-85ec-9d70f9749e17|5545639a-50bb-4609-a84d-9b2f7129dc16|6e5f9176-9a49-4ced-8de1-945931209540",
+                "spaced_rep|she was very kind when she saw me feeling nervous|bhí sí an-deas nuair a chonaic sí mé ag mothú neirbhíseach|4b4f0d71-cec3-4859-ba79-2305c614dae8|5ee9c275-0d36-41c2-8ef4-4a9f57c20ccc|c02771e6-3c77-46d9-ba56-2556f06ab730",
+                "spaced_rep|i'm enjoying finding out more about this language|tá mé ag baint taitnimh as níos mó a fháil amach faoin teanga seo|e67ef257-a706-42ae-a3c3-2fd9c40082ad|9a4739b1-4ca1-4452-a106-79bf4a97117c|2d80799a-b378-4782-887c-018ecdaa91c5",
+                "spaced_rep|but i don't want to stop talking|ach níl mé ag iarraidh stopadh ag caint|cf8b6dbe-3e64-4b2d-bf04-a259772a8d5f.v2|e4507ca6-6b8e-46ab-bf13-ead7d703e952|5005e891-b87a-43bb-b2e2-cce6871b8e5f"
+              ]
+            },
+            {
+              "legoId": "S0248L02",
+              "oldCycleCount": 33,
+              "newCycleCount": 22,
+              "firstOrderDiff": {
+                "index": 15,
+                "old": "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad||23cb676a-525e-47f7-bf31-dfa24bc039d3|",
+                "new": "spaced_rep|she told me she was not able to practise speaking with you this evening but tomorrow is fine|dúirt sí liom nach raibh sí ábalta labhairt a chleachtadh leat anocht ach tá amárach ceart go leor|7004dc8b-26c6-40d4-a36e-7dcdcd2b1c4a|bc2a3cc8-84cf-48cc-b783-b685d16bcce0|c2916f08-cf90-44e1-a349-68bfd55b5730"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad||23cb676a-525e-47f7-bf31-dfa24bc039d3|",
+                "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad||23cb676a-525e-47f7-bf31-dfa24bc039d3|",
+                "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad||23cb676a-525e-47f7-bf31-dfa24bc039d3|",
+                "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad|d8117204-d929-4350-97f1-30254f875b9c||",
+                "spaced_rep|she was very kind when she saw me feeling nervous|bhí sí an-deas nuair a chonaic sí mé ag mothú neirbhíseach||5ee9c275-0d36-41c2-8ef4-4a9f57c20ccc|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|she told me she was not able to practise speaking with you this evening but tomorrow is fine|dúirt sí liom nach raibh sí ábalta labhairt a chleachtadh leat anocht ach tá amárach ceart go leor|7004dc8b-26c6-40d4-a36e-7dcdcd2b1c4a|bc2a3cc8-84cf-48cc-b783-b685d16bcce0|c2916f08-cf90-44e1-a349-68bfd55b5730",
+                "spaced_rep|no i'm afraid i haven't seen them|níl, tá brón orm, ní fhaca mé iad|d8117204-d929-4350-97f1-30254f875b9c|23cb676a-525e-47f7-bf31-dfa24bc039d3|c1af5332-3b2f-4e6d-b3c7-f9432b918f3d",
+                "spaced_rep|she was very kind when she saw me feeling nervous|bhí sí an-deas nuair a chonaic sí mé ag mothú neirbhíseach|4b4f0d71-cec3-4859-ba79-2305c614dae8|5ee9c275-0d36-41c2-8ef4-4a9f57c20ccc|c02771e6-3c77-46d9-ba56-2556f06ab730",
+                "spaced_rep|i'm enjoying finding out more about this language|tá mé ag baint taitnimh as níos mó a fháil amach faoin teanga seo|e67ef257-a706-42ae-a3c3-2fd9c40082ad|9a4739b1-4ca1-4452-a106-79bf4a97117c|2d80799a-b378-4782-887c-018ecdaa91c5",
+                "spaced_rep|you want to learn his name quickly|tá tú ag iarraidh a ainm a fhoghlaim go tapa|6dded7e9-7bb3-4aba-827f-81d1a1cd65fc.v2|9385d2c3-054a-44f1-8913-6859fe5623e0|5a949afb-026e-43cc-a946-8af93e6a75d5"
+              ]
+            }
+          ]
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 772,
+      "newMainRoundCount": 772,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 21,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "nld_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L03",
+              "oldCycleCount": 4,
+              "newCycleCount": 5,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": null,
+                "new": "use|i want to speak dutch|ik wil nederlands spreken|622b9fa5-6052-4d22-850d-d2a3548a4471|4dbc6e5f-5fef-4556-ad11-4f246c62bdb2|5dc1dded-7118-4065-ada3-6da43bb2125c"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak dutch|ik wil nederlands spreken|622b9fa5-6052-4d22-850d-d2a3548a4471|4dbc6e5f-5fef-4556-ad11-4f246c62bdb2|5dc1dded-7118-4065-ada3-6da43bb2125c"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 225,
+          "legoFrom": "S0094L02",
+          "legoTo": "S0098L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0094L04",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "new": "spaced_rep|i want to do interesting things|ik wil interessante dingen doen|bd7f6953-034f-4cb3-b264-2b9e28028c78|bb14d9f4-5200-4c55-927c-551a415853cd|28eb458d-b356-42c3-87b4-7ae0cdaa1dd3"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden|44885ecc-f490-4849-af53-fda82fdc8457||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to do interesting things|ik wil interessante dingen doen|bd7f6953-034f-4cb3-b264-2b9e28028c78|bb14d9f4-5200-4c55-927c-551a415853cd|28eb458d-b356-42c3-87b4-7ae0cdaa1dd3"
+              ]
+            },
+            {
+              "legoId": "S0095L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "new": "spaced_rep|i enjoy doing that now|ik vind het leuk om nu te doen|e9f2d344-e266-4deb-ba4b-1a59dde805c4|91b8f7b4-c44b-4544-9a46-8f874cf80eea|7e8538c9-c943-4df2-b1cb-11006a9ad39b"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden||0ea3ac63-4bc6-4474-8dd5-9c1ff4f559a7|",
+                "spaced_rep|i don't like taking too much time to answer|ik vind het niet fijn om te veel tijd te nemen om te antwoorden|44885ecc-f490-4849-af53-fda82fdc8457||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i enjoy doing that now|ik vind het leuk om nu te doen|e9f2d344-e266-4deb-ba4b-1a59dde805c4|91b8f7b4-c44b-4544-9a46-8f874cf80eea|7e8538c9-c943-4df2-b1cb-11006a9ad39b"
+              ]
+            },
+            {
+              "legoId": "S0096L01",
+              "oldCycleCount": 23,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 21,
+                "old": "use|no|nee|69edfcf3-6cb7-43d5-99cf-3a4a6931f003|0f15ce02-312a-48a5-b096-28258eeb771b|07cdf7a7-c68c-4e73-bdfc-8389ecd9eb63",
+                "new": "use|no, not yet|nee, nog niet|b389d06b-a92c-4608-a4ed-bdfd8e205c52|2ab1d614-fb14-40a2-a363-4d9b3b6cd851|6f4bb10f-a19e-4bf4-b070-fdd8a86265ce"
+              },
+              "onlyOnWalk": [
+                "use|no|nee|69edfcf3-6cb7-43d5-99cf-3a4a6931f003|0f15ce02-312a-48a5-b096-28258eeb771b|07cdf7a7-c68c-4e73-bdfc-8389ecd9eb63"
+              ],
+              "onlyOnBundle": [
+                "use|no, i don't want to|nee, ik wil niet|edcdc5ad-a53b-47c5-b27a-f4fc6a89fa3e|894736a6-1462-4b0d-9f53-24c19cd20461|7e4a7d93-6f41-457f-98ed-d9b2d107b132"
+              ]
+            },
+            {
+              "legoId": "S0096L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "new": "spaced_rep|he wanted to write a letter|hij wilde een brief schrijven|8b37f00a-51f3-4917-ae30-48da0d8e4086|1f0d3019-2a99-4dfe-8d52-23ab2418c4be|9f889778-4d83-4ae2-bb43-340fb2835174"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken|bd00c9a6-8a37-42d6-9807-79cce4f66a00||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|he wanted to write a letter|hij wilde een brief schrijven|8b37f00a-51f3-4917-ae30-48da0d8e4086|1f0d3019-2a99-4dfe-8d52-23ab2418c4be|9f889778-4d83-4ae2-bb43-340fb2835174"
+              ]
+            },
+            {
+              "legoId": "S0097L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "new": "spaced_rep|he wanted to write to his friend|hij wilde schrijven aan zijn vriend|efb9c477-d3b4-4b1b-9731-d8c75313445b|7a0f683d-b33c-40c5-9cb8-94f766f3d578|7385938b-4323-46e6-9220-27a7f54972a4"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken||d54fc850-f6a5-45bb-ab4b-b7c93f420b00|",
+                "spaced_rep|it's useful to start talking as soon as you can|het is handig om zo snel mogelijk te beginnen met spreken|bd00c9a6-8a37-42d6-9807-79cce4f66a00||",
+                "use|yes|ja|a1efdc17-59ab-4bb2-bb30-b64a3dd9dd25|2b9c52f2-5ea4-4b0c-b5fa-b082bf6dda7c|a03b38e3-bea9-4282-95e4-b8f45f8fffe6"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|he wanted to write to his friend|hij wilde schrijven aan zijn vriend|efb9c477-d3b4-4b1b-9731-d8c75313445b|7a0f683d-b33c-40c5-9cb8-94f766f3d578|7385938b-4323-46e6-9220-27a7f54972a4",
+                "use|yes, i know|ja, ik weet het|bd3e192f-7123-4683-a493-c819d4dbd61e|42ff9a86-1533-4847-92a6-3b67ac8926f4|f38b3cc3-90c7-4672-87ae-08e9b1189243"
+              ]
+            },
+            {
+              "legoId": "S0097L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "new": "spaced_rep|he wanted to do interesting things in dutch|hij wilde interessante dingen doen in het nederlands|897d66a9-22ae-4c7e-9213-2364fa5b63da|4bf1a064-973a-4ed5-9699-4fba15670abc|ea76549b-9299-4ff1-b26f-b7e6bd94e22b"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken|42ddf9b6-3438-4512-9ad2-cb6ee4cc2662||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|he wanted to do interesting things in dutch|hij wilde interessante dingen doen in het nederlands|897d66a9-22ae-4c7e-9213-2364fa5b63da|4bf1a064-973a-4ed5-9699-4fba15670abc|ea76549b-9299-4ff1-b26f-b7e6bd94e22b"
+              ]
+            },
+            {
+              "legoId": "S0098L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "new": "spaced_rep|she wanted her bag|ze wilde haar tas|998bd925-ccbd-426a-976b-5d4c09924dd3|98ed8cfc-0a93-4b68-90f1-22206e339d36|ee7ac26d-02f7-4221-9a33-85f6584f0777"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken||f5fa9068-388b-4ae0-a6cf-cb4c2ec15178|",
+                "spaced_rep|i'm looking forward to speaking better as soon as i can|ik kijk ernaar uit om zo snel mogelijk beter te spreken|42ddf9b6-3438-4512-9ad2-cb6ee4cc2662||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|she wanted her bag|ze wilde haar tas|998bd925-ccbd-426a-976b-5d4c09924dd3|98ed8cfc-0a93-4b68-90f1-22206e339d36|ee7ac26d-02f7-4221-9a33-85f6584f0777"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 478,
+          "legoFrom": "S0249L01",
+          "legoTo": "S0253L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0249L01",
+              "oldCycleCount": 24,
+              "newCycleCount": 21,
+              "firstOrderDiff": {
+                "index": 18,
+                "old": "spaced_rep|it's the same thing as we were talking about earlier|het is hetzelfde als waar we het eerder over hadden||d95879ff-4ab4-43b0-a3dd-c93c1cfd88df|",
+                "new": "spaced_rep|i want to talk about something different|ik wil over iets anders praten|0b551c33-8c44-4ddf-8a23-4d900fb131a2|a16f0839-6933-450d-a545-31b4bb56ca5a|d4706b15-af1d-44e4-863b-033c5cf04e24"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's the same thing as we were talking about earlier|het is hetzelfde als waar we het eerder over hadden||d95879ff-4ab4-43b0-a3dd-c93c1cfd88df|",
+                "spaced_rep|it's the same thing as we were talking about earlier|het is hetzelfde als waar we het eerder over hadden||d95879ff-4ab4-43b0-a3dd-c93c1cfd88df|",
+                "spaced_rep|it's the same thing as we were talking about earlier|het is hetzelfde als waar we het eerder over hadden||d95879ff-4ab4-43b0-a3dd-c93c1cfd88df|",
+                "spaced_rep|it's the same thing as we were talking about earlier|het is hetzelfde als waar we het eerder over hadden|d2b45bc8-c04e-4def-8299-192352735ae7||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to talk about something different|ik wil over iets anders praten|0b551c33-8c44-4ddf-8a23-4d900fb131a2|a16f0839-6933-450d-a545-31b4bb56ca5a|d4706b15-af1d-44e4-863b-033c5cf04e24"
+              ]
+            },
+            {
+              "legoId": "S0249L02",
+              "oldCycleCount": 25,
+              "newCycleCount": 22,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "new": "spaced_rep|i am happy so far|ik ben tot nu toe blij|8d0930af-4fab-4a24-9ba1-a1265be8dd6f|a6bd3c12-c5b5-4b61-8010-5cc9e7eca30a|af3b2bb0-3e69-4add-b01e-74921590e5b3"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde|30df8e7c-8970-4f79-ade4-579a965c2089||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i am happy so far|ik ben tot nu toe blij|8d0930af-4fab-4a24-9ba1-a1265be8dd6f|a6bd3c12-c5b5-4b61-8010-5cc9e7eca30a|af3b2bb0-3e69-4add-b01e-74921590e5b3"
+              ]
+            },
+            {
+              "legoId": "S0250L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "new": "spaced_rep|it is not important to change|het is niet belangrijk te veranderen|3308535d-ea2f-4884-b4fb-b91a8ff07352|405c8c19-f10e-4348-8fa1-21a748a79f6b|3a312ff9-19cd-418b-a57b-aa612da7628d"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde||435b6a38-bbd5-41f7-9715-8f0c19331f6d|",
+                "spaced_rep|i woke earlier than i wanted to this morning|ik werd vanochtend eerder wakker dan ik wilde|30df8e7c-8970-4f79-ade4-579a965c2089||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|it is not important to change|het is niet belangrijk te veranderen|3308535d-ea2f-4884-b4fb-b91a8ff07352|405c8c19-f10e-4348-8fa1-21a748a79f6b|3a312ff9-19cd-418b-a57b-aa612da7628d"
+              ]
+            },
+            {
+              "legoId": "S0250L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "new": "spaced_rep|do you mind if i try to help?|vind je het goed als ik probeer te helpen?|33980ef5-5e0c-438d-b707-3c578c52b9d8|9a4f52c1-41f6-4f00-bb0d-b4241ad5a8c3|6ce02e7b-c92c-4c10-b12b-199406998e2c"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren|69370438-c5c9-4978-9356-60a838bd4712||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|do you mind if i try to help?|vind je het goed als ik probeer te helpen?|33980ef5-5e0c-438d-b707-3c578c52b9d8|9a4f52c1-41f6-4f00-bb0d-b4241ad5a8c3|6ce02e7b-c92c-4c10-b12b-199406998e2c"
+              ]
+            },
+            {
+              "legoId": "S0251L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "new": "spaced_rep|do you mind if i ask you some questions?|vind je het goed als ik je wat vragen stel?|ac60964d-be36-426d-b1ef-63fe731b5efd|393d5093-1796-4aca-913a-9de0e1ae1e2e|b3f945bc-2520-44f1-ae0f-85738d7b460f"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren|69370438-c5c9-4978-9356-60a838bd4712||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|do you mind if i ask you some questions?|vind je het goed als ik je wat vragen stel?|ac60964d-be36-426d-b1ef-63fe731b5efd|393d5093-1796-4aca-913a-9de0e1ae1e2e|b3f945bc-2520-44f1-ae0f-85738d7b460f"
+              ]
+            },
+            {
+              "legoId": "S0251L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "new": "spaced_rep|that is completely different|dat is helemaal anders|e905f6d7-2706-4699-93f9-eceb342f4224|f3d9a536-9176-4ecd-ab32-92d6638006c8|55e4eaea-39f3-4652-a572-7c923ca73b05"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren|69370438-c5c9-4978-9356-60a838bd4712||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|that is completely different|dat is helemaal anders|e905f6d7-2706-4699-93f9-eceb342f4224|f3d9a536-9176-4ecd-ab32-92d6638006c8|55e4eaea-39f3-4652-a572-7c923ca73b05"
+              ]
+            },
+            {
+              "legoId": "S0251L03",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "new": "spaced_rep|tomorrow night i want to speak|morgenavond wil ik spreken|5f0d67f8-ddcd-46c2-a7d5-9961712910ef|b976f812-ca0b-4b53-80d8-97d21f114889|8f3c46e9-cccb-4b4b-9870-94b8b3a4a127"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren||4996b98e-03cb-4675-99f8-7f5734dc4c49|",
+                "spaced_rep|nothing seems to be working since we tried to fix it|niets lijkt te werken sinds we het probeerden te repareren|69370438-c5c9-4978-9356-60a838bd4712||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|tomorrow night i want to speak|morgenavond wil ik spreken|5f0d67f8-ddcd-46c2-a7d5-9961712910ef|b976f812-ca0b-4b53-80d8-97d21f114889|8f3c46e9-cccb-4b4b-9870-94b8b3a4a127"
+              ]
+            },
+            {
+              "legoId": "S0251L04",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "new": "spaced_rep|are you busy?|ben je bezet?|eeee5305-6a85-4b48-b2aa-94ab87ee504f|e5f8a172-6c1b-4081-8462-4007f0873595|53747aaf-8506-4c8e-af65-73a1a89800b8"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was|e5412831-4387-4e23-8e9d-51530be7b1bc||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|are you busy?|ben je bezet?|eeee5305-6a85-4b48-b2aa-94ab87ee504f|e5f8a172-6c1b-4081-8462-4007f0873595|53747aaf-8506-4c8e-af65-73a1a89800b8"
+              ]
+            },
+            {
+              "legoId": "S0252L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "new": "spaced_rep|i'm too busy today|ik heb het vandaag te druk|797b2fc5-f8a9-43f8-b4a8-5274593d4f46|91d6c230-e093-47ce-ab0e-150477de3731|1eb159d1-28c4-44ea-90f4-a9056d753863"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was||1d9126fd-7ede-46de-af64-98671edde952|",
+                "spaced_rep|she was very kind when she saw me feeling nervous|ze was heel aardig toen ze me zag dat ik nerveus was|e5412831-4387-4e23-8e9d-51530be7b1bc||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i'm too busy today|ik heb het vandaag te druk|797b2fc5-f8a9-43f8-b4a8-5274593d4f46|91d6c230-e093-47ce-ab0e-150477de3731|1eb159d1-28c4-44ea-90f4-a9056d753863"
+              ]
+            },
+            {
+              "legoId": "S0253L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|he wasn't very patient when i couldn't answer|hij was niet erg geduldig toen ik niet kon antwoorden||8e407069-818b-406c-b3f4-f3467b5109bc|",
+                "new": "spaced_rep|what are you looking for?|waar zoek je naar?|efedb68e-186b-426f-a9d5-bbfa59264473|b0dcae91-2765-4740-b2e3-9f993762dbee|2f07e8ec-436d-4f63-b9da-4d372deefe49"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|he wasn't very patient when i couldn't answer|hij was niet erg geduldig toen ik niet kon antwoorden||8e407069-818b-406c-b3f4-f3467b5109bc|",
+                "spaced_rep|he wasn't very patient when i couldn't answer|hij was niet erg geduldig toen ik niet kon antwoorden||8e407069-818b-406c-b3f4-f3467b5109bc|",
+                "spaced_rep|he wasn't very patient when i couldn't answer|hij was niet erg geduldig toen ik niet kon antwoorden||8e407069-818b-406c-b3f4-f3467b5109bc|",
+                "spaced_rep|he wasn't very patient when i couldn't answer|hij was niet erg geduldig toen ik niet kon antwoorden|2583e600-4ae1-4401-b5c5-7a1aeadf7d75||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|what are you looking for?|waar zoek je naar?|efedb68e-186b-426f-a9d5-bbfa59264473|b0dcae91-2765-4740-b2e3-9f993762dbee|2f07e8ec-436d-4f63-b9da-4d372deefe49"
+              ]
+            }
+          ]
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 563,
+      "newMainRoundCount": 563,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 18,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "tur_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0004L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 4,
+              "newCycleCount": 5,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": null,
+                "new": "use|i want turkish|türkçe istiyorum|8e3939d8-65ba-46f8-a8aa-58ba2390c286|5fb5ba3a-9aa5-4ab9-a603-e2a8ce550da0|8e847ce5-5ce9-466d-b6b4-863ce0fe3b01"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want turkish|türkçe istiyorum|8e3939d8-65ba-46f8-a8aa-58ba2390c286|5fb5ba3a-9aa5-4ab9-a603-e2a8ce550da0|8e847ce5-5ce9-466d-b6b4-863ce0fe3b01"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 336,
+          "legoFrom": "S0114L02",
+          "legoTo": "S0116L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0114L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "new": "spaced_rep|i want to start talking, i agree|konuşmaya başlamak istiyorum, katılıyorum|2deb394f-1119-4946-b903-6e6fa6b19c49|4de72ab0-2b1a-4752-89d4-381e3c2b1321|19ff6a11-b3f2-4f9a-9b2a-0ff4b573d053"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.|e62380fe-8ee9-436a-9bc6-689cbb93771c.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to start talking, i agree|konuşmaya başlamak istiyorum, katılıyorum|2deb394f-1119-4946-b903-6e6fa6b19c49|4de72ab0-2b1a-4752-89d4-381e3c2b1321|19ff6a11-b3f2-4f9a-9b2a-0ff4b573d053"
+              ]
+            },
+            {
+              "legoId": "S0114L03",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "new": "spaced_rep|i'm not ready but i want to learn|hazır değilim ama öğrenmek istiyorum|71a0087a-4234-41a7-a1e2-f780f99b5a15|89b84d81-d356-40b8-9541-641a569a48d6|5ad23816-fc6c-4347-867e-3ff017a6bce8"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.||b570ba8c-b1c3-4683-823f-13c4a1d502bf|",
+                "spaced_rep|it's important to take time to test yourself|kendini test etmek için zaman ayırmak önemli.|e62380fe-8ee9-436a-9bc6-689cbb93771c.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i'm not ready but i want to learn|hazır değilim ama öğrenmek istiyorum|71a0087a-4234-41a7-a1e2-f780f99b5a15|89b84d81-d356-40b8-9541-641a569a48d6|5ad23816-fc6c-4347-867e-3ff017a6bce8"
+              ]
+            },
+            {
+              "legoId": "S0114L04",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "new": "spaced_rep|i want to start talking with people|insanlarla konuşmaya başlamak istiyorum|948e4d7c-292c-47c0-b45d-a161785531d1|20ed7aeb-d61f-4f25-aba6-cc6db32e6815|0aa43970-71c0-4a15-92af-e1bfe2bde97b"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.|6bfc07c2-a33d-488f-b201-db855aed9dfc.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to start talking with people|insanlarla konuşmaya başlamak istiyorum|948e4d7c-292c-47c0-b45d-a161785531d1|20ed7aeb-d61f-4f25-aba6-cc6db32e6815|0aa43970-71c0-4a15-92af-e1bfe2bde97b"
+              ]
+            },
+            {
+              "legoId": "S0115L01",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "new": "spaced_rep|i want to start in a short time|kısa sürede başlamak istiyorum|6eafe869-3c8e-4bc8-8712-d956ae8b906b|b810655d-5a2d-4c8d-962e-ece7c7ccbf8a|6e4fd1a8-9ada-4c15-909e-f3bdf1de1eee"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.||b85e8b43-0101-4b8a-84ce-d1595915dd0a|",
+                "spaced_rep|it's not difficult to find the answer|cevabı bulmak zor değil.|6bfc07c2-a33d-488f-b201-db855aed9dfc.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to start in a short time|kısa sürede başlamak istiyorum|6eafe869-3c8e-4bc8-8712-d956ae8b906b|b810655d-5a2d-4c8d-962e-ece7c7ccbf8a|6e4fd1a8-9ada-4c15-909e-f3bdf1de1eee"
+              ]
+            },
+            {
+              "legoId": "S0115L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|why do you want to stop?|neden durmak istiyorsun?||d2fd5cf5-5190-474a-ac9e-e95bf11b568c|",
+                "new": "spaced_rep|i want to do a lot of things|çok şey yapmak istiyorum|ed9f93ad-b061-4779-b657-903744419eab|76217d98-37fd-4fb4-ac18-00f496d73c3c|ff76f886-0ce9-458c-a98d-cb6369a2b307"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|why do you want to stop?|neden durmak istiyorsun?||d2fd5cf5-5190-474a-ac9e-e95bf11b568c|",
+                "spaced_rep|why do you want to stop?|neden durmak istiyorsun?||d2fd5cf5-5190-474a-ac9e-e95bf11b568c|",
+                "spaced_rep|why do you want to stop?|neden durmak istiyorsun?||d2fd5cf5-5190-474a-ac9e-e95bf11b568c|",
+                "spaced_rep|why do you want to stop?|neden durmak istiyorsun?|3d2adb82-b92b-48f8-8106-3c5c94a4e083.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to do a lot of things|çok şey yapmak istiyorum|ed9f93ad-b061-4779-b657-903744419eab|76217d98-37fd-4fb4-ac18-00f496d73c3c|ff76f886-0ce9-458c-a98d-cb6369a2b307"
+              ]
+            },
+            {
+              "legoId": "S0115L04",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "new": "spaced_rep|i think i've done a lot in a short time|kısa sürede çok şey yaptığımı düşünüyorum|56ed3a03-c2d3-48c0-8dca-ba45aa1e4547.v2|0e08643e-3099-449c-8b2c-3437bd36c5e0|0db2ea5d-cd82-4f4b-ac11-741d0b57b7db"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?|4931099c-1651-4d04-958d-be09e0283814||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i think i've done a lot in a short time|kısa sürede çok şey yaptığımı düşünüyorum|56ed3a03-c2d3-48c0-8dca-ba45aa1e4547.v2|0e08643e-3099-449c-8b2c-3437bd36c5e0|0db2ea5d-cd82-4f4b-ac11-741d0b57b7db"
+              ]
+            },
+            {
+              "legoId": "S0115L05",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "new": "spaced_rep|i want to start more quickly|daha hızlı başlamak istiyorum|46fb551b-4344-46ee-a89d-02da6944b564|f4a3f524-a8e5-4b24-9d58-5cac4a4ffc6e|f458b952-6177-4d4a-8f92-678339b4b3fe"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?||d45ed66e-ef4f-4e32-959f-ac6326043326|",
+                "spaced_rep|what are you looking for?|ne arıyorsun?|4931099c-1651-4d04-958d-be09e0283814||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i want to start more quickly|daha hızlı başlamak istiyorum|46fb551b-4344-46ee-a89d-02da6944b564|f4a3f524-a8e5-4b24-9d58-5cac4a4ffc6e|f458b952-6177-4d4a-8f92-678339b4b3fe"
+              ]
+            },
+            {
+              "legoId": "S0115L06",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "new": "spaced_rep|that would be great, i don't understand why not|harika olur, neden anlamıyorum|df29a8cb-46d1-40b3-9163-48e2b6ff520b|9a29bc65-741d-499d-984c-9d1c4329c2dd|fd82e95d-043e-4a6f-91da-732552b33a6d"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.|96cb1bd1-25f9-4da3-88d6-789ec37aeea6.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|that would be great, i don't understand why not|harika olur, neden anlamıyorum|df29a8cb-46d1-40b3-9163-48e2b6ff520b|9a29bc65-741d-499d-984c-9d1c4329c2dd|fd82e95d-043e-4a6f-91da-732552b33a6d"
+              ]
+            },
+            {
+              "legoId": "S0116L02",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "new": "spaced_rep|if you can speak, i think it is important|konuşabilirsen önemli diye düşünüyorum|2da56b3b-dfcc-4bde-8329-9e99202039d4|0574ae9f-2aa0-47a4-bc55-d497aa104566|4edac0ae-8d7d-4361-a253-d47683f2e836"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.|96cb1bd1-25f9-4da3-88d6-789ec37aeea6.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|if you can speak, i think it is important|konuşabilirsen önemli diye düşünüyorum|2da56b3b-dfcc-4bde-8329-9e99202039d4|0574ae9f-2aa0-47a4-bc55-d497aa104566|4edac0ae-8d7d-4361-a253-d47683f2e836"
+              ]
+            },
+            {
+              "legoId": "S0116L03",
+              "oldCycleCount": 26,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 20,
+                "old": "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "new": "spaced_rep|it is difficult, i'm not sure|zor, emin değilim|22fc9364-9c2a-4805-969e-ad3c065475fb|354449c8-198c-440e-a700-c9c7899cf6c8|d6f2c61b-2a9e-4bd8-be26-e146340cf978"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.||b13463ee-4706-414c-8781-510c50b4d14e|",
+                "spaced_rep|he didn't want to look after the young dog all afternoon|bütün öğleden sonra genç köpeğe bakmak istemedi.|96cb1bd1-25f9-4da3-88d6-789ec37aeea6.v2||"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|it is difficult, i'm not sure|zor, emin değilim|22fc9364-9c2a-4805-969e-ad3c065475fb|354449c8-198c-440e-a700-c9c7899cf6c8|d6f2c61b-2a9e-4bd8-be26-e146340cf978"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 714,
+          "legoFrom": "S0248L10",
+          "legoTo": "S0253L05",
+          "roundDiffs": [
+            {
+              "legoId": "S0248L10",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "new": "spaced_rep|i think that we need speaking practice|konuşma pratiği gerektiğini düşünüyorum|1b6108d8-b7de-44c2-bb5c-7d9b6cf26a37|62e22b1c-a90d-48f8-b569-f33b09863e1f|450e17aa-0dcc-4afe-961b-35ec0908c360"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?|23b47609-9ae0-4146-a575-6b735b6a2d27||",
+                "spaced_rep|i won't be able to be there next month|gelecek ay orada olamayacağım.||a371f8d6-7960-4295-9d14-c793e906ddcb|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i think that we need speaking practice|konuşma pratiği gerektiğini düşünüyorum|1b6108d8-b7de-44c2-bb5c-7d9b6cf26a37|62e22b1c-a90d-48f8-b569-f33b09863e1f|450e17aa-0dcc-4afe-961b-35ec0908c360",
+                "spaced_rep|did you spend time at the weekend?|hafta sonu vakit geçirdin mi?|ce3115ea-aacc-4d69-ba04-5f4ff3571acf|b6ef79f1-7300-450f-bc43-47a1906a344f|0484e3a9-047e-4c7f-a295-40d54616241c"
+              ]
+            },
+            {
+              "legoId": "S0249L01",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "new": "spaced_rep|the man is trying to do something new|adam yeni bir şey yapmaya çalışıyor|a5d530f8-b8a9-4018-817c-b29983b69fdc|2223abaf-abfd-409b-8241-1fdbac491edb|bcbc35a6-a681-43d4-a6db-50010f7898c8"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?||ea01874d-8c78-468d-9130-7cd76c252301|",
+                "spaced_rep|have you heard the latest idea?|en son fikri duydun mu?|23b47609-9ae0-4146-a575-6b735b6a2d27||",
+                "spaced_rep|i won't be able to be there next month|gelecek ay orada olamayacağım.||a371f8d6-7960-4295-9d14-c793e906ddcb|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the man is trying to do something new|adam yeni bir şey yapmaya çalışıyor|a5d530f8-b8a9-4018-817c-b29983b69fdc|2223abaf-abfd-409b-8241-1fdbac491edb|bcbc35a6-a681-43d4-a6db-50010f7898c8",
+                "spaced_rep|i went out but i didn't want to|çıktım ama istemiyordum|add12935-85a3-45f1-8f61-33e74a3abbf1|a784eb51-ef31-4430-981d-1f0c11521c8c|59335bbc-cd1c-4492-9816-abe1873f2a3d"
+              ]
+            },
+            {
+              "legoId": "S0249L06",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "new": "spaced_rep|the man would help you if he could|adam yapabilseydi sana yardım ederdi|cb3f04ed-c3e6-43ae-9852-7375c3c24772|4334f36d-f4ca-4e82-bee7-0173b93fac72|1dfc8e41-6150-4268-9749-706966a94da2"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.|09127955-fdde-40c2-aa17-c4c2b1b22e0b||",
+                "spaced_rep|i won't be able to be there next month|gelecek ay orada olamayacağım.||a371f8d6-7960-4295-9d14-c793e906ddcb|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the man would help you if he could|adam yapabilseydi sana yardım ederdi|cb3f04ed-c3e6-43ae-9852-7375c3c24772|4334f36d-f4ca-4e82-bee7-0173b93fac72|1dfc8e41-6150-4268-9749-706966a94da2",
+                "spaced_rep|i went outside this week|bu hafta dışarı çıktım|b11c1941-b925-41c3-8d54-a1a5bfa27c98|e473f805-f92c-4d73-9d78-50d0d3aab696|860133e6-896b-4050-b0a7-9431a746c442"
+              ]
+            },
+            {
+              "legoId": "S0250L07",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "new": "spaced_rep|that woman just started to learn something new|o kadın yeni bir şey öğrenmeye başladı|53c846f8-11d7-407e-af93-212f5dabcb10|2ac1049e-c7ac-48b4-9fa9-c748799e103b|79dee240-3fc3-461c-ac17-6150082515b6"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.|09127955-fdde-40c2-aa17-c4c2b1b22e0b||",
+                "spaced_rep|let's talk about something else|başka bir şeyden konuşalım.||c0afd892-2849-4264-9003-a3986ea723ed|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|that woman just started to learn something new|o kadın yeni bir şey öğrenmeye başladı|53c846f8-11d7-407e-af93-212f5dabcb10|2ac1049e-c7ac-48b4-9fa9-c748799e103b|79dee240-3fc3-461c-ac17-6150082515b6",
+                "spaced_rep|i went outside on saturday night|cumartesi gecesi dışarı çıktım|1618c29c-011d-45b1-9709-9a84efc2829e|e13943c1-d738-400e-95d9-4822dc9bd040|78614fc7-0a12-4c35-b454-3777c6ab2d81"
+              ]
+            },
+            {
+              "legoId": "S0251L01",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "new": "spaced_rep|the young man started to do speaking practice|genç adam konuşma pratiği yapmaya başladı|3c5d26c8-9f84-46da-8ebd-62277fe70015|22960074-cc54-404f-be72-3365ed74d452|dbc6cf1a-8428-42a2-8e82-7a45d2d3b5fc"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.|09127955-fdde-40c2-aa17-c4c2b1b22e0b||",
+                "spaced_rep|let's talk about something else|başka bir şeyden konuşalım.||c0afd892-2849-4264-9003-a3986ea723ed|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the young man started to do speaking practice|genç adam konuşma pratiği yapmaya başladı|3c5d26c8-9f84-46da-8ebd-62277fe70015|22960074-cc54-404f-be72-3365ed74d452|dbc6cf1a-8428-42a2-8e82-7a45d2d3b5fc",
+                "spaced_rep|i went outside and met with them|dışarı çıktım ve görüştüm|99c53638-5477-441b-bee2-6aacad88b2b4|a8f5e236-8aea-4380-bf9c-cdf586fe5b0f|280fbfdc-cc63-4c81-bdbb-d97e01781340"
+              ]
+            },
+            {
+              "legoId": "S0251L04",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "new": "spaced_rep|the man who wants to learn is going to tell me something|öğrenmek isteyen adam bana bir şey söyleyecek|ab8787e5-bcec-49f7-9e88-b5fc8746558e|a4e4cc08-87cf-4c80-b34a-a09af6985e0d|e8e01eab-1092-4a81-9646-b407b7c7df76"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.||2b77f15d-660f-47c1-a741-7630545ff88e|",
+                "spaced_rep|my son works as a teacher|oğlum öğretmen olarak çalışıyor.|09127955-fdde-40c2-aa17-c4c2b1b22e0b||",
+                "spaced_rep|let's talk about something else|başka bir şeyden konuşalım.||c0afd892-2849-4264-9003-a3986ea723ed|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the man who wants to learn is going to tell me something|öğrenmek isteyen adam bana bir şey söyleyecek|ab8787e5-bcec-49f7-9e88-b5fc8746558e|a4e4cc08-87cf-4c80-b34a-a09af6985e0d|e8e01eab-1092-4a81-9646-b407b7c7df76",
+                "spaced_rep|i went out with a friend on saturday|cumartesi arkadaşla dışarı çıktım|ddb956c9-8c5d-40b0-84b5-0bf0d0560128|d9be0f90-53b6-423f-a8f8-6d6f81b61512|5d5802be-01da-4581-aed0-aa115deaf9b0"
+              ]
+            },
+            {
+              "legoId": "S0252L03",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "new": "spaced_rep|i know a young man who wants to work with you|seninle çalışmak isteyen genç bir adam tanıyorum|4aca042b-3d50-4567-bdcc-a12fd5b6525e.v2|9da7da3e-d903-4362-8820-2ead22e3ce73|76f3b73d-207c-46a6-a20c-eb3013179ec8"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.|c56c5877-ecb8-46be-86e7-9bd5df6dde94.v2||",
+                "spaced_rep|that isn't what i'm trying to say|bu söylemeye çalıştığım şey değil.||7c8e488f-c52a-405c-b5e6-b32265135607|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i know a young man who wants to work with you|seninle çalışmak isteyen genç bir adam tanıyorum|4aca042b-3d50-4567-bdcc-a12fd5b6525e.v2|9da7da3e-d903-4362-8820-2ead22e3ce73|76f3b73d-207c-46a6-a20c-eb3013179ec8",
+                "spaced_rep|i went out and had something to drink|dışarı çıktım ve bir şey içtim|d1ff14e7-244b-4092-96aa-b07c64b71755|40a44e2d-6d5e-4d49-9ba2-57950cfff62a|e4963097-4bb3-445d-bc27-3a8d49405124"
+              ]
+            },
+            {
+              "legoId": "S0252L04",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "new": "spaced_rep|the young man wants to work with you|genç adam seninle çalışmak istiyor|550352e5-d386-462e-9156-593c33b4a8cc|2ba7c631-8891-4ece-990b-fcd592d1a796|e9f10181-ec61-4516-8743-12771bd5af32"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.||4998d0b0-39fc-4a34-9973-9622a8faafb6|",
+                "spaced_rep|my daughter works for the council|kızım belediyede çalışıyor.|c56c5877-ecb8-46be-86e7-9bd5df6dde94.v2||",
+                "spaced_rep|that isn't what i'm trying to say|bu söylemeye çalıştığım şey değil.||7c8e488f-c52a-405c-b5e6-b32265135607|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the young man wants to work with you|genç adam seninle çalışmak istiyor|550352e5-d386-462e-9156-593c33b4a8cc|2ba7c631-8891-4ece-990b-fcd592d1a796|e9f10181-ec61-4516-8743-12771bd5af32",
+                "spaced_rep|they wanted water|su istiyorlardı|c2784cd6-1031-4897-b679-d86f9191572d|4eebce1e-66e0-47b8-8a7d-8fa97f732ff5|82bc5f75-df6b-48a7-ab44-fc08858192c0"
+              ]
+            },
+            {
+              "legoId": "S0253L04",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|my friend used to work in an office|arkadaşım bir ofiste çalışırdı.||62b2f0bc-01a2-410e-8be7-99ffbacd136c|",
+                "new": "spaced_rep|the old woman is trying to do speaking practice|yaşlı kadın konuşma pratiği yapmaya çalışıyor|09a6c4ab-2927-4fa9-99d7-54cb87487be3|70f8de01-78ca-41e6-abd6-76926293400d|359d4189-7496-4346-aae9-1b1fdf7eb151"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|my friend used to work in an office|arkadaşım bir ofiste çalışırdı.||62b2f0bc-01a2-410e-8be7-99ffbacd136c|",
+                "spaced_rep|my friend used to work in an office|arkadaşım bir ofiste çalışırdı.||62b2f0bc-01a2-410e-8be7-99ffbacd136c|",
+                "spaced_rep|my friend used to work in an office|arkadaşım bir ofiste çalışırdı.||62b2f0bc-01a2-410e-8be7-99ffbacd136c|",
+                "spaced_rep|my friend used to work in an office|arkadaşım bir ofiste çalışırdı.|8885dd4d-1e6a-481b-b0b6-edc4d0fcbe67.v2||",
+                "spaced_rep|how do you say this word in turkish?|bu kelimeyi türkçede nasıl söylüyorsun?||b78f8ec1-1849-468f-b19e-7ff1bb85034e|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|the old woman is trying to do speaking practice|yaşlı kadın konuşma pratiği yapmaya çalışıyor|09a6c4ab-2927-4fa9-99d7-54cb87487be3|70f8de01-78ca-41e6-abd6-76926293400d|359d4189-7496-4346-aae9-1b1fdf7eb151",
+                "spaced_rep|i want a glass of water|bir bardak su istiyorum|8ab3761a-434b-4525-bb74-6abe8945a370.v2|65c1a854-72d2-43cc-a3b9-e7cab3056df8|4dd2bd38-e9ba-40cd-b080-4291900d8f6b"
+              ]
+            },
+            {
+              "legoId": "S0253L05",
+              "oldCycleCount": 29,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 19,
+                "old": "spaced_rep|they say they want to make sure that we finish everything in time|her şeyi zamanında bitirdiğimizden emin olmak istediklerini söylüyorlar.||b36a8539-56a2-4a6e-b03f-9785e7614874|",
+                "new": "spaced_rep|i know someone who wanted to ask for help|yardım istemek isteyen birini tanıyorum|3993c698-e765-4fc9-8d8f-215de4fa9f17.v2|dc79478f-3871-4172-9091-d7214d378fbc|1dff0e43-d4e2-484a-8767-77939afdb908"
+              },
+              "onlyOnWalk": [
+                "spaced_rep|they say they want to make sure that we finish everything in time|her şeyi zamanında bitirdiğimizden emin olmak istediklerini söylüyorlar.||b36a8539-56a2-4a6e-b03f-9785e7614874|",
+                "spaced_rep|they say they want to make sure that we finish everything in time|her şeyi zamanında bitirdiğimizden emin olmak istediklerini söylüyorlar.||b36a8539-56a2-4a6e-b03f-9785e7614874|",
+                "spaced_rep|they say they want to make sure that we finish everything in time|her şeyi zamanında bitirdiğimizden emin olmak istediklerini söylüyorlar.||b36a8539-56a2-4a6e-b03f-9785e7614874|",
+                "spaced_rep|they say they want to make sure that we finish everything in time|her şeyi zamanında bitirdiğimizden emin olmak istediklerini söylüyorlar.|01f1af24-18d6-4547-a3c3-da9838db510a||",
+                "spaced_rep|how do you say this word in turkish?|bu kelimeyi türkçede nasıl söylüyorsun?||b78f8ec1-1849-468f-b19e-7ff1bb85034e|"
+              ],
+              "onlyOnBundle": [
+                "spaced_rep|i know someone who wanted to ask for help|yardım istemek isteyen birini tanıyorum|3993c698-e765-4fc9-8d8f-215de4fa9f17.v2|dc79478f-3871-4172-9091-d7214d378fbc|1dff0e43-d4e2-484a-8767-77939afdb908",
+                "spaced_rep|i had two glasses of water yesterday|dün iki bardak su içtim|8469b832-fd25-4321-bfae-4928a776767c|f3d01095-5f65-49b4-ac25-d0f421176cd4|9f0d1a0a-c89b-48f6-9d7a-adbadb808767"
+              ]
+            }
+          ]
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 840,
+      "newMainRoundCount": 840,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 21,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "spa_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 3,
+              "newCycleCount": 4,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": null,
+                "new": "use|i want to speak|quiero hablar|1cd89077-70d9-4da0-a267-f02502ada957.v2|9a9d822a-3aff-43d9-aebd-a952cffb3b2a|be0b8a86-5136-4395-a1fc-d4765f31e4da"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak|quiero hablar|1cd89077-70d9-4da0-a267-f02502ada957.v2|9a9d822a-3aff-43d9-aebd-a952cffb3b2a|be0b8a86-5136-4395-a1fc-d4765f31e4da"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 22,
+          "legoFrom": "S0008L01",
+          "legoTo": "S0011L02",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 47,
+          "legoFrom": "S0017L01",
+          "legoTo": "S0019L03",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": true,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 57,
+      "newMainRoundCount": 57,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 0,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": false,
+        "note": "preview courses have no INF PLAY at all — nothing to compare",
+        "oldRounds": 30,
+        "newRounds": 0,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0006L02",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 13,
+          "legoFrom": "S0008L01",
+          "legoTo": "S0012L01",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 23,
+          "legoFrom": "S0012L02",
+          "legoTo": "S0019L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0012L02",
+              "oldCycleCount": 16,
+              "newCycleCount": 17,
+              "firstOrderDiff": {
+                "index": 16,
+                "old": null,
+                "new": "use|but i can’t remember how to say what i wanted to say|ond alla i ddim cofio sut i ddweud beth o’n i’n moyn dweud|ea6bb235-7027-4939-8b63-1e4dd0b12d0d|6feaf618-581d-4502-8d61-2b6ad2cb1ea2|19482e89-2dc5-4c32-8f40-11aae90aef67"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|but i can’t remember how to say what i wanted to say|ond alla i ddim cofio sut i ddweud beth o’n i’n moyn dweud|ea6bb235-7027-4939-8b63-1e4dd0b12d0d|6feaf618-581d-4502-8d61-2b6ad2cb1ea2|19482e89-2dc5-4c32-8f40-11aae90aef67"
+              ]
+            }
+          ]
+        }
+      ],
+      "previewOnly": true,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 33,
+      "newMainRoundCount": 33,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 0,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": false,
+        "note": "preview courses have no INF PLAY at all — nothing to compare",
+        "oldRounds": 30,
+        "newRounds": 0,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    }
+  ]
+}

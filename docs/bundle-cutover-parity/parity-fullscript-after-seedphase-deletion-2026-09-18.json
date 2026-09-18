@@ -1,0 +1,411 @@
+{
+  "base": "https://ssi-learning-app-git-dev-zenjin.vercel.app",
+  "generatedAt": "2026-09-18T21:01:50.850Z",
+  "cases": [
+    {
+      "course": "hun_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 3,
+              "newCycleCount": 4,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": null,
+                "new": "use|i want to speak|szeretnék beszélni|2b4dd4eb-f417-4b01-85d1-8120d1423c7d.v2|fa4af8ff-d294-4707-8097-1d91ff05921b|78250629-e2e6-4622-b048-6411a9a207e6"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak|szeretnék beszélni|2b4dd4eb-f417-4b01-85d1-8120d1423c7d.v2|fa4af8ff-d294-4707-8097-1d91ff05921b|78250629-e2e6-4622-b048-6411a9a207e6"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 266,
+          "legoFrom": "S0094L01",
+          "legoTo": "S0098L01",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 565,
+          "legoFrom": "S0237L02",
+          "legoTo": "S0243L02",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 665,
+      "newMainRoundCount": 665,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "gle_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0004L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L04",
+              "oldCycleCount": 6,
+              "newCycleCount": 7,
+              "firstOrderDiff": {
+                "index": 6,
+                "old": null,
+                "new": "use|i want to speak irish with you|tá mé ag iarraidh gaeilge a labhairt leat|06393d99-b2d9-4d61-aa37-0c6e685b19a7|e99ee2e8-4da3-4e9d-9cbd-0e7342ea7614|de92532d-691b-4434-a9f4-2f8bf87179f8"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak irish with you|tá mé ag iarraidh gaeilge a labhairt leat|06393d99-b2d9-4d61-aa37-0c6e685b19a7|e99ee2e8-4da3-4e9d-9cbd-0e7342ea7614|de92532d-691b-4434-a9f4-2f8bf87179f8"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 308,
+          "legoFrom": "S0106L05",
+          "legoTo": "S0109L01",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 656,
+          "legoFrom": "S0242L03",
+          "legoTo": "S0248L02",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 772,
+      "newMainRoundCount": 772,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "nld_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L03",
+              "oldCycleCount": 4,
+              "newCycleCount": 5,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": null,
+                "new": "use|i want to speak dutch|ik wil nederlands spreken|622b9fa5-6052-4d22-850d-d2a3548a4471|4dbc6e5f-5fef-4556-ad11-4f246c62bdb2|5dc1dded-7118-4065-ada3-6da43bb2125c"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak dutch|ik wil nederlands spreken|622b9fa5-6052-4d22-850d-d2a3548a4471|4dbc6e5f-5fef-4556-ad11-4f246c62bdb2|5dc1dded-7118-4065-ada3-6da43bb2125c"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 225,
+          "legoFrom": "S0094L02",
+          "legoTo": "S0098L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0096L01",
+              "oldCycleCount": 23,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 21,
+                "old": "use|no|nee|69edfcf3-6cb7-43d5-99cf-3a4a6931f003|0f15ce02-312a-48a5-b096-28258eeb771b|07cdf7a7-c68c-4e73-bdfc-8389ecd9eb63",
+                "new": "use|no, not yet|nee, nog niet|b389d06b-a92c-4608-a4ed-bdfd8e205c52|2ab1d614-fb14-40a2-a363-4d9b3b6cd851|6f4bb10f-a19e-4bf4-b070-fdd8a86265ce"
+              },
+              "onlyOnWalk": [
+                "use|no|nee|69edfcf3-6cb7-43d5-99cf-3a4a6931f003|0f15ce02-312a-48a5-b096-28258eeb771b|07cdf7a7-c68c-4e73-bdfc-8389ecd9eb63"
+              ],
+              "onlyOnBundle": [
+                "use|no, i don't want to|nee, ik wil niet|edcdc5ad-a53b-47c5-b27a-f4fc6a89fa3e|894736a6-1462-4b0d-9f53-24c19cd20461|7e4a7d93-6f41-457f-98ed-d9b2d107b132"
+              ]
+            },
+            {
+              "legoId": "S0097L01",
+              "oldCycleCount": 23,
+              "newCycleCount": 23,
+              "firstOrderDiff": {
+                "index": 21,
+                "old": "use|yes|ja|a1efdc17-59ab-4bb2-bb30-b64a3dd9dd25|2b9c52f2-5ea4-4b0c-b5fa-b082bf6dda7c|a03b38e3-bea9-4282-95e4-b8f45f8fffe6",
+                "new": "use|yes, i want to|ja, ik wil|93682ebd-7383-4d1d-8208-76aa9c4b745c|0fe4a6d8-1ae8-4266-84cd-88a7bf5964bf|ee475993-7a6e-43ce-abfa-7bff746ac577"
+              },
+              "onlyOnWalk": [
+                "use|yes|ja|a1efdc17-59ab-4bb2-bb30-b64a3dd9dd25|2b9c52f2-5ea4-4b0c-b5fa-b082bf6dda7c|a03b38e3-bea9-4282-95e4-b8f45f8fffe6"
+              ],
+              "onlyOnBundle": [
+                "use|yes, i know|ja, ik weet het|bd3e192f-7123-4683-a493-c819d4dbd61e|42ff9a86-1533-4847-92a6-3b67ac8926f4|f38b3cc3-90c7-4672-87ae-08e9b1189243"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 478,
+          "legoFrom": "S0249L01",
+          "legoTo": "S0253L01",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 563,
+      "newMainRoundCount": 563,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 3,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "tur_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0004L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 4,
+              "newCycleCount": 5,
+              "firstOrderDiff": {
+                "index": 4,
+                "old": null,
+                "new": "use|i want turkish|türkçe istiyorum|8e3939d8-65ba-46f8-a8aa-58ba2390c286|5fb5ba3a-9aa5-4ab9-a603-e2a8ce550da0|8e847ce5-5ce9-466d-b6b4-863ce0fe3b01"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want turkish|türkçe istiyorum|8e3939d8-65ba-46f8-a8aa-58ba2390c286|5fb5ba3a-9aa5-4ab9-a603-e2a8ce550da0|8e847ce5-5ce9-466d-b6b4-863ce0fe3b01"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 336,
+          "legoFrom": "S0114L02",
+          "legoTo": "S0116L03",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 714,
+          "legoFrom": "S0248L10",
+          "legoTo": "S0253L05",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": false,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 840,
+      "newMainRoundCount": 840,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 30,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": true,
+        "note": "length-only comparison; content is RNG-sampled independently on both sides by design",
+        "oldRounds": 30,
+        "newRounds": 30,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "spa_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0003L03",
+          "roundDiffs": [
+            {
+              "legoId": "S0001L02",
+              "oldCycleCount": 3,
+              "newCycleCount": 4,
+              "firstOrderDiff": {
+                "index": 3,
+                "old": null,
+                "new": "use|i want to speak|quiero hablar|1cd89077-70d9-4da0-a267-f02502ada957.v2|9a9d822a-3aff-43d9-aebd-a952cffb3b2a|be0b8a86-5136-4395-a1fc-d4765f31e4da"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|i want to speak|quiero hablar|1cd89077-70d9-4da0-a267-f02502ada957.v2|9a9d822a-3aff-43d9-aebd-a952cffb3b2a|be0b8a86-5136-4395-a1fc-d4765f31e4da"
+              ]
+            }
+          ]
+        },
+        {
+          "startIndex": 22,
+          "legoFrom": "S0008L01",
+          "legoTo": "S0011L02",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 47,
+          "legoFrom": "S0017L01",
+          "legoTo": "S0019L03",
+          "roundDiffs": []
+        }
+      ],
+      "previewOnly": true,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 57,
+      "newMainRoundCount": 57,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 0,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": false,
+        "note": "preview courses have no INF PLAY at all — nothing to compare",
+        "oldRounds": 30,
+        "newRounds": 0,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    },
+    {
+      "course": "cym_s_for_eng",
+      "windows": [
+        {
+          "startIndex": 0,
+          "legoFrom": "S0001L01",
+          "legoTo": "S0006L02",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 13,
+          "legoFrom": "S0008L01",
+          "legoTo": "S0012L01",
+          "roundDiffs": []
+        },
+        {
+          "startIndex": 23,
+          "legoFrom": "S0012L02",
+          "legoTo": "S0019L01",
+          "roundDiffs": [
+            {
+              "legoId": "S0012L02",
+              "oldCycleCount": 16,
+              "newCycleCount": 17,
+              "firstOrderDiff": {
+                "index": 16,
+                "old": null,
+                "new": "use|but i can’t remember how to say what i wanted to say|ond alla i ddim cofio sut i ddweud beth o’n i’n moyn dweud|ea6bb235-7027-4939-8b63-1e4dd0b12d0d|6feaf618-581d-4502-8d61-2b6ad2cb1ea2|19482e89-2dc5-4c32-8f40-11aae90aef67"
+              },
+              "onlyOnWalk": [],
+              "onlyOnBundle": [
+                "use|but i can’t remember how to say what i wanted to say|ond alla i ddim cofio sut i ddweud beth o’n i’n moyn dweud|ea6bb235-7027-4939-8b63-1e4dd0b12d0d|6feaf618-581d-4502-8d61-2b6ad2cb1ea2|19482e89-2dc5-4c32-8f40-11aae90aef67"
+              ]
+            }
+          ]
+        }
+      ],
+      "previewOnly": true,
+      "walkRuntimeOnlyCyclesStripped": 0,
+      "walkRoundsEmptiedByStrip": 0,
+      "oldMainRoundCount": 33,
+      "newMainRoundCount": 33,
+      "oldTailRoundCount": 30,
+      "newTailRoundCount": 0,
+      "legoSequence": {
+        "identical": true,
+        "firstOrderDiff": null,
+        "onlyInOldCount": 0,
+        "onlyInNewCount": 0,
+        "onlyInOld": [],
+        "onlyInNew": []
+      },
+      "windowRoundDiffCount": 1,
+      "tail": {
+        "checked": false,
+        "note": "preview courses have no INF PLAY at all — nothing to compare",
+        "oldRounds": 30,
+        "newRounds": 0,
+        "comparable": true
+      },
+      "verdict": "DRIFT"
+    }
+  ]
+}
