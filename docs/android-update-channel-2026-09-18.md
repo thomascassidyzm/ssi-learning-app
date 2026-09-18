@@ -1,7 +1,10 @@
 # The Android update channel — what it is, and why it is not a live-update plugin
 
-**18 September 2026, job #214. Read against `origin/dev`. The code changes described here are on
-`cs/214-ssi-app` and are not merged.**
+**18 September 2026, job #214. Read against `origin/dev`. The code changes described here are
+merged to `dev` and promoted to `staging` (`81fb9e04`), and `staging.saysomethingin.app` is serving
+them. A follow-up commit on top, `246dcd51`, bounds the `/version.json` check with a 5s timeout and
+stops a merely-different SHA being reported as "newer" — a SHA carries no ordering, which is rule 1
+of `buildStaleness.ts` and was got wrong here first time round. Nothing has gone to `main`.**
 
 ---
 
@@ -146,5 +149,6 @@ Settings tap picking it up on demand, the rollback switch reverting it, and a co
 unreachable bundle falling back — have **not** been observed on Android. What *can* be checked on
 this box is whether the config compiles into the APK, and that is recorded in the job's report.
 
-**Also not done:** nothing was promoted past `dev`, no Play Console was opened, and no APK was
-distributed.
+**Also not done:** nothing was promoted past `staging`, no Play Console was opened, and no APK was
+distributed. An installable debug APK pointing at staging sits on watson-1 at
+`~/apk-serve/ssi-devwrap-81fb9e04-native-level-1-staging-debug.apk` for whoever has a handset.
