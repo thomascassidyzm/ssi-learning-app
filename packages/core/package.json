@@ -59,7 +59,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest",
+    "test": "vitest run",
     "lint": "eslint src/",
     "clean": "rm -rf dist"
   },
