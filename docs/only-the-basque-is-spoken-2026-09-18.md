@@ -117,6 +117,31 @@ on the pre-fix generator — the sandwich arrives as 1 slot of 4 — and green a
   phrases with no audio ids at all. That is a content gap for Popty, unrelated to this report; the
   seed sentences themselves are complete.
 
+## Two paths, and only one of them was broken
+
+There are two live script builders, and they do not agree about what a drained seed review is.
+
+- **The bundle path** (`@ssi/core`'s `generateScript`, the instant-playback default): its seed review
+  is `buildSeedReviewCycle` — an ordinary three-clip production cycle, English then a mic gap then
+  the two target voices, with a phase strip. Cycle ids end `_seedrep`. It has never built the
+  sandwich at all.
+- **The whole-course walk** (`player-vue`'s `generateLearningScript`, the fallback, and what
+  mintonman's own cycle ids name): the four-slot sandwich. Cycle ids look like
+  `S0039L02_seed_rep_5185`.
+
+Thirty days of telemetry, seed reviews only:
+
+| path | plays | learners | of which the English clip |
+|---|---|---|---|
+| bundle (`_seedrep`) | 276 | 8 | 105 |
+| walk (`_seed_rep_`) | 311 | 9 | **0** |
+
+The walk is the broken one, and it is the one mintonman is on. That split is worth a decision of its
+own, separate from this fix: **the drained sandwich that Tom and Aran designed only exists on the
+path that is being retired.** On the path that is becoming the default, a seed review at offset 144
+is an ordinary exercise asking the learner to produce a whole sentence they last met 144 rounds ago
+— which is not what "drained" was supposed to mean. Which of the two is the intent is a product call.
+
 ## Which other items share the shape
 
 Not a list of Basque rows. This was never Basque-specific and never about missing audio: it is

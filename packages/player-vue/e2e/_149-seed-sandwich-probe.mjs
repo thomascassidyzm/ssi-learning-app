@@ -55,7 +55,7 @@ const dismissLater = async () => {
   }
 }
 
-await page.goto(`${BASE}/?course=eus_for_eng&stream`, { waitUntil: 'domcontentloaded' }).catch(() => {})
+await page.goto(`${BASE}/?course=eus_for_eng&fullscript=walk&stream`, { waitUntil: 'domcontentloaded' }).catch(() => {})
 await page.waitForTimeout(14000); await dismissLater()
 await page.waitForTimeout(2000)
 await page.screenshot({ path: `${OUT}/1-loaded.png` })
