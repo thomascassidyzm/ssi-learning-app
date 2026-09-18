@@ -1,3 +1,27 @@
+## 2026-09-18 — Count class-account practice from the diary once (job #170)
+
+The restarted lesson recorder invalidated Insights' assumption that class_sessions
+and player_events described disjoint history. For classes with class_learner_id,
+use only diary session rows, matching Overview's source even in an empty window.
+Keep the class_sessions records for lesson identity and reconciliation. Classes
+without a class account retain legacy/demo RPC rows: they cannot supply class-account
+diary events. Account lookup errors refuse the read rather than combine sources.
+The isolated endpoint regression adds a 154-second lesson record beside 40 seconds
+of diary practice: it failed at 3.2 minutes before and passes at 0.7 afterwards,
+compared against Overview's own inAppTimeTotals helper. Overview rounds up to whole
+minutes; Insights retains its existing one-decimal representation. The four scoped
+email, diary, rate-compare and home suites pass (135 tests).
+
+## 2026-09-18 — Preserve access when linking another account's email (job #170)
+
+An activity-free learner can still own paid, gifted or code access. Refuse absorption
+when user_entitlements or subscriptions contains any row, including historical rows;
+only a successful zero-count read permits the existing empty-stub flow. Errors and
+missing counts fail closed. Refusal is reversible; transferring grants is outside this
+commission. No real account or OTP was used. The isolated parameterised regression
+returned 200 before the fix and 409 afterwards, with neither delete called; all 13
+email tests pass. The guard retains the existing handler's separate read/delete flow.
+
 ## 2026-09-18 — The drained seed review was shipping one clip in four (job #149)
 
 mintonman's SECOND Basque report describes an exercise where only the Basque is spoken with English

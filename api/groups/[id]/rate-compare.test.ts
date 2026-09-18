@@ -1115,6 +1115,27 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     expect(mins.body.entity.value).toBeGreaterThan(0)      // in-app minutes off the same diary blocks
   })
 
+  it('counts a recorded class lesson once, using the same diary seconds as Overview', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    // The recorder starts on the first clip and ends after the final clip;
+    // its wall time differs from the diary's play-to-last-audio span.
+    SESSION_ROWS.push({
+      class_id: 'c6', course_code: 'hin_for_eng',
+      start_lego_id: 'S1L01', end_lego_id: 'S5L01', start_ord: 1, end_ord: 5,
+      started_at: new Date(NOW - 3 * DAY + 10_000).toISOString(), duration_seconds: 154,
+    })
+    const { createClient } = await import('@supabase/supabase-js')
+    const { inAppTimeTotals } = await import('../../_utils/classPractice')
+    const overview = await inAppTimeTotals(createClient('https://example.supabase.co', 'test'), ['CL6'], [])
+    const res = makeRes()
+    await handler(makeReq('c6', { window: 'all_time' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(overview.classSeconds).toBe(40)
+    expect(res.body.week.entity.classMinutes).toBeCloseTo(overview.classSeconds / 60, 1)
+    expect(SESSION_ROWS.find((r) => r.class_id === 'c6')?.duration_seconds).toBe(154)
+  })
+
   it('a school whose classes ALL play from the front is no longer dark', async () => {
     seedDiaryClass()
     verifyAdminResult = { userId: 'admin-1' }
