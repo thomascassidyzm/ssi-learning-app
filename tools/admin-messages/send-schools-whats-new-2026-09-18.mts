@@ -35,7 +35,7 @@ const DRY = process.env.DRY === '1'
 const RUN_KEY = 'ssi-schools-whats-new-2026-09-18'
 
 export const TITLE = "What's new in your school dashboard"
-const NOTE = new URL('../release-train/notes/2026-09-18-schools.md', import.meta.url).pathname
+const NOTE = new URL('../release-train/notes/sources/2026-09-18-schools.md', import.meta.url).pathname
 export const BODY = readFileSync(NOTE, 'utf8').split('## The note')[1].trim()
 
 // Tom, platform_role ssi_admin — the sender the #77 send used.
