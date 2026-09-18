@@ -17,7 +17,7 @@ const EMAIL = process.env.EMAIL
 if (!EMAIL) { console.error('EMAIL is required'); process.exit(1) }
 const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, { auth:{persistSession:false} })
 
-const browser = await chromium.launch({ args: ['--disable-gpu','--no-sandbox'], ...(process.env.PW_EXEC ? { executablePath: process.env.PW_EXEC } : {}) })
+const browser = await chromium.launch({ args: ['--disable-gpu','--no-sandbox'] })
 const p = await (await browser.newContext({ viewport:{width:1200,height:900} })).newPage()
 p.on('response', r => {
   if (r.url().includes('/api/auth/setup-mint')) console.log('SETUP-MINT ->', r.status())
@@ -29,16 +29,11 @@ p.on('framenavigated', f => { if (f === p.mainFrame()) console.log('NAV ->', f.u
 await p.goto(`${BASE}/schools1`, { waitUntil:'domcontentloaded', timeout:60000 })
 await p.waitForTimeout(6000)
 
-// 1. Choose the language — the heritage door preselects Welsh when the
-//    choice is unambiguous, so a missing picker is not a failure.
-try {
-  await p.locator('.fs-trigger').first().click({ timeout: 5000 })
-  await p.waitForTimeout(600)
-  const opt = p.locator('[role=option], .fs-option, .fs-opt, .fs-item, .fs-list button, .fs-menu button').first()
-  if (await opt.count()) await opt.click({ timeout: 5000 })
-  else await p.getByText(/Welsh|Cymraeg/).first().click({ timeout: 5000 })
-  await p.waitForTimeout(1000)
-} catch (e) { console.log('LANGUAGE: picker step skipped —', String(e.message).split('\n')[0]) }
+// 1. Choose the language.
+await p.locator('.ob-known').first().click()
+await p.waitForTimeout(600)
+await p.locator('.ob-known-opts button').first().click()
+await p.waitForTimeout(1000)
 console.log('LANGUAGE:', (await p.locator('.ob-claim-endonym').allInnerTexts()).join('|'))
 
 // 2. Type the email and set up — no code.
