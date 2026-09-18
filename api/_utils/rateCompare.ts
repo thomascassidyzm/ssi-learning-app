@@ -60,6 +60,25 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
+/**
+ * A TENTH, BUT A REAL NUMBER NEVER BECOMES ZERO (Tom on production,
+ * 2026-09-18, job #207: "It can't be zero if the class I'm looking at has
+ * 8m"). The week card's numbers are the only ones a school reads as words
+ * rather than as a bar, and an average is a fraction by nature: a school's
+ * minutes spread over every class that has started can land below a twentieth
+ * of a minute and round1 would hand the client a flat 0, which the client can
+ * only render as "nothing happened".
+ *
+ * So a positive value that would round to zero keeps two decimals instead of
+ * one — enough for the client to know it is more than nothing and say "<1m",
+ * and never enough to invent a tenth of a minute nobody practised.
+ */
+function round1NonZero(n: number): number {
+  const r = Math.round(n * 10) / 10
+  if (r === 0 && n > 0) return Math.max(Math.round(n * 100) / 100, 0.01)
+  return r
+}
+
 export interface WindowPace {
   pace: number // LEGOs/week over the window
   legosAdvanced: number
@@ -459,7 +478,7 @@ export function rangeMinutesByActor(
     seconds += r.duration_seconds ?? 0
     any = true
   }
-  return { minutes: round1(seconds / 60), hasData: any }
+  return { minutes: round1NonZero(seconds / 60), hasData: any }
 }
 
 /**
@@ -510,7 +529,7 @@ export function weekNumbersForClassIds(
   return {
     classMinutes: x.minutes,
     pupilMinutes: y.minutes,
-    totalMinutes: round1(x.minutes + y.minutes),
+    totalMinutes: round1NonZero(x.minutes + y.minutes),
     newPhrases: newPhrasesInRange(rows, classIds, startMs, endMs),
     hasData: x.hasData || y.hasData,
   }
@@ -563,8 +582,10 @@ export function meanWeekNumbers(members: WeekNumbers[]): WeekNumbers {
   if (members.length === 0) {
     return { classMinutes: 0, pupilMinutes: 0, totalMinutes: 0, newPhrases: 0, hasData: false }
   }
+  // round1NonZero, not round1: the cohort mean is the number that printed "0m"
+  // for a school whose classes had genuinely practised (job #207).
   const mean = (pick: (w: WeekNumbers) => number): number =>
-    round1(members.reduce((s, w) => s + pick(w), 0) / members.length)
+    round1NonZero(members.reduce((s, w) => s + pick(w), 0) / members.length)
   return {
     classMinutes: mean((w) => w.classMinutes),
     pupilMinutes: mean((w) => w.pupilMinutes),

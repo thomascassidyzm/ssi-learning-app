@@ -135,3 +135,57 @@ describe('WeekNumbersCard — one card, two columns, three numbers, no rank', ()
     expect(bare.text()).toContain('the mean of every class in that scope')
   })
 })
+
+/**
+ * THE CHEPSTOW SHAPE (job #207, Tom on production 2026-09-18). A school of
+ * class accounts and no pupil accounts: 34 classes, 33 of them started, 11.7
+ * minutes of play-as-class across the week, and the class the leader has open
+ * did 7 min 22 s of it. His words: "The school average is the misleading one.
+ * It can't be zero if the class I'm looking at has 8m."
+ *
+ * Red on the card's own Math.round formatter — every cohort cell read "0m" —
+ * and green through the estate's one formatter.
+ */
+describe('WeekNumbersCard — a school average is a fraction, and a fraction is not zero', () => {
+  const chepstow = (): WeekBlock => block({
+    window: 'this_week',
+    label: 'This week',
+    rangeLabel: '14–18 Sep',
+    entity: { label: '10P', classMinutes: 7.4, pupilMinutes: 0, totalMinutes: 7.4, newPhrases: 1, hasData: true },
+    cohort: {
+      label: 'Ysgol Cas-gwent Chepstow School average',
+      classMinutes: 0.4, pupilMinutes: 0, totalMinutes: 0.4, newPhrases: 0.6,
+      size: 33, sizeLabel: '33 classes',
+    },
+    bars: { weeks: ['7–13 Sep', '14–20 Sep'], entity: [12, 7.4], cohort: [8.7, 0.4] },
+  })
+
+  it('never prints a lying 0m beside a class that practised', () => {
+    const w = render({ data: chepstow() })
+    expect(rowText(w, 'class')).toBe('Play as class 8m <1m')
+    expect(rowText(w, 'total')).toBe('Total learning time 8m <1m')
+    // "Students on their own 0m" stays 0m and should: Chepstow has no pupil
+    // accounts at all, so that zero is a fact rather than a rounded fraction.
+    expect(rowText(w, 'pupils')).toBe('Students on their own 0m 0m')
+  })
+
+  it('does not overstate the average as a whole minute either', () => {
+    const cells = render({ data: chepstow() }).findAll('.wk-row-class .wk-num').map((c) => c.text())
+    expect(cells[1]).toBe('<1m')
+  })
+
+  it('an average of 0.6 new phrases is neither 1 nor 0', () => {
+    expect(rowText(render({ data: chepstow() }), 'phrases')).toBe('New phrases 1 <1')
+  })
+
+  it('says what the average divides by, right there under it', () => {
+    expect(render({ data: chepstow() }).find('.wk-denominator').text())
+      .toBe('Ysgol Cas-gwent Chepstow School average · 33 classes')
+  })
+
+  it('a school that truly did nothing still reads zero', () => {
+    const quiet = chepstow()
+    quiet.cohort = { ...quiet.cohort!, classMinutes: 0, pupilMinutes: 0, totalMinutes: 0, newPhrases: 0 }
+    expect(rowText(render({ data: quiet }), 'class')).toBe('Play as class 8m 0m')
+  })
+})

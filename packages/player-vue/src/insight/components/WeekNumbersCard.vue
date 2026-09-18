@@ -35,6 +35,7 @@
 // ============================================================================
 import { computed, ref } from 'vue'
 import WeekBars from './WeekBars.vue'
+import { formatPracticeMinutesCompact, formatAverageCount } from '@/composables/schools/practiceMinutes'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -113,14 +114,16 @@ const props = defineProps<{
   unitNoun?: string
 }>()
 
-/** Minutes as a school reads them: "1h 25m" past the hour, plain minutes below. */
-function mins(n: number): string {
-  const whole = Math.round(n)
-  if (whole < 60) return `${whole}m`
-  const h = Math.floor(whole / 60)
-  const m = whole % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
+/**
+ * Minutes as a school reads them — THE ONE FORMATTER (composables/schools/
+ * practiceMinutes.ts), never a private copy. This card kept its own
+ * round-to-nearest until 2026-09-18, and that is how Chepstow's school average
+ * printed "0m" on the very screen where the class beside it printed 8 min: an
+ * average of 11.7 minutes over 33 classes is 0.35 of a minute, and rounding it
+ * to the nearest whole reads as "nobody practised". A fraction of a minute now
+ * reads "<1m" everywhere, and the ceiling above a minute is the estate's.
+ */
+const mins = formatPracticeMinutesCompact
 
 const entity = computed(() => props.data.entity)
 const cohort = computed(() => props.data.cohort)
@@ -152,7 +155,9 @@ const rows = computed(() => [
   { key: 'class', label: t('insights.week.playAsClass', 'Play as class'), big: true, entity: mins(entity.value.classMinutes), cohort: cohort.value ? mins(cohort.value.classMinutes) : null },
   { key: 'pupils', label: t('insights.week.studentsOwn', 'Students on their own'), big: true, entity: mins(entity.value.pupilMinutes), cohort: cohort.value ? mins(cohort.value.pupilMinutes) : null },
   { key: 'total', label: t('insights.week.total', 'Total learning time'), big: false, entity: mins(entity.value.totalMinutes), cohort: cohort.value ? mins(cohort.value.totalMinutes) : null },
-  { key: 'phrases', label: isAllTime.value ? t('insights.week.phrasesReached', 'Phrases reached') : t('insights.week.newPhrases', 'New phrases'), big: true, entity: String(Math.round(entity.value.newPhrases)), cohort: cohort.value ? String(Math.round(cohort.value.newPhrases)) : null },
+  // Phrases take the same law as minutes: a cohort mean of 0.6 phrases is not
+  // 1 and a mean of 0.4 is not 0 — both are "<1".
+  { key: 'phrases', label: isAllTime.value ? t('insights.week.phrasesReached', 'Phrases reached') : t('insights.week.newPhrases', 'New phrases'), big: true, entity: formatAverageCount(entity.value.newPhrases), cohort: cohort.value ? formatAverageCount(cohort.value.newPhrases) : null },
 ])
 
 const whyOpen = ref(false)
