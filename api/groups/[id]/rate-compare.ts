@@ -580,7 +580,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let censusRows: ScopedSessionRow[] = []
     if (censusIds.length > 0) {
       const { data: censusData, error: censusError } = await loadScopedSessionRows(svc, censusIds, CENSUS_EVER_DAYS, entityIsDemo)
-      if (censusError) console.error('[node-rate-compare] course census error:', censusError.message)
+      // The census RANKS courses AND decides `hasData` — a node with every
+      // course dark answers "No practice recorded in this class yet." So a
+      // failed census is not a cosmetic ordering loss: it prints that
+      // sentence over a school that has practised (job #180). Fail loudly.
+      if (censusError) {
+        console.error('[node-rate-compare] course census error:', censusError.message)
+        res.status(500).json({ error: 'Failed to load rate data' })
+        return
+      }
       censusRows = (censusData as ScopedSessionRow[]) || []
     }
     // Privacy floor: the cohort is classes or schools (entities), never
@@ -1141,8 +1149,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         if (daysSinceFirst > fetchDays) {
           const { data: lifeData, error: lifeError } = await loadScopedSessionRows(
             svc, [classRow.id], Math.min(daysSinceFirst, 1500), entityIsDemo, nowMs, { includePupils: true })
-          if (lifeError) console.error('[node-rate-compare] all-time rows error:', lifeError.message)
-          else lifeRows = (lifeData as ScopedSessionRow[]) || []
+          // The same read as the window's, so the same answer to failure: a
+          // total quietly computed off twelve weeks when the class has played
+          // for two years is an UNDERSTATEMENT, which is the one thing this
+          // endpoint must never show (job #180).
+          if (lifeError) {
+            console.error('[node-rate-compare] all-time rows error:', lifeError.message)
+            res.status(500).json({ error: 'Failed to load rate data' })
+            return
+          }
+          lifeRows = (lifeData as ScopedSessionRow[]) || []
         }
         const x = rangeMinutesByActor(lifeRows, [classRow.id], 'class', 0, nowMs)
         const y = rangeMinutesByActor(lifeRows, [classRow.id], 'pupil', 0, nowMs)

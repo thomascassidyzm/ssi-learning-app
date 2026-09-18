@@ -125,16 +125,23 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
   return result
 }
 
+// A table whose read FAILS, so a DB error can be told from an empty table
+// (job #180). Null for every test that does not set it.
+let TABLE_ERROR: string | null = null
+
 function makeChainable(table: string) {
   const calls: { method: string; args: any[] }[] = []
   const builder: any = {}
   const chain = (method: string) => (...args: any[]) => { calls.push({ method, args }); return builder }
   for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'like', 'gte', 'order', 'limit', 'range']) builder[m] = chain(m)
+  const failure = () => ({ data: null, error: { message: `${table} statement timeout` } })
   builder.maybeSingle = () => {
+    if (table === TABLE_ERROR) return Promise.resolve(failure())
     const rows = applyFilters(TABLES[table] || [], calls)
     return Promise.resolve({ data: rows[0] || null, error: null })
   }
   builder.then = (resolve: any) => {
+    if (table === TABLE_ERROR) return resolve(failure())
     const rows = applyFilters(TABLES[table] || [], calls)
     return resolve({ data: rows, error: null })
   }
@@ -203,6 +210,7 @@ beforeEach(async () => {
   resetTables()
   coverageExpired = false
   firstPlayRpcError = false
+  TABLE_ERROR = null
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: false, error: 'no token' }
   visibleScopeResult = { ...EMPTY_SCOPE }
@@ -1113,6 +1121,32 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes', days: '90' }), mins)
     expect(mins.statusCode).toBe(200)
     expect(mins.body.entity.value).toBeGreaterThan(0)      // in-app minutes off the same diary blocks
+  })
+
+  // ─── A BROKEN DIARY IS NOT A QUIET ZERO (job #180) ───
+  // Since job #170 dropped the legacy RPC rows for any class with a class
+  // account, a failed diary read has nothing left to mask it: the endpoint
+  // would have answered 200 with the class's minutes missing. It must 500.
+  it('a diary read failure returns an error, never a smaller total', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    // The class also has a legacy recorder row, which is exactly what would
+    // have been served as the whole truth had the failure stayed silent.
+    SESSION_ROWS.push({
+      class_id: 'c6', course_code: 'hin_for_eng',
+      start_lego_id: 'S1L01', end_lego_id: 'S5L01', start_ord: 1, end_ord: 5,
+      started_at: new Date(NOW - 3 * DAY + 10_000).toISOString(), duration_seconds: 154,
+    })
+    TABLE_ERROR = 'player_events'
+    const res = makeRes()
+    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes', days: '90' }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.entity).toBeUndefined()
+
+    // and the same for the week/all-time card, which reads the same rows
+    const week = makeRes()
+    await handler(makeReq('c6', { window: 'all_time' }), week)
+    expect(week.statusCode).toBe(500)
   })
 
   it('counts a recorded class lesson once, using the same diary seconds as Overview', async () => {
