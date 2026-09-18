@@ -34,20 +34,29 @@ if (verr) throw verr
 console.log('minted session for', TESTER)
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
-const ctx = await browser.newContext({ viewport: { width: 390, height: 1100 } })
-const page = await ctx.newPage()
 const ref = new URL(SB_URL).hostname.split('.')[0]
-await page.addInitScript(([k, s]) => { try { localStorage.setItem(k, JSON.stringify(s)) } catch {} }, [`sb-${ref}-auth-token`, v.session])
-
 let payload = null
-page.on('response', async (r) => {
-  if (!r.url().includes('rate-compare')) return
-  try { const j = await r.json(); if (j?.week) payload = { url: decodeURIComponent(r.url()).slice(0,200), week: { window: j.week.window, entity: j.week.entity, cohort: j.week.cohort } } } catch {}
-})
 
-await page.goto(`${BASE}/admin/classes/${CLASS}/insights?window=this_week`, { waitUntil: 'domcontentloaded' })
-await page.waitForTimeout(12000)
-const card = await page.evaluate(() => {
+/**
+ * A FRESH CONTEXT PER VIEW, deliberately. Once this admin session has been on
+ * /admin/*, the role cache redirects /org/:id straight to /admin/structure —
+ * so reusing one page captured the ADMIN STRUCTURE page and reported it as a
+ * blank card, which is a probe lying rather than a page being empty. Each view
+ * gets clean browser state and its own session.
+ */
+async function openPage() {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 1400 } })
+  const page = await ctx.newPage()
+  await page.addInitScript(([k, s]) => { try { localStorage.setItem(k, JSON.stringify(s)) } catch {} }, [`sb-${ref}-auth-token`, v.session])
+  page.on('response', async (r) => {
+    if (!r.url().includes('rate-compare')) return
+    try { const j = await r.json(); if (j?.week) payload = { url: decodeURIComponent(r.url()).slice(0, 200), week: { window: j.week.window, entity: j.week.entity, cohort: j.week.cohort } } } catch {}
+  })
+  return { ctx, page }
+}
+
+const SCHOOL_NODE = '568fe0ca-4846-4d4b-ac3d-5af94eb30073' // Chepstow's node group
+const readCard = (page) => page.evaluate(() => {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim()
   const row = (k) => [...document.querySelectorAll(`.wk-row-${k} .wk-cell`)].map((c) => txt(c)).join(' | ')
   return {
@@ -61,7 +70,29 @@ const card = await page.evaluate(() => {
     denominator: txt(document.querySelector('.wk-denominator')),
   }
 })
-console.log('\nSTAGING CARD:', JSON.stringify(card, null, 1))
-console.log('\nSERVER PAYLOAD:', JSON.stringify(payload, null, 1))
-await page.screenshot({ path: `${OUT}/staging-10p-this-week.png`, fullPage: true })
+
+async function visit(tag, url) {
+  payload = null
+  const { ctx, page } = await openPage()
+  await page.goto(url, { waitUntil: 'domcontentloaded' })
+  // WAIT FOR THE CARD, never a fixed timeout: the leader's node home carries a
+  // banner, a map rail and a class list above the card and mounts it later
+  // than a class page does, so a flat 12 s read it as blank and reported four
+  // empty strings as though the page had nothing on it.
+  const found = await page.waitForSelector('.wk-window', { timeout: 60000 }).then(() => true).catch(() => false)
+  await page.waitForTimeout(3000)
+  console.log(`\n── ${tag} ──`)
+  if (!found) console.log(`  .wk-window never appeared — url now ${page.url()}`)
+  console.log('CARD:', JSON.stringify(await readCard(page), null, 1))
+  if (payload) console.log('SERVER cohort:', JSON.stringify(payload.week.cohort))
+  await page.screenshot({ path: `${OUT}/${tag}.png`, fullPage: true })
+  await ctx.close()
+}
+
+await visit('10p-this-week', `${BASE}/admin/classes/${CLASS}/insights?window=this_week`)
+await visit('10p-last-week', `${BASE}/admin/classes/${CLASS}/insights?window=last_week`)
+await visit('10p-all-time', `${BASE}/admin/classes/${CLASS}/insights?window=all_time`)
+// The leader's own door: the node home's insights. /admin/groups/:id has no
+// /insights child — for a group or school node the lens lives at /org/:id.
+await visit('school-this-week', `${BASE}/org/${SCHOOL_NODE}/insights?window=this_week`)
 await browser.close()
