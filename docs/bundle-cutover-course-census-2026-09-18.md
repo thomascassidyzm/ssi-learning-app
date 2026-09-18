@@ -53,65 +53,65 @@ GET /rest/v1/courses?select=course_code,display_name,learner_display_name,known_
 
 | course_code | title | known→target | new_app_status | visibility | pricing_tier | seeds | path | plays 7d | plays 30d | sessions 30d | learners 30d |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `eus_for_eng` | Basque for English Speakers | eng→eus | beta | public | free | 300 | **BUNDLE** | 24549 | 41548 | 41548 | 54 |
-| `cym_s_for_eng` | South Welsh for English Speakers | eng→cym | live | public | premium | 300 | **BUNDLE** | 17241 | 22241 | 22247 | 246 |
-| `cym_n_for_eng` | North Welsh for English Speakers | eng→cym | live | public | premium | 300 | **walk** | 4715 | 18364 | 18364 | 136 |
-| `fra_for_eng` | French for English Speakers | eng→fra | beta | public | premium | 668 | **BUNDLE** | 4806 | 18274 | 18274 | 67 |
-| `pol_for_eng` | Polish for English Speakers | eng→pol | beta | public | free | 300 | **BUNDLE** | 3851 | 13917 | 13917 | 81 |
-| `swe_for_eng` | Swedish for English Speakers | eng→swe | beta | public | free | 300 | **walk** | 3185 | 13034 | 13034 | 34 |
-| `nld_for_eng` | Dutch for English Speakers | eng→nld | beta | beta | free | 300 | **BUNDLE** | 2115 | 9118 | 9118 | 44 |
-| `ell_for_eng` | Greek for English Speakers | eng→ell | beta | public | free | 300 | **walk** | 4182 | 8987 | 8987 | 43 |
-| `hrv_for_eng` | Croatian for English Speakers | eng→hrv | live | public | free | 300 | **walk** | 3689 | 7325 | 7325 | 41 |
-| `por_br_for_eng` | Brazilian Portuguese for English Speakers | eng→por | beta | public | premium | 668 | **walk** | 3751 | 6701 | 6701 | 33 |
-| `ita_for_eng` | Italian for English Speakers | eng→ita | live | public | premium | 668 | **walk** | 681 | 6527 | 6527 | 45 |
-| `kor_for_eng` | Korean for English Speakers | eng→kor | live | public | premium | 668 | **walk** | 2448 | 5132 | 5132 | 15 |
-| `rus_for_eng` | Russian for English Speakers | eng→rus | beta | public | free | None | **walk** | 2048 | 4404 | 4404 | 21 |
-| `zho_for_eng` | Chinese for English Speakers | eng→zho | live | public | premium | 668 | **BUNDLE** | 175 | 3986 | 3986 | 161 |
-| `spa_for_eng` | Spanish for English Speakers | eng→spa | live | public | premium | 668 | **BUNDLE** | 755 | 3786 | 3786 | 194 |
-| `cat_for_eng` | Catalan for English Speakers | eng→cat | beta | public | free | 300 | **walk** | 559 | 3641 | 3641 | 22 |
-| `isl_for_eng` | Icelandic for English Speakers | eng→isl | beta | public | free | 300 | **walk** | 563 | 3115 | 3115 | 14 |
-| `ukr_for_eng` | Ukrainian for English Speakers | eng→ukr | beta | public | free | 300 | **walk** | 501 | 2873 | 2873 | 13 |
-| `deu_for_eng` | German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 265 | 1972 | 1972 | 13 |
-| `ron_for_eng` | Romanian for English Speakers | eng→ron | beta | public | free | 300 | **walk** | 0 | 1828 | 1828 | 15 |
-| `jpn_for_eng` | Japanese for English Speakers | eng→jpn | live | public | premium | 668 | **BUNDLE** | 416 | 1440 | 1440 | 16 |
-| `afr_for_eng` | Afrikaans for English Speakers | eng→afr | beta | public | free | 668 | **walk** | 439 | 1273 | 1273 | 40 |
-| `gle_for_eng` | Irish for English Speakers | eng→gle | beta | beta | free | 300 | **BUNDLE** | 143 | 993 | 993 | 14 |
-| `srp_for_eng` | Serbian for English Speakers | eng→srp | beta | public | free | None | **walk** | 784 | 784 | 784 | 2 |
-| `tha_for_eng` | Thai for English Speakers | eng→tha | beta | public | free | 300 | **BUNDLE** | 610 | 614 | 614 | 4 |
-| `lav_for_eng` | Latvian for English Speakers | eng→lav | beta | public | free | 300 | **walk** | 284 | 545 | 545 | 3 |
-| `ara_lb_for_eng` | Lebanese Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 0 | 528 | 528 | 8 |
-| `tur_for_eng` | Turkish for English Speakers | eng→tur | beta | public | free | 300 | **BUNDLE** | 0 | 527 | 527 | 4 |
-| `ces_for_eng` | Czech for English Speakers | eng→ces | beta | public | free | None | **walk** | 11 | 479 | 479 | 4 |
-| `hye_for_eng` | Armenian for English Speakers | eng→hye | beta | public | free | 300 | **walk** | 54 | 475 | 475 | 7 |
-| `hin_for_eng` | Hindi for English Speakers | eng→hin | beta | public | free | 300 | **BUNDLE** | 0 | 438 | 438 | 4 |
-| `bul_for_eng` | Bulgarian for English Speakers | eng→bul | beta | public | free | 300 | **walk** | 0 | 403 | 403 | 1 |
-| `lit_for_eng` | Lithuanian for English Speakers | eng→lit | beta | public | free | 300 | **walk** | 319 | 319 | 319 | 1 |
-| `deu_at_for_eng` | Austrian German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 67 | 251 | 251 | 15 |
-| `eng_for_hin` | English for Hindi Speakers | hin→eng | live | public | premium | 668 | **walk** | 0 | 237 | 237 | 8 |
-| `spa_mx_for_eng` | Mexican Spanish for English Speakers | eng→spa | beta | public | premium | 668 | **walk** | 0 | 171 | 171 | 65 |
-| `eng_for_kan` | English for Kannada Speakers | kan→eng | live | public | premium | 668 | **walk** | 0 | 123 | 123 | 5 |
-| `eng_for_mar` | English for Marathi Speakers | mar→eng | live | public | premium | 668 | **walk** | 14 | 118 | 118 | 5 |
-| `hun_for_eng` | Hungarian for English Speakers | eng→hun | beta | public | free | None | **BUNDLE** | 0 | 97 | 97 | 43 |
-| `ben_for_eng` | Bengali for English Speakers | eng→ben | live | public | free | None | **walk** | 22 | 44 | 44 | 3 |
-| `dan_for_eng` | Danish for English Speakers | eng→dan | beta | public | free | 300 | **walk** | 26 | 26 | 26 | 2 |
-| `est_for_eng` | Estonian for English Speakers | eng→est | beta | public | free | 300 | **walk** | 0 | 21 | 21 | 1 |
-| `glg_for_eng` | Galician for English Speakers | eng→glg | live | public | free | None | **walk** | 0 | 21 | 21 | 3 |
-| `eng_for_ben` | English for Bengali Speakers | ben→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_tel` | English for Telugu Speakers | tel→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_urd` | English for Urdu Speakers | urd→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_guj` | English for Gujarati Speakers | guj→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 1 |
-| `eng_for_pan` | English for Punjabi Speakers | pan→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 2 |
-| `eng_for_tam` | English for Tamil Speakers | tam→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 1 |
-| `heb_for_eng` | Hebrew for English Speakers | eng→heb | beta | public | free | 300 | **BUNDLE** | 0 | 11 | 11 | 1 |
-| `fra_for_jpn` | フランス語 — 日本語話者向け | jpn→fra | beta | public | premium | 300 | **walk** | 10 | 10 | 10 | 1 |
-| `nor_for_eng` | Norwegian for English Speakers | eng→nor | beta | public | free | 300 | **walk** | 9 | 10 | 10 | 2 |
-| `spa_for_jpn` | スペイン語（スペイン） — 日本語話者向け | jpn→spa | beta | public | premium | 300 | **walk** | 9 | 9 | 9 | 1 |
-| `swa_for_eng` | Swahili for English Speakers | eng→swa | beta | public | free | 300 | **walk** | 4 | 8 | 8 | 2 |
-| `ara_for_eng` | Modern Standard Arabic for English Speakers | eng→ara | beta | beta | premium | 668 | **walk** | 0 | 6 | 6 | 3 |
-| `ara_eg_for_eng` | Egyptian Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 3 | 3 | 3 | 1 |
-| `eng_for_jpn` | 英語 — 日本語話者向け | jpn→eng | beta | beta | premium | 300 | **walk** | 3 | 3 | 3 | 1 |
-| `spa_for_zho` | 西班牙语（西班牙） — 面向中文使用者 | zho→spa | beta | public | premium | 300 | **walk** | 0 | 3 | 3 | 1 |
-| `eng_for_deu` | Englisch für Deutschsprachige | deu→eng | beta | public | premium | 300 | **walk** | 2 | 2 | 2 | 1 |
+| `eus_for_eng` | Basque for English Speakers | eng→eus | beta | public | free | 300 | **BUNDLE** | 24549 | 41548 | 54 | 7 |
+| `cym_s_for_eng` | South Welsh for English Speakers | eng→cym | live | public | premium | 300 | **BUNDLE** | 17241 | 22241 | 246 | 142 |
+| `cym_n_for_eng` | North Welsh for English Speakers | eng→cym | live | public | premium | 300 | **walk** | 4715 | 18364 | 136 | 15 |
+| `fra_for_eng` | French for English Speakers | eng→fra | beta | public | premium | 668 | **BUNDLE** | 4806 | 18274 | 67 | 9 |
+| `pol_for_eng` | Polish for English Speakers | eng→pol | beta | public | free | 300 | **BUNDLE** | 3851 | 13917 | 81 | 2 |
+| `swe_for_eng` | Swedish for English Speakers | eng→swe | beta | public | free | 300 | **walk** | 3185 | 13034 | 34 | 3 |
+| `nld_for_eng` | Dutch for English Speakers | eng→nld | beta | beta | free | 300 | **BUNDLE** | 2115 | 9118 | 44 | 5 |
+| `ell_for_eng` | Greek for English Speakers | eng→ell | beta | public | free | 300 | **walk** | 4182 | 8987 | 43 | 7 |
+| `hrv_for_eng` | Croatian for English Speakers | eng→hrv | live | public | free | 300 | **walk** | 3689 | 7325 | 41 | 8 |
+| `por_br_for_eng` | Brazilian Portuguese for English Speakers | eng→por | beta | public | premium | 668 | **walk** | 3751 | 6701 | 33 | 1 |
+| `ita_for_eng` | Italian for English Speakers | eng→ita | live | public | premium | 668 | **walk** | 681 | 6527 | 45 | 4 |
+| `kor_for_eng` | Korean for English Speakers | eng→kor | live | public | premium | 668 | **walk** | 2448 | 5132 | 15 | 1 |
+| `rus_for_eng` | Russian for English Speakers | eng→rus | beta | public | free | None | **walk** | 2048 | 4404 | 21 | 3 |
+| `zho_for_eng` | Chinese for English Speakers | eng→zho | live | public | premium | 668 | **BUNDLE** | 175 | 3986 | 161 | 9 |
+| `spa_for_eng` | Spanish for English Speakers | eng→spa | live | public | premium | 668 | **BUNDLE** | 755 | 3786 | 194 | 9 |
+| `cat_for_eng` | Catalan for English Speakers | eng→cat | beta | public | free | 300 | **walk** | 559 | 3641 | 22 | 2 |
+| `isl_for_eng` | Icelandic for English Speakers | eng→isl | beta | public | free | 300 | **walk** | 563 | 3115 | 14 | 4 |
+| `ukr_for_eng` | Ukrainian for English Speakers | eng→ukr | beta | public | free | 300 | **walk** | 501 | 2873 | 13 | 3 |
+| `deu_for_eng` | German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 265 | 1972 | 13 | 3 |
+| `ron_for_eng` | Romanian for English Speakers | eng→ron | beta | public | free | 300 | **walk** | 0 | 1828 | 15 | 4 |
+| `jpn_for_eng` | Japanese for English Speakers | eng→jpn | live | public | premium | 668 | **BUNDLE** | 416 | 1440 | 16 | 8 |
+| `afr_for_eng` | Afrikaans for English Speakers | eng→afr | beta | public | free | 668 | **walk** | 439 | 1273 | 40 | 7 |
+| `gle_for_eng` | Irish for English Speakers | eng→gle | beta | beta | free | 300 | **BUNDLE** | 143 | 993 | 14 | 5 |
+| `srp_for_eng` | Serbian for English Speakers | eng→srp | beta | public | free | None | **walk** | 784 | 784 | 2 | 1 |
+| `tha_for_eng` | Thai for English Speakers | eng→tha | beta | public | free | 300 | **BUNDLE** | 610 | 614 | 4 | 2 |
+| `lav_for_eng` | Latvian for English Speakers | eng→lav | beta | public | free | 300 | **walk** | 284 | 545 | 3 | 1 |
+| `ara_lb_for_eng` | Lebanese Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 0 | 528 | 8 | 1 |
+| `tur_for_eng` | Turkish for English Speakers | eng→tur | beta | public | free | 300 | **BUNDLE** | 0 | 527 | 4 | 2 |
+| `ces_for_eng` | Czech for English Speakers | eng→ces | beta | public | free | None | **walk** | 11 | 479 | 4 | 2 |
+| `hye_for_eng` | Armenian for English Speakers | eng→hye | beta | public | free | 300 | **walk** | 54 | 475 | 7 | 4 |
+| `hin_for_eng` | Hindi for English Speakers | eng→hin | beta | public | free | 300 | **BUNDLE** | 0 | 438 | 4 | 3 |
+| `bul_for_eng` | Bulgarian for English Speakers | eng→bul | beta | public | free | 300 | **walk** | 0 | 403 | 1 | 1 |
+| `lit_for_eng` | Lithuanian for English Speakers | eng→lit | beta | public | free | 300 | **walk** | 319 | 319 | 1 | 1 |
+| `deu_at_for_eng` | Austrian German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 67 | 251 | 15 | 4 |
+| `eng_for_hin` | English for Hindi Speakers | hin→eng | live | public | premium | 668 | **walk** | 0 | 237 | 8 | 0 |
+| `spa_mx_for_eng` | Mexican Spanish for English Speakers | eng→spa | beta | public | premium | 668 | **walk** | 0 | 171 | 65 | 2 |
+| `eng_for_kan` | English for Kannada Speakers | kan→eng | live | public | premium | 668 | **walk** | 0 | 123 | 5 | 0 |
+| `eng_for_mar` | English for Marathi Speakers | mar→eng | live | public | premium | 668 | **walk** | 14 | 118 | 5 | 3 |
+| `hun_for_eng` | Hungarian for English Speakers | eng→hun | beta | public | free | None | **BUNDLE** | 0 | 97 | 43 | 1 |
+| `ben_for_eng` | Bengali for English Speakers | eng→ben | live | public | free | None | **walk** | 22 | 44 | 3 | 2 |
+| `dan_for_eng` | Danish for English Speakers | eng→dan | beta | public | free | 300 | **walk** | 26 | 26 | 2 | 1 |
+| `est_for_eng` | Estonian for English Speakers | eng→est | beta | public | free | 300 | **walk** | 0 | 21 | 1 | 0 |
+| `glg_for_eng` | Galician for English Speakers | eng→glg | live | public | free | None | **walk** | 0 | 21 | 3 | 0 |
+| `eng_for_ben` | English for Bengali Speakers | ben→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_tel` | English for Telugu Speakers | tel→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_urd` | English for Urdu Speakers | urd→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_guj` | English for Gujarati Speakers | guj→eng | live | public | premium | 668 | **walk** | 0 | 12 | 1 | 0 |
+| `eng_for_pan` | English for Punjabi Speakers | pan→eng | live | public | premium | 668 | **walk** | 0 | 12 | 2 | 1 |
+| `eng_for_tam` | English for Tamil Speakers | tam→eng | live | public | premium | 668 | **walk** | 0 | 12 | 1 | 0 |
+| `heb_for_eng` | Hebrew for English Speakers | eng→heb | beta | public | free | 300 | **BUNDLE** | 0 | 11 | 1 | 1 |
+| `fra_for_jpn` | フランス語 — 日本語話者向け | jpn→fra | beta | public | premium | 300 | **walk** | 10 | 10 | 1 | 1 |
+| `nor_for_eng` | Norwegian for English Speakers | eng→nor | beta | public | free | 300 | **walk** | 9 | 10 | 2 | 2 |
+| `spa_for_jpn` | スペイン語（スペイン） — 日本語話者向け | jpn→spa | beta | public | premium | 300 | **walk** | 9 | 9 | 1 | 1 |
+| `swa_for_eng` | Swahili for English Speakers | eng→swa | beta | public | free | 300 | **walk** | 4 | 8 | 2 | 1 |
+| `ara_for_eng` | Modern Standard Arabic for English Speakers | eng→ara | beta | beta | premium | 668 | **walk** | 0 | 6 | 3 | 0 |
+| `ara_eg_for_eng` | Egyptian Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 3 | 3 | 1 | 0 |
+| `eng_for_jpn` | 英語 — 日本語話者向け | jpn→eng | beta | beta | premium | 300 | **walk** | 3 | 3 | 1 | 1 |
+| `spa_for_zho` | 西班牙语（西班牙） — 面向中文使用者 | zho→spa | beta | public | premium | 300 | **walk** | 0 | 3 | 1 | 1 |
+| `eng_for_deu` | Englisch für Deutschsprachige | deu→eng | beta | public | premium | 300 | **walk** | 2 | 2 | 1 | 1 |
 | `cat_for_spa` | Catalán para hispanohablantes | spa→cat | beta | public | free | 300 | **walk** | 0 | 0 | 0 | 0 |
 | `deu_for_jpn` | ドイツ語 — 日本語話者向け | jpn→deu | beta | public | premium | 300 | **walk** | 0 | 0 | 0 | 0 |
 | `deu_for_zho` | 德语 — 面向中文使用者 | zho→deu | beta | public | premium | 300 | **walk** | 0 | 0 | 0 | 0 |
@@ -169,51 +169,51 @@ one learner column is reported. Rows with a NULL learner are guests — that is 
 
 | course_code | title | known→target | new_app_status | visibility | pricing_tier | seeds | path | plays 7d | plays 30d | sessions 30d | learners 30d |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `cym_n_for_eng` | North Welsh for English Speakers | eng→cym | live | public | premium | 300 | **walk** | 4715 | 18364 | 18364 | 136 |
-| `swe_for_eng` | Swedish for English Speakers | eng→swe | beta | public | free | 300 | **walk** | 3185 | 13034 | 13034 | 34 |
-| `ell_for_eng` | Greek for English Speakers | eng→ell | beta | public | free | 300 | **walk** | 4182 | 8987 | 8987 | 43 |
-| `hrv_for_eng` | Croatian for English Speakers | eng→hrv | live | public | free | 300 | **walk** | 3689 | 7325 | 7325 | 41 |
-| `por_br_for_eng` | Brazilian Portuguese for English Speakers | eng→por | beta | public | premium | 668 | **walk** | 3751 | 6701 | 6701 | 33 |
-| `ita_for_eng` | Italian for English Speakers | eng→ita | live | public | premium | 668 | **walk** | 681 | 6527 | 6527 | 45 |
-| `kor_for_eng` | Korean for English Speakers | eng→kor | live | public | premium | 668 | **walk** | 2448 | 5132 | 5132 | 15 |
-| `rus_for_eng` | Russian for English Speakers | eng→rus | beta | public | free | None | **walk** | 2048 | 4404 | 4404 | 21 |
-| `cat_for_eng` | Catalan for English Speakers | eng→cat | beta | public | free | 300 | **walk** | 559 | 3641 | 3641 | 22 |
-| `isl_for_eng` | Icelandic for English Speakers | eng→isl | beta | public | free | 300 | **walk** | 563 | 3115 | 3115 | 14 |
-| `ukr_for_eng` | Ukrainian for English Speakers | eng→ukr | beta | public | free | 300 | **walk** | 501 | 2873 | 2873 | 13 |
-| `deu_for_eng` | German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 265 | 1972 | 1972 | 13 |
-| `ron_for_eng` | Romanian for English Speakers | eng→ron | beta | public | free | 300 | **walk** | 0 | 1828 | 1828 | 15 |
-| `afr_for_eng` | Afrikaans for English Speakers | eng→afr | beta | public | free | 668 | **walk** | 439 | 1273 | 1273 | 40 |
-| `srp_for_eng` | Serbian for English Speakers | eng→srp | beta | public | free | None | **walk** | 784 | 784 | 784 | 2 |
-| `lav_for_eng` | Latvian for English Speakers | eng→lav | beta | public | free | 300 | **walk** | 284 | 545 | 545 | 3 |
-| `ara_lb_for_eng` | Lebanese Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 0 | 528 | 528 | 8 |
-| `ces_for_eng` | Czech for English Speakers | eng→ces | beta | public | free | None | **walk** | 11 | 479 | 479 | 4 |
-| `hye_for_eng` | Armenian for English Speakers | eng→hye | beta | public | free | 300 | **walk** | 54 | 475 | 475 | 7 |
-| `bul_for_eng` | Bulgarian for English Speakers | eng→bul | beta | public | free | 300 | **walk** | 0 | 403 | 403 | 1 |
-| `lit_for_eng` | Lithuanian for English Speakers | eng→lit | beta | public | free | 300 | **walk** | 319 | 319 | 319 | 1 |
-| `deu_at_for_eng` | Austrian German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 67 | 251 | 251 | 15 |
-| `eng_for_hin` | English for Hindi Speakers | hin→eng | live | public | premium | 668 | **walk** | 0 | 237 | 237 | 8 |
-| `spa_mx_for_eng` | Mexican Spanish for English Speakers | eng→spa | beta | public | premium | 668 | **walk** | 0 | 171 | 171 | 65 |
-| `eng_for_kan` | English for Kannada Speakers | kan→eng | live | public | premium | 668 | **walk** | 0 | 123 | 123 | 5 |
-| `eng_for_mar` | English for Marathi Speakers | mar→eng | live | public | premium | 668 | **walk** | 14 | 118 | 118 | 5 |
-| `ben_for_eng` | Bengali for English Speakers | eng→ben | live | public | free | None | **walk** | 22 | 44 | 44 | 3 |
-| `dan_for_eng` | Danish for English Speakers | eng→dan | beta | public | free | 300 | **walk** | 26 | 26 | 26 | 2 |
-| `est_for_eng` | Estonian for English Speakers | eng→est | beta | public | free | 300 | **walk** | 0 | 21 | 21 | 1 |
-| `glg_for_eng` | Galician for English Speakers | eng→glg | live | public | free | None | **walk** | 0 | 21 | 21 | 3 |
-| `eng_for_ben` | English for Bengali Speakers | ben→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_tel` | English for Telugu Speakers | tel→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_urd` | English for Urdu Speakers | urd→eng | live | public | premium | 668 | **walk** | 0 | 13 | 13 | 1 |
-| `eng_for_guj` | English for Gujarati Speakers | guj→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 1 |
-| `eng_for_pan` | English for Punjabi Speakers | pan→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 2 |
-| `eng_for_tam` | English for Tamil Speakers | tam→eng | live | public | premium | 668 | **walk** | 0 | 12 | 12 | 1 |
-| `fra_for_jpn` | フランス語 — 日本語話者向け | jpn→fra | beta | public | premium | 300 | **walk** | 10 | 10 | 10 | 1 |
-| `nor_for_eng` | Norwegian for English Speakers | eng→nor | beta | public | free | 300 | **walk** | 9 | 10 | 10 | 2 |
-| `spa_for_jpn` | スペイン語（スペイン） — 日本語話者向け | jpn→spa | beta | public | premium | 300 | **walk** | 9 | 9 | 9 | 1 |
-| `swa_for_eng` | Swahili for English Speakers | eng→swa | beta | public | free | 300 | **walk** | 4 | 8 | 8 | 2 |
-| `ara_for_eng` | Modern Standard Arabic for English Speakers | eng→ara | beta | beta | premium | 668 | **walk** | 0 | 6 | 6 | 3 |
-| `ara_eg_for_eng` | Egyptian Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 3 | 3 | 3 | 1 |
-| `eng_for_jpn` | 英語 — 日本語話者向け | jpn→eng | beta | beta | premium | 300 | **walk** | 3 | 3 | 3 | 1 |
-| `spa_for_zho` | 西班牙语（西班牙） — 面向中文使用者 | zho→spa | beta | public | premium | 300 | **walk** | 0 | 3 | 3 | 1 |
-| `eng_for_deu` | Englisch für Deutschsprachige | deu→eng | beta | public | premium | 300 | **walk** | 2 | 2 | 2 | 1 |
+| `cym_n_for_eng` | North Welsh for English Speakers | eng→cym | live | public | premium | 300 | **walk** | 4715 | 18364 | 136 | 15 |
+| `swe_for_eng` | Swedish for English Speakers | eng→swe | beta | public | free | 300 | **walk** | 3185 | 13034 | 34 | 3 |
+| `ell_for_eng` | Greek for English Speakers | eng→ell | beta | public | free | 300 | **walk** | 4182 | 8987 | 43 | 7 |
+| `hrv_for_eng` | Croatian for English Speakers | eng→hrv | live | public | free | 300 | **walk** | 3689 | 7325 | 41 | 8 |
+| `por_br_for_eng` | Brazilian Portuguese for English Speakers | eng→por | beta | public | premium | 668 | **walk** | 3751 | 6701 | 33 | 1 |
+| `ita_for_eng` | Italian for English Speakers | eng→ita | live | public | premium | 668 | **walk** | 681 | 6527 | 45 | 4 |
+| `kor_for_eng` | Korean for English Speakers | eng→kor | live | public | premium | 668 | **walk** | 2448 | 5132 | 15 | 1 |
+| `rus_for_eng` | Russian for English Speakers | eng→rus | beta | public | free | None | **walk** | 2048 | 4404 | 21 | 3 |
+| `cat_for_eng` | Catalan for English Speakers | eng→cat | beta | public | free | 300 | **walk** | 559 | 3641 | 22 | 2 |
+| `isl_for_eng` | Icelandic for English Speakers | eng→isl | beta | public | free | 300 | **walk** | 563 | 3115 | 14 | 4 |
+| `ukr_for_eng` | Ukrainian for English Speakers | eng→ukr | beta | public | free | 300 | **walk** | 501 | 2873 | 13 | 3 |
+| `deu_for_eng` | German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 265 | 1972 | 13 | 3 |
+| `ron_for_eng` | Romanian for English Speakers | eng→ron | beta | public | free | 300 | **walk** | 0 | 1828 | 15 | 4 |
+| `afr_for_eng` | Afrikaans for English Speakers | eng→afr | beta | public | free | 668 | **walk** | 439 | 1273 | 40 | 7 |
+| `srp_for_eng` | Serbian for English Speakers | eng→srp | beta | public | free | None | **walk** | 784 | 784 | 2 | 1 |
+| `lav_for_eng` | Latvian for English Speakers | eng→lav | beta | public | free | 300 | **walk** | 284 | 545 | 3 | 1 |
+| `ara_lb_for_eng` | Lebanese Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 0 | 528 | 8 | 1 |
+| `ces_for_eng` | Czech for English Speakers | eng→ces | beta | public | free | None | **walk** | 11 | 479 | 4 | 2 |
+| `hye_for_eng` | Armenian for English Speakers | eng→hye | beta | public | free | 300 | **walk** | 54 | 475 | 7 | 4 |
+| `bul_for_eng` | Bulgarian for English Speakers | eng→bul | beta | public | free | 300 | **walk** | 0 | 403 | 1 | 1 |
+| `lit_for_eng` | Lithuanian for English Speakers | eng→lit | beta | public | free | 300 | **walk** | 319 | 319 | 1 | 1 |
+| `deu_at_for_eng` | Austrian German for English Speakers | eng→deu | beta | beta | premium | 668 | **walk** | 67 | 251 | 15 | 4 |
+| `eng_for_hin` | English for Hindi Speakers | hin→eng | live | public | premium | 668 | **walk** | 0 | 237 | 8 | 0 |
+| `spa_mx_for_eng` | Mexican Spanish for English Speakers | eng→spa | beta | public | premium | 668 | **walk** | 0 | 171 | 65 | 2 |
+| `eng_for_kan` | English for Kannada Speakers | kan→eng | live | public | premium | 668 | **walk** | 0 | 123 | 5 | 0 |
+| `eng_for_mar` | English for Marathi Speakers | mar→eng | live | public | premium | 668 | **walk** | 14 | 118 | 5 | 3 |
+| `ben_for_eng` | Bengali for English Speakers | eng→ben | live | public | free | None | **walk** | 22 | 44 | 3 | 2 |
+| `dan_for_eng` | Danish for English Speakers | eng→dan | beta | public | free | 300 | **walk** | 26 | 26 | 2 | 1 |
+| `est_for_eng` | Estonian for English Speakers | eng→est | beta | public | free | 300 | **walk** | 0 | 21 | 1 | 0 |
+| `glg_for_eng` | Galician for English Speakers | eng→glg | live | public | free | None | **walk** | 0 | 21 | 3 | 0 |
+| `eng_for_ben` | English for Bengali Speakers | ben→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_tel` | English for Telugu Speakers | tel→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_urd` | English for Urdu Speakers | urd→eng | live | public | premium | 668 | **walk** | 0 | 13 | 1 | 0 |
+| `eng_for_guj` | English for Gujarati Speakers | guj→eng | live | public | premium | 668 | **walk** | 0 | 12 | 1 | 0 |
+| `eng_for_pan` | English for Punjabi Speakers | pan→eng | live | public | premium | 668 | **walk** | 0 | 12 | 2 | 1 |
+| `eng_for_tam` | English for Tamil Speakers | tam→eng | live | public | premium | 668 | **walk** | 0 | 12 | 1 | 0 |
+| `fra_for_jpn` | フランス語 — 日本語話者向け | jpn→fra | beta | public | premium | 300 | **walk** | 10 | 10 | 1 | 1 |
+| `nor_for_eng` | Norwegian for English Speakers | eng→nor | beta | public | free | 300 | **walk** | 9 | 10 | 2 | 2 |
+| `spa_for_jpn` | スペイン語（スペイン） — 日本語話者向け | jpn→spa | beta | public | premium | 300 | **walk** | 9 | 9 | 1 | 1 |
+| `swa_for_eng` | Swahili for English Speakers | eng→swa | beta | public | free | 300 | **walk** | 4 | 8 | 2 | 1 |
+| `ara_for_eng` | Modern Standard Arabic for English Speakers | eng→ara | beta | beta | premium | 668 | **walk** | 0 | 6 | 3 | 0 |
+| `ara_eg_for_eng` | Egyptian Arabic for English Speakers | eng→ara | beta | public | premium | 668 | **walk** | 3 | 3 | 1 | 0 |
+| `eng_for_jpn` | 英語 — 日本語話者向け | jpn→eng | beta | beta | premium | 300 | **walk** | 3 | 3 | 1 | 1 |
+| `spa_for_zho` | 西班牙语（西班牙） — 面向中文使用者 | zho→spa | beta | public | premium | 300 | **walk** | 0 | 3 | 1 | 1 |
+| `eng_for_deu` | Englisch für Deutschsprachige | deu→eng | beta | public | premium | 300 | **walk** | 2 | 2 | 1 | 1 |
 | `cat_for_spa` | Catalán para hispanohablantes | spa→cat | beta | public | free | 300 | **walk** | 0 | 0 | 0 | 0 |
 | `deu_for_jpn` | ドイツ語 — 日本語話者向け | jpn→deu | beta | public | premium | 300 | **walk** | 0 | 0 | 0 | 0 |
 | `deu_for_zho` | 德语 — 面向中文使用者 | zho→deu | beta | public | premium | 300 | **walk** | 0 | 0 | 0 | 0 |
@@ -263,20 +263,20 @@ this census and is an explicit gap.
 
 | course_code | title | known→target | new_app_status | visibility | pricing_tier | seeds | path | plays 7d | plays 30d | sessions 30d | learners 30d |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `eus_for_eng` | Basque for English Speakers | eng→eus | beta | public | free | 300 | **BUNDLE** | 24549 | 41548 | 41548 | 54 |
-| `cym_s_for_eng` | South Welsh for English Speakers | eng→cym | live | public | premium | 300 | **BUNDLE** | 17241 | 22241 | 22247 | 246 |
-| `fra_for_eng` | French for English Speakers | eng→fra | beta | public | premium | 668 | **BUNDLE** | 4806 | 18274 | 18274 | 67 |
-| `pol_for_eng` | Polish for English Speakers | eng→pol | beta | public | free | 300 | **BUNDLE** | 3851 | 13917 | 13917 | 81 |
-| `nld_for_eng` | Dutch for English Speakers | eng→nld | beta | beta | free | 300 | **BUNDLE** | 2115 | 9118 | 9118 | 44 |
-| `zho_for_eng` | Chinese for English Speakers | eng→zho | live | public | premium | 668 | **BUNDLE** | 175 | 3986 | 3986 | 161 |
-| `spa_for_eng` | Spanish for English Speakers | eng→spa | live | public | premium | 668 | **BUNDLE** | 755 | 3786 | 3786 | 194 |
-| `jpn_for_eng` | Japanese for English Speakers | eng→jpn | live | public | premium | 668 | **BUNDLE** | 416 | 1440 | 1440 | 16 |
-| `gle_for_eng` | Irish for English Speakers | eng→gle | beta | beta | free | 300 | **BUNDLE** | 143 | 993 | 993 | 14 |
-| `tha_for_eng` | Thai for English Speakers | eng→tha | beta | public | free | 300 | **BUNDLE** | 610 | 614 | 614 | 4 |
-| `tur_for_eng` | Turkish for English Speakers | eng→tur | beta | public | free | 300 | **BUNDLE** | 0 | 527 | 527 | 4 |
-| `hin_for_eng` | Hindi for English Speakers | eng→hin | beta | public | free | 300 | **BUNDLE** | 0 | 438 | 438 | 4 |
-| `hun_for_eng` | Hungarian for English Speakers | eng→hun | beta | public | free | None | **BUNDLE** | 0 | 97 | 97 | 43 |
-| `heb_for_eng` | Hebrew for English Speakers | eng→heb | beta | public | free | 300 | **BUNDLE** | 0 | 11 | 11 | 1 |
+| `eus_for_eng` | Basque for English Speakers | eng→eus | beta | public | free | 300 | **BUNDLE** | 24549 | 41548 | 54 | 7 |
+| `cym_s_for_eng` | South Welsh for English Speakers | eng→cym | live | public | premium | 300 | **BUNDLE** | 17241 | 22241 | 246 | 142 |
+| `fra_for_eng` | French for English Speakers | eng→fra | beta | public | premium | 668 | **BUNDLE** | 4806 | 18274 | 67 | 9 |
+| `pol_for_eng` | Polish for English Speakers | eng→pol | beta | public | free | 300 | **BUNDLE** | 3851 | 13917 | 81 | 2 |
+| `nld_for_eng` | Dutch for English Speakers | eng→nld | beta | beta | free | 300 | **BUNDLE** | 2115 | 9118 | 44 | 5 |
+| `zho_for_eng` | Chinese for English Speakers | eng→zho | live | public | premium | 668 | **BUNDLE** | 175 | 3986 | 161 | 9 |
+| `spa_for_eng` | Spanish for English Speakers | eng→spa | live | public | premium | 668 | **BUNDLE** | 755 | 3786 | 194 | 9 |
+| `jpn_for_eng` | Japanese for English Speakers | eng→jpn | live | public | premium | 668 | **BUNDLE** | 416 | 1440 | 16 | 8 |
+| `gle_for_eng` | Irish for English Speakers | eng→gle | beta | beta | free | 300 | **BUNDLE** | 143 | 993 | 14 | 5 |
+| `tha_for_eng` | Thai for English Speakers | eng→tha | beta | public | free | 300 | **BUNDLE** | 610 | 614 | 4 | 2 |
+| `tur_for_eng` | Turkish for English Speakers | eng→tur | beta | public | free | 300 | **BUNDLE** | 0 | 527 | 4 | 2 |
+| `hin_for_eng` | Hindi for English Speakers | eng→hin | beta | public | free | 300 | **BUNDLE** | 0 | 438 | 4 | 3 |
+| `hun_for_eng` | Hungarian for English Speakers | eng→hun | beta | public | free | None | **BUNDLE** | 0 | 97 | 43 | 1 |
+| `heb_for_eng` | Hebrew for English Speakers | eng→heb | beta | public | free | 300 | **BUNDLE** | 0 | 11 | 1 | 1 |
 | `zho_for_gle` | Chinese for Irish Speakers | gle→zho | beta | beta | premium | 5 | **BUNDLE** | 0 | 0 | 0 | 0 |
 
 ---
@@ -285,13 +285,13 @@ this census and is an explicit gap.
 
 | code | live? | `new_app_status` | path | plays 7d | plays 30d | learners 30d |
 |---|---|---|---|---|---|---|
-| `cat_for_eng` | **yes** | beta | **walk** | 559 | 3641 | 22 |
-| `ell_for_eng` | **yes** | beta | **walk** | 4182 | 8987 | 43 |
-| `hrv_for_eng` | **yes** | live | **walk** | 3689 | 7325 | 41 |
+| `cat_for_eng` | **yes** | beta | **walk** | 559 | 3641 | 2 |
+| `ell_for_eng` | **yes** | beta | **walk** | 4182 | 8987 | 7 |
+| `hrv_for_eng` | **yes** | live | **walk** | 3689 | 7325 | 8 |
 | `fin_for_eng` | no | not_available | **walk** | 0 | 0 | 0 |
-| `cym_n_for_eng` | **yes** | live | **walk** | 4715 | 18364 | 136 |
-| `ita_for_eng` | **yes** | live | **walk** | 681 | 6527 | 45 |
-| `deu_for_eng` | **yes** | beta | **walk** | 265 | 1972 | 13 |
+| `cym_n_for_eng` | **yes** | live | **walk** | 4715 | 18364 | 15 |
+| `ita_for_eng` | **yes** | live | **walk** | 681 | 6527 | 4 |
+| `deu_for_eng` | **yes** | beta | **walk** | 265 | 1972 | 3 |
 | `por_for_eng` | **yes** | live | **walk** | 0 | 0 | 0 |
 
 Every one of them is on the **walk**. Seven of the eight are live; `fin_for_eng` is not.
@@ -333,23 +333,23 @@ all 19 are premium.
 | code | title | `new_app_status` | plays 7d | plays 30d | learners 30d |
 |---|---|---|---|---|---|
 | `eng_for_ara` | الإنجليزية للناطقين بالعربية | beta | 0 | 0 | 0 |
-| `eng_for_ben` | English for Bengali Speakers | live | 0 | 13 | 1 |
+| `eng_for_ben` | English for Bengali Speakers | live | 0 | 13 | 0 |
 | `eng_for_deu` | Englisch für Deutschsprachige | beta | 2 | 2 | 1 |
 | `eng_for_fra` | Anglais pour francophones | beta | 0 | 0 | 0 |
-| `eng_for_guj` | English for Gujarati Speakers | live | 0 | 12 | 1 |
-| `eng_for_hin` | English for Hindi Speakers | live | 0 | 237 | 8 |
+| `eng_for_guj` | English for Gujarati Speakers | live | 0 | 12 | 0 |
+| `eng_for_hin` | English for Hindi Speakers | live | 0 | 237 | 0 |
 | `eng_for_ita` | Inglese per italofoni | beta | 0 | 0 | 0 |
 | `eng_for_jpn` | 英語 — 日本語話者向け | beta | 3 | 3 | 1 |
-| `eng_for_kan` | English for Kannada Speakers | live | 0 | 123 | 5 |
+| `eng_for_kan` | English for Kannada Speakers | live | 0 | 123 | 0 |
 | `eng_for_kor` | 한국어 사용자를 위한 영어 | beta | 0 | 0 | 0 |
-| `eng_for_mar` | English for Marathi Speakers | live | 14 | 118 | 5 |
-| `eng_for_pan` | English for Punjabi Speakers | live | 0 | 12 | 2 |
+| `eng_for_mar` | English for Marathi Speakers | live | 14 | 118 | 3 |
+| `eng_for_pan` | English for Punjabi Speakers | live | 0 | 12 | 1 |
 | `eng_for_por` | Inglês para lusófonos | beta | 0 | 0 | 0 |
 | `eng_for_sin` | English for Sinhala Speakers | beta | 0 | 0 | 0 |
 | `eng_for_spa` | Inglés para hispanohablantes | beta | 0 | 0 | 0 |
-| `eng_for_tam` | English for Tamil Speakers | live | 0 | 12 | 1 |
-| `eng_for_tel` | English for Telugu Speakers | live | 0 | 13 | 1 |
-| `eng_for_urd` | English for Urdu Speakers | live | 0 | 13 | 1 |
+| `eng_for_tam` | English for Tamil Speakers | live | 0 | 12 | 0 |
+| `eng_for_tel` | English for Telugu Speakers | live | 0 | 13 | 0 |
+| `eng_for_urd` | English for Urdu Speakers | live | 0 | 13 | 0 |
 | `eng_for_zho` | 英语 — 面向中文使用者 | beta | 0 | 0 | 0 |
 
 Combined: **19 plays in 7 days, 558 in 30 days** — under 0.25% of estate play. The Indic reverse
