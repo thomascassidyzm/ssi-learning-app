@@ -14,6 +14,7 @@ import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
 import { claimDomainForSchool } from '../_utils/schoolDomain'
+import { readUnclaimedMint, clearedUnclaimedMint } from '../_utils/unclaimedMint'
 import {
   getClientIp,
   hashIp,
@@ -278,10 +279,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // genuine mailbox receipt — recorded as a durable flag nothing else
     // touches, so SettingsScreen.vue's "unverified" badge can rely on it.
     const { data: authUser } = await admin.auth.admin.getUserById(userId)
+    // Told to the proving device only when there is a second one to tell
+    // about (ruling 3 below); 0 for everybody else and on any doubt.
+    let otherSessions = 0
     if (authUser?.user?.email?.toLowerCase().trim() === normalizedEmail) {
       await admin.auth.admin.updateUserById(userId, {
         user_metadata: { ...(authUser.user?.user_metadata || {}), email_confirmed_manually: true },
       })
+
+      // TOM'S RULING 2 (job #195, 2026-09-18): PROOF NEVER ENDS SESSIONS.
+      // "What if a teacher doesn't want their own sessions wiped just because
+      // they have now proved their account?" — nothing here signs anything
+      // out, and nothing built in the unproven session is lost: the school,
+      // the classes, everything becomes hers at proof. What proof DOES do is
+      // settle the account: the unclaimed-mint marker the door stamped
+      // (api/auth/setup-mint.ts, unclaimedMint.ts) exists so the mailbox
+      // owner can evict a stranger, and the person who just typed the code
+      // sent to this address IS the mailbox owner. Retiring the marker here
+      // means her own next device is never shown the "was the earlier
+      // sign-in you?" card, whose "not me" is the one wipe that still exists.
+      // Only for the PRIMARY address: proving a different mailbox says
+      // nothing about who holds this one, and leaves the marker alone.
+      if (readUnclaimedMint(authUser.user)) {
+        const { error: markerErr } = await admin.auth.admin.updateUserById(userId, {
+          app_metadata: clearedUnclaimedMint(authUser.user?.app_metadata as Record<string, unknown> | undefined),
+        })
+        if (markerErr) console.warn('[email/verify] Could not retire the unclaimed-mint marker (non-fatal):', markerErr.message)
+      }
+
+      // TOM'S RULING 3 (job #195): the multi-session line. Count, never act.
+      // Exactly one live session — nearly everyone — and the answer is 0 and
+      // the banner shows nothing. More than one and the proving device is
+      // told, with KEEP as the default; ending the others is a separate tap
+      // (api/auth/end-other-sessions.ts). Fails to 0 on any error: a courtesy
+      // that cannot be counted is simply not offered.
+      try {
+        const { data: liveCount, error: countErr } = await admin.rpc('live_session_count', { p_user_id: userId })
+        if (!countErr && typeof liveCount === 'number') otherSessions = Math.max(0, liveCount - 1)
+      } catch { /* not offered */ }
       // Mirror onto learners.needs_verification — the admin-facing /
       // other-team-facing signal, kept in sync so nothing has to join out to
       // auth.users metadata to read it. Best-effort: the metadata flag above
@@ -311,7 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(200).json({ success: true, email: normalizedEmail })
+    return res.status(200).json({ success: true, email: normalizedEmail, other_sessions: otherSessions })
   } catch (err: any) {
     console.error('[email/verify] Error:', err)
     return res.status(500).json({ error: 'Verification failed' })

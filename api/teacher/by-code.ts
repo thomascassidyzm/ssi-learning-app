@@ -32,6 +32,7 @@ import {
   REDEEM_PER_IP_LIMIT,
 } from '../_utils/codeAttemptThrottle'
 import { applyCors } from '../_utils/cors'
+import { schoolEnrolmentHeld, ENROLMENT_HELD_MESSAGE } from '../_utils/schoolProof'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -167,6 +168,18 @@ export default async function handler(
           reason: 'unavailable',
           message: 'This teacher link is temporarily unavailable.',
         })
+        return
+      }
+
+      // TOM'S RULING 1 (job #195, 2026-09-18): an unproven school can build
+      // but not enrol. The class link of a school that came through the
+      // no-code door and has neither proved a mailbox nor been vouched for
+      // is "unavailable" with the line that says what unblocks it — the
+      // same shape the paused-referral case already uses, so WithTeacher.vue
+      // shows it without a change. Only the school branch: a tutor's class
+      // was never door-founded.
+      if (classRow.school_id && (await schoolEnrolmentHeld(supabase, classRow.school_id))) {
+        res.status(404).json({ error: 'Class unavailable', reason: 'unavailable', message: ENROLMENT_HELD_MESSAGE })
         return
       }
 

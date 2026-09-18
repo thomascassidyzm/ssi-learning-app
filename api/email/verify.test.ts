@@ -29,6 +29,10 @@ let stubActivityCount: number
 let grantProbe: Record<string, { count: number | null; error: any }>
 let deleteCalls: any[]
 let deletedAuthUsers: string[]
+// Rulings 2 and 3 (job #195): what proof does and does not do to sessions.
+let rpcCalls: any[]
+let signOutCalls: any[]
+let liveSessionCountResult: { data: unknown; error: unknown }
 
 function makeLearnersBuilder(table: string, hijacked: () => boolean) {
   const calls: any[] = []
@@ -111,12 +115,14 @@ vi.mock('@supabase/supabase-js', () => ({
     let hijackedBy: string | null = null
     const client: any = {
     from: (table: string) => makeLearnersBuilder(table, () => hijackedBy !== null && hijackedBy !== 'user-1'),
+    rpc: (name: string, params: any) => { rpcCalls.push({ name, params }); return Promise.resolve(liveSessionCountResult) },
     auth: {
       verifyOtp: ({ email }: { email: string }) => {
         if (!verifyOtpResult.error) hijackedBy = email === authUser?.email ? 'user-1' : 'stub'
         return Promise.resolve(verifyOtpResult)
       },
       admin: {
+        signOut: (...args: any[]) => { signOutCalls.push(args); return Promise.resolve({ error: null }) },
         getUserById: (id: string) =>
           Promise.resolve({ data: { user: id === 'user-1' ? authUser : stubAuthUser } }),
         deleteUser: (id: string) => {
@@ -161,8 +167,73 @@ describe('POST /api/email/verify', () => {
     grantProbe = {}
     deleteCalls = []
     deletedAuthUsers = []
+    rpcCalls = []
+    signOutCalls = []
+    liveSessionCountResult = { data: 1, error: null }
     authUser = { id: 'user-1', email: 'teacher@school.example', user_metadata: { onboarded_via: 'possession' } }
     handler = (await import('./verify')).default
+  })
+
+  // TOM'S RULING 2 (job #195, 2026-09-18): proof NEVER ends sessions, and
+  // it settles the account — the door's unclaimed-mint marker is retired so
+  // the teacher's own next device is never shown the contest card.
+  describe('proof settles the account without ending a session (ruling 2)', () => {
+    it('retires the unclaimed-mint marker when the PRIMARY address is proved, and signs nothing out', async () => {
+      authUser.app_metadata = { unclaimed_mint: { session_id: 'sess-door', minted_by: 'setup_door', minted_at: 'now' }, provider: 'email' }
+      const res = makeRes()
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(res._status).toBe(200)
+      const markerWrite = updateUserByIdCalls.find((c) => c.patch.app_metadata)
+      expect(markerWrite).toBeDefined()
+      expect(markerWrite.patch.app_metadata).toEqual({ unclaimed_mint: null, provider: 'email' })
+      expect(signOutCalls).toHaveLength(0)
+    })
+    it('leaves the marker alone when a DIFFERENT address is proved', async () => {
+      authUser.app_metadata = { unclaimed_mint: { session_id: 'sess-door', minted_by: 'setup_door', minted_at: 'now' } }
+      const res = makeRes()
+      await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
+      expect(res._status).toBe(200)
+      expect(updateUserByIdCalls.find((c) => c.patch.app_metadata)).toBeUndefined()
+      expect(signOutCalls).toHaveLength(0)
+    })
+    it('writes no marker patch when there is no marker', async () => {
+      const res = makeRes()
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(updateUserByIdCalls.find((c) => c.patch.app_metadata)).toBeUndefined()
+    })
+  })
+
+  // TOM'S RULING 3 (job #195): the multi-session line — counted, never acted
+  // on; exactly one session means nothing is shown.
+  describe('the multi-session line (ruling 3)', () => {
+    it('reports other_sessions:0 when the proving session is the only one', async () => {
+      liveSessionCountResult = { data: 1, error: null }
+      const res = makeRes()
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(res._json.other_sessions).toBe(0)
+      expect(rpcCalls.map((c) => c.name)).toEqual(['live_session_count'])
+      expect(rpcCalls[0].params).toEqual({ p_user_id: 'user-1' })
+    })
+    it('reports the others when there are more, and still signs nobody out', async () => {
+      liveSessionCountResult = { data: 3, error: null }
+      const res = makeRes()
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(res._json.other_sessions).toBe(2)
+      expect(signOutCalls).toHaveLength(0)
+    })
+    it('reports 0 when the count cannot be read — a courtesy that cannot be counted is not offered', async () => {
+      liveSessionCountResult = { data: null, error: { message: 'function does not exist' } }
+      const res = makeRes()
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.other_sessions).toBe(0)
+    })
+    it('does not count at all for a secondary address', async () => {
+      const res = makeRes()
+      await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
+      expect(rpcCalls).toHaveLength(0)
+      expect(res._json.other_sessions).toBe(0)
+    })
   })
 
   it('flips email_confirmed_manually when verifying the account primary email', async () => {

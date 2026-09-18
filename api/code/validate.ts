@@ -10,6 +10,7 @@ import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { redactCode } from '../_utils/codeGen'
+import { classEnrolmentHeld, ENROLMENT_HELD_CODE, ENROLMENT_HELD_MESSAGE } from '../_utils/schoolProof'
 import {
   getClientIp,
   hashIp,
@@ -284,6 +285,14 @@ export default async function handler(
         // No additional context needed for tester codes
         // Auto-entitlement trigger in DB handles course access
       } else if (codeType === 'student' && inviteRow.grants_class_id) {
+        // TOM'S RULING 1 (job #195): an unproven school can build but not
+        // enrol. Held BEFORE the class name is resolved, so a code on a held
+        // school gives away nothing and the pupil reads the line that says
+        // what unblocks it.
+        if (await classEnrolmentHeld(supabase, inviteRow.grants_class_id as string)) {
+          res.status(200).json({ valid: false, error: ENROLMENT_HELD_MESSAGE, code: ENROLMENT_HELD_CODE })
+          return
+        }
         const { data: classRow } = await supabase
           .from('classes')
           .select('class_name, school_id, course_code, schools(school_name)')
