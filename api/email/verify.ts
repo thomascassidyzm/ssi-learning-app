@@ -85,6 +85,17 @@ async function isAbsorbableStub(
       .eq('learner_id', learnerId)
     if (countErr || (count ?? 0) > 0) return false
   }
+  // No learning activity does not mean disposable: deleting a learner
+  // cascades into grants and subscriptions. Preserve even expired records;
+  // merging access between accounts needs an explicit money-path decision.
+  for (const table of ['user_entitlements', 'subscriptions'] as const) {
+    const { count, error } = await admin
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('learner_id', learnerId)
+    // Only a confirmed empty read permits absorption (including null counts).
+    if (error || count !== 0) return false
+  }
   const { count: tagCount, error: tagErr } = await admin
     .from('user_tags')
     .select('id', { count: 'exact', head: true })
