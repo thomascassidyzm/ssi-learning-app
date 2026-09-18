@@ -257,3 +257,81 @@ View As is read-only by design (`viewAsFetchGuard.ts` refuses the write before i
 No log search was run and no fix was made. The wording alone changed, in its own commit: in View As
 it now reads **"Viewing only — changes are not saved"**, because the old words invited a retry that
 can never succeed.
+
+---
+
+# Verified live on staging — the actual captures
+
+All four read through a real browser as an ssi_admin, against
+`staging.saysomethingin.app` on bundle `assets/index-5cb_Rsf2.js`, by
+`packages/player-vue/e2e/_job207-school-average-proof.mjs`. The `SERVER cohort`
+line under each is the payload the page was drawn from, so the number and its
+rendering are both on the record.
+
+## 10P — This week (14–18 Sep)
+
+```
+             10P     Ysgol Cas-gwent Chepstow School average
+Play as class          8m    2m
+Students on their own  0m    0m
+Total learning time    8m    2m
+New phrases             1     2
+Ysgol Cas-gwent Chepstow School average · 9 classes that practised this week
+```
+```json
+{"classMinutes":1.3,"pupilMinutes":0,"totalMinutes":1.3,"newPhrases":2.3,
+ "size":9,"sizeLabel":"9 classes that practised this week"}
+```
+
+Tom's screenshot of the same card, before: **7m against 0m, captioned "33
+classes"**.
+
+## 10P — Last week (7–13 Sep)
+
+```
+             10P     Ysgol Cas-gwent Chepstow School average
+Play as class         12m   10m
+Total learning time   12m   10m
+New phrases             6     5
+Ysgol Cas-gwent Chepstow School average · 30 classes that practised last week
+```
+
+Before: **12m against 8m over 33**. The average rose because the four classes
+that never played that week are no longer averaged in at zero.
+
+## 10P — All time (since 3 Sept 2026)
+
+```
+             10P
+Play as class         20m
+Students on their own  0m
+Total learning time   20m
+Phrases reached         7
+```
+
+**One column, no average, no caption** — `cohort: null` from the server. That is
+Tom's own ruling, confirmed as shipped behaviour rather than a missing lane.
+
+## The leader's own school page — This week
+
+```
+        Ysgol Cas-gwent Chepstow School   Global average · this course
+Play as class            12m    53m
+Students on their own     0m    1h 4m
+Total learning time      12m    1h 57m
+New phrases               21    203
+Global average · this course · 6 schools that practised this week
+```
+
+The same rule at school level, with the unit noun following the cohort:
+**schools**, not classes. The school's own 12m is the 11.7 minutes of the per-day
+table above, ceilinged.
+
+### One note on the probe itself
+
+The first run of this probe reported the school page as four empty strings. It
+was not: reusing one browser page across the class views meant the admin role
+cache redirected `/org/:id` to `/admin/structure`, and the probe read THAT page
+and called it blank. It now opens a fresh context per view and says out loud
+when the card never appears, because a probe that reports an empty page it never
+actually visited is worse than no probe.
