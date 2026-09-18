@@ -29,11 +29,13 @@ import ClassTagsLine, { type ClassTagsView } from './components/ClassTagsLine.vu
 import WindowChips from './components/WindowChips.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import { useUserRole } from '@/composables/useUserRole'
 import { courseDisplayName, courseShortName } from '@ssi/core'
 import { useI18n } from '@/composables/useI18n'
 import type { RateComparisonData } from './spec'
 
 const { t } = useI18n()
+const { isViewingAs } = useUserRole()
 
 interface CourseOption { code: string; classCount: number; hasData?: boolean }
 interface CompareOption { value: string; label: string; word: string }
@@ -207,7 +209,13 @@ async function saveTag(kind: 'year' | 'department', value: string | null): Promi
     await fetchComparison()
   } catch (err) {
     console.error('[NodeRateEngine] tag save failed:', err)
-    tagError.value = t('insights.tags.saveFailed', "Couldn't save that just now — try again shortly.")
+    // VIEW-AS IS READ-ONLY BY DESIGN (viewAsFetchGuard.ts), so "try again
+    // shortly" invites a retry that can never succeed — Tom hit exactly that
+    // on production, 2026-09-18, confirming a year tag while viewing as a
+    // school leader. Name the reason instead of offering false hope.
+    tagError.value = isViewingAs.value
+      ? t('insights.tags.saveViewingOnly', 'Viewing only — changes are not saved.')
+      : t('insights.tags.saveFailed', "Couldn't save that just now — try again shortly.")
   } finally {
     tagSaving.value = false
   }
