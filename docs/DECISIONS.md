@@ -1,3 +1,13 @@
+## 2026-09-18 — Preserve access when linking another account's email (job #170)
+
+An activity-free learner can still own paid, gifted or code access. Refuse absorption
+when user_entitlements or subscriptions contains any row, including historical rows;
+only a successful zero-count read permits the existing empty-stub flow. Errors and
+missing counts fail closed. Refusal is reversible; transferring grants is outside this
+commission. No real account or OTP was used. The isolated parameterised regression
+returned 200 before the fix and 409 afterwards, with neither delete called; all 13
+email tests pass. The guard retains the existing handler's separate read/delete flow.
+
 ## 2026-09-18 — The drained seed review was shipping one clip in four (job #149)
 
 mintonman's SECOND Basque report describes an exercise where only the Basque is spoken with English

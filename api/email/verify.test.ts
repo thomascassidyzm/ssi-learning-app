@@ -26,6 +26,7 @@ let learnersUpdateCalls: any[]
 let stubLearnerRow: any
 let stubAuthUser: any
 let stubActivityCount: number
+let grantProbe: Record<string, { count: number | null; error: any }>
 let deleteCalls: any[]
 let deletedAuthUsers: string[]
 
@@ -45,6 +46,7 @@ function makeLearnersBuilder(table: string, hijacked: () => boolean) {
     // here: a stub has zero activity rows, a real account has some.
     then: (resolve: any) => {
       const head = calls.some((c) => c[0] === 'select' && c[2]?.head)
+      if (head && grantProbe[table]) return resolve(grantProbe[table])
       if (head) return resolve({ count: table === 'learners' ? 0 : stubActivityCount, error: null })
       if (calls.some((c) => c[0] === 'delete')) return resolve({ error: null })
       return resolve({ data: null, error: null })
@@ -156,6 +158,7 @@ describe('POST /api/email/verify', () => {
     stubLearnerRow = null
     stubAuthUser = null
     stubActivityCount = 0
+    grantProbe = {}
     deleteCalls = []
     deletedAuthUsers = []
     authUser = { id: 'user-1', email: 'teacher@school.example', user_metadata: { onboarded_via: 'possession' } }
@@ -207,6 +210,27 @@ describe('POST /api/email/verify', () => {
     expect(deleteCalls).toHaveLength(0)
     expect(deletedAuthUsers).toHaveLength(0)
     expect(updateUserByIdCalls).toHaveLength(0)
+  })
+
+  it.each([
+    ['user_entitlements', { count: 1, error: null }],
+    ['subscriptions', { count: 1, error: null }],
+    ['user_entitlements', { count: null, error: { message: 'unavailable' } }],
+    ['subscriptions', { count: null, error: { message: 'unavailable' } }],
+    ['user_entitlements', { count: null, error: null }],
+    ['subscriptions', { count: null, error: null }],
+  ])('preserves an unused account when %s has grants or cannot prove absence (%j)', async (table, result) => {
+    crossAccountLearner = { id: 'protected-learner', user_id: 'protected-user' }
+    stubLearnerRow = { verified_emails: ['protected@example.com'] }
+    stubAuthUser = { id: 'protected-user', email: 'protected@example.com' }
+    grantProbe[table] = result
+    const res = makeRes()
+    await handler(makeReq({ email: 'protected@example.com', token: '123456' }), res)
+    expect(res._status).toBe(409)
+    expect(res._json.code).toBe('email_on_other_account')
+    expect(deleteCalls).toEqual([])
+    expect(deletedAuthUsers).toEqual([])
+    expect(learnersUpdateCalls).toEqual([])
   })
 
   // Tom, 2026-09-14, production: linking a never-seen plus-address was refused
