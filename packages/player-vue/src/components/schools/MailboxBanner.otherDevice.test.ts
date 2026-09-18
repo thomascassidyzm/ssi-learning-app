@@ -12,10 +12,11 @@ import MailboxBanner from './MailboxBanner.vue'
 let verifyResponse: any
 let fetchCalls: string[]
 
+let refreshSession: ReturnType<typeof vi.fn>
 function mountBanner() {
   const user = ref<any>({ id: 'u1', email: 'head@school.wales', user_metadata: { onboarded_via: 'possession', setup_door: 'school' } })
   const auth = { user, learner: ref({ verified_emails: [] }) }
-  const supabase = ref({ auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } })
+  const supabase = ref({ auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }), refreshSession } })
   return mount(MailboxBanner, { global: { provide: { auth, supabase } } })
 }
 
@@ -29,6 +30,7 @@ async function prove(w: ReturnType<typeof mount>) {
 describe('MailboxBanner — the second-device line', () => {
   beforeEach(() => {
     fetchCalls = []
+    refreshSession = vi.fn(async () => ({ data: {}, error: null }))
     verifyResponse = { success: true, email: 'head@school.wales', other_sessions: 0 }
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       fetchCalls.push(String(url))
@@ -42,6 +44,13 @@ describe('MailboxBanner — the second-device line', () => {
     expect(w.text()).toContain('sorted for good')
     expect(w.find('.mailbox-banner__sessions').exists()).toBe(false)
     expect(fetchCalls).toEqual(['/api/email/verify'])
+  })
+
+  it('refreshes the stored session at proof, so a reload carries the proven metadata', async () => {
+    const w = mountBanner()
+    expect(refreshSession).not.toHaveBeenCalled()
+    await prove(w)
+    expect(refreshSession).toHaveBeenCalledTimes(1)
   })
 
   it('shows one line when there is another device, and Keep ends it with no call made', async () => {

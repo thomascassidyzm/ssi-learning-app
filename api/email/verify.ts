@@ -176,7 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify the OTP server-side, on otpClient, so the session it returns
     // cannot follow `admin` into the queries below. This confirms the person
     // has access to this email without affecting their browser session.
-    const { error: verifyError } = await otpClient.auth.verifyOtp({
+    const { data: otpData, error: verifyError } = await otpClient.auth.verifyOtp({
       email: normalizedEmail,
       token,
       type: 'email',
@@ -185,6 +185,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (verifyError) {
       return res.status(400).json({ error: verifyError.message || 'Invalid code' })
     }
+
+    // The round trip above made GoTrue mint a session of its own for the
+    // address — a session nobody holds, on a client that persists nothing.
+    // End that one, and only that one, before anything counts sessions
+    // below (ruling 3): left alive it would make every one-device teacher
+    // look like two and show them the line. This is not a person's session;
+    // ruling 2's "proof never ends sessions" is about theirs, and this call
+    // is scoped 'local' to the phantom's own token. Seen live on staging,
+    // 2026-09-18: live_session_count answered 3 for a browser and one
+    // second device. Best-effort: a phantom that outlives this request only
+    // ever inflates a courtesy.
+    const phantomToken = otpData?.session?.access_token
+    if (phantomToken) await admin.auth.admin.signOut(phantomToken, 'local').then(undefined, () => {})
 
     // OTP is valid — check this email isn't already linked to a DIFFERENT learner.
     //
