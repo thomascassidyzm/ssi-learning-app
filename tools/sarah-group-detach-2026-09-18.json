@@ -1,0 +1,40 @@
+{
+  "ruling": "Tom 2026-09-18 10:27 — detach the 9 geographically-inferred schools from group 9f410d6b-f30f-497e-9dfd-eaa35aef6a7c (SSIW - Rhanbarth y De Ddwyrain) before Sarah McAuley's leader invite code is used, since nothing ties those schools to her; LA SIS (EAS), her own July school, stays attached.",
+  "source_of_truth": "branch cs/189-ssi-app: tools/sarah-group-attach-before-state-2026-09-18.json, tools/sarah-group-attach-applied-log-2026-09-18.json",
+  "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+  "pre_check": {
+    "leader_code_id": "170ca3db-01cc-4fad-a017-ea3d41d7d320",
+    "leader_code": "Cjtp8FwMn3uEmmHO-eh7YA",
+    "use_count_before_reversal": 0,
+    "verified_at": "2026-09-18T (this job, before any writes)"
+  },
+  "rows_reversed": [
+    { "school_id": "5c8e6b3e-0e54-4b18-82bd-2cb2a0400852", "school_name": "Rogiet Primary School", "node_group_id": "0b280178-ed5d-4abf-9316-63c9547da4bf", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/rogiet-primary-school" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "rogiet-primary-school" } },
+    { "school_id": "c98bd987-1639-4823-a751-5b9ddcccc424", "school_name": "Rogiet Primary School", "node_group_id": "e515c906-831b-4c35-ba93-a84b693ef3a9", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/rogiet-primary-school" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "rogiet-primary-school" } },
+    { "school_id": "14710516-b26d-4daa-bbf7-01eef06c52ce", "school_name": "Newport High School", "node_group_id": "485ca649-3322-42f8-b067-a54a46df586d", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/newport-high-school" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "newport-high-school" } },
+    { "school_id": "07b9d48b-d735-41a4-8bb6-f216070cded9", "school_name": "Ysgol Croesyceiliog", "node_group_id": "0c8684cd-2547-4056-bf50-202ee63e7dae", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-croesyceiliog" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "ysgol-croesyceiliog" } },
+    { "school_id": "1389a525-e04a-45d3-a718-9403ea2e48e1", "school_name": "Ysgol Gyfun Tredegar", "node_group_id": "1c7da712-3d0e-41e9-b642-ccf19e8a5661", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-tredegar" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "ysgol-gyfun-tredegar" } },
+    { "school_id": "12128dd8-393d-4918-a1fd-843a90f9bdd6", "school_name": "St Alban's RC High School, Pontypool", "node_group_id": "047e88b0-54df-4082-a942-155c36fb4c1a", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/st-alban-s-rc-high-school-pontypool" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "st-alban-s-rc-high-school-pontypool" } },
+    { "school_id": "0f5bd6e4-f40b-4dbf-ac4f-a93478d20255", "school_name": "Ysgol Cas-gwent Chepstow School", "node_group_id": "568fe0ca-4846-4d4b-ac3d-5af94eb30073", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-cas-gwent-chepstow-school" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "ysgol-cas-gwent-chepstow-school" } },
+    { "school_id": "5ec6cb90-f25c-4bc9-9e63-b4a93317737b", "school_name": "Ysgol Gyfun Trefynwy/ Monmouth Comprehensive School", "node_group_id": "e51c4b94-dee0-448b-8d89-10221ecf5bdd", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-trefynwy-monmouth-comprehensive-school" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "ysgol-gyfun-trefynwy-monmouth-comprehensive-school" } },
+    { "school_id": "468d8132-c1ff-4e0d-8cf8-8ee786d60c95", "school_name": "Ysgol Gyfun Tredegar", "node_group_id": "ce15f9a7-1596-4778-86b8-0629f57c7f5b", "before": { "group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_parent_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c", "node_path": "ssiw-rhanbarth-y-de-ddwyrain/ysgol-gyfun-tredegar" }, "after": { "group_id": null, "node_parent_id": null, "node_path": "ysgol-gyfun-tredegar" } }
+  ],
+  "kept_attached": {
+    "school_id": "e2e9adc3-9697-4d6f-a57a-4149257ec8ba",
+    "school_name": "LA SIS (EAS)",
+    "node_group_id": "bd8fa04b-e2a4-44e8-aaad-16ee7f2c9e9f",
+    "reason": "Sarah McAuley's own July school — the one legitimate tie to the group"
+  },
+  "untouched_by_design": {
+    "group": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c (SSIW - Rhanbarth y De Ddwyrain) — left in place",
+    "govt_admin_invite_code": { "id": "170ca3db-01cc-4fad-a017-ea3d41d7d320", "code": "Cjtp8FwMn3uEmmHO-eh7YA", "use_count": 0, "max_uses": 3 },
+    "school_admin_25_use_code": { "id": "75445bfd-e0bb-4049-acfd-bbe47353eb40", "code": "lkkEffGa77wVmnrHv-CFsA", "use_count": 0, "max_uses": 25 },
+    "per_school_redeem_codes": "the 10 school_admin_join / teacher codes on each of the 10 schools — untouched"
+  },
+  "verification_after": {
+    "group_subtree": "groups where parent_id = '9f410d6b-f30f-497e-9dfd-eaa35aef6a7c' resolves to exactly 1 row: LA SIS (EAS)",
+    "leader_code_still_names_group": "invite_codes.id 170ca3db-01cc-4fad-a017-ea3d41d7d320 grants_group_id still 9f410d6b-f30f-497e-9dfd-eaa35aef6a7c, use_count still 0",
+    "reverted_school_group_id": "all 9 non-LA-SIS schools: group_id = null",
+    "reverted_node_parent_and_path": "all 9 non-LA-SIS group/node rows: parent_id = null, path recomputed by compute_group_path trigger back to their original bare slugs (e.g. rogiet-primary-school), matching the before-state paths in cs/189-ssi-app's before-state file"
+  }
+}
