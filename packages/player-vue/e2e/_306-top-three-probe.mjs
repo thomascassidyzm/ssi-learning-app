@@ -83,7 +83,9 @@ async function openAs(persona, route) {
   check('leader home reached under View-as leejames', /\/org\//.test(page.url()), page.url())
   await page.waitForSelector('.node-home .identity-name', { timeout: 30000 }).catch(() => {})
   const text = await page.evaluate(() => document.body.innerText)
-  check('headline says "practised", never "spoken"', /Phrases practised this week/i.test(text) && !/phrases spoken/i.test(text))
+  // The headline stat leads with the all-time total since 2026-09-17 ("i prefer the default to
+  // be All Time Totals"); the week survives as the sentence beneath it. "Spoken" stays banned.
+  check('headline says "practised" as an all-time total, never "spoken"', /Phrases practised in total/i.test(text) && !/phrases spoken/i.test(text))
   check('year-group tiles render', await page.locator('[data-walk="node-year-groups"] .year-tile').count() >= 1)
 
   // Ways In: > 3 links at St Alban's → grouped rows + Show all; open, count, fold.

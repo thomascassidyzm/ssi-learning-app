@@ -4459,3 +4459,17 @@ pre-fix generator and green after.
 `packages/player-vue/e2e/class-cofire-flush-probe.mjs` — the standing
 end-to-end check that cycle → componentLegoIds → tally → flush → RPC → rows is
 alive on a deployed build.
+
+## 2026-09-18 — the all-time totals rename carried into the explainer pack and the staging probe
+
+The nightly came back red on `dev` and `staging` for one cause: `e6552f1ff` ("Overview leads with
+all-time totals", Tom 2026-09-17) renamed three leader-home stat words — "Phrases practised this
+week" → "in total", "Minutes in the app this week" → "in total", "Classes practising this week" →
+"Classes that have practised" — and neither the compiled explainer pack nor the job #306 staging
+probe was carried with it.
+
+The code is right and both checks were reading the old wording, so both were re-pointed at the new:
+`tools/explainer/compile.mjs` recompiled (pack `120ffdbbb87a` → `697b02eac132`, stat words only),
+and `_306-top-three-probe.mjs` now asserts "Phrases practised in total". The probe's real ruling —
+the headline never says "spoken" (job #306) — is untouched and still asserted. Verified against
+deployed staging: 13/13, the headline read "PHRASES PRACTISED IN TOTAL".
