@@ -1,0 +1,14 @@
+{
+ "reason": "Astra cold-check #192(1): api/code/redeem.ts stamps schools.group_id from inviteRow.grants_group_id, so a null left new schools outside Sarah's region",
+ "invite_code_id": "75445bfd-e0bb-4049-acfd-bbe47353eb40",
+ "code": "lkkEffGa77wVmnrHv-CFsA",
+ "before": {
+  "grants_group_id": null,
+  "use_count": 0
+ },
+ "after": {
+  "grants_group_id": "9f410d6b-f30f-497e-9dfd-eaa35aef6a7c",
+  "use_count": 0
+ },
+ "applied_at": "2026-09-18T10:10:03.857Z"
+}

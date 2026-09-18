@@ -40,9 +40,15 @@ have put another consortium's college under her.
 
 ## 2. Straight-in links for each school
 
-One per school, to hand to that school. A teacher opens it, types their school email address, and is
-in — no code, no email. Multi-use, no expiry. The code beside each is the same thing typed by hand at
-`saysomethingin.app/redeem` for anyone who cannot tap a link.
+One per school, to hand to that school. Multi-use, no expiry. The code beside each is the same thing
+typed by hand at `saysomethingin.app/redeem` for anyone who cannot tap a link.
+
+> **These links are for teachers who have NEVER asked us for a sign-in code.** They open the link,
+> type their school email address, and are in — no code, no email. But if an account already exists
+> for that address, the link stops with *"an account already exists for this email"*, and it does
+> that whether or not the account was ever confirmed (`api/auth/possession-redeem.ts`). **Anybody who
+> has ever tapped "send me a code" is in that state.** Section 3 says exactly what each of them uses
+> instead.
 
 | School | Direct link | Access code | Notes |
 |---|---|---|---|
@@ -60,7 +66,7 @@ in — no code, no email. Multi-use, no expiry. The code beside each is the same
 
 **A school that does not exist yet:**
 
-| A new school | https://saysomethingin.app/redeem/lkkEffGa77wVmnrHv-CFsA | — | 25 uses, valid to 17 Dec 2026. The head of Welsh opens it, types their address, names their school, and the school is created. No email, no code. **Do not post it publicly** — each use creates a school |
+| A new school | https://saysomethingin.app/redeem/lkkEffGa77wVmnrHv-CFsA | — | 25 uses, valid to 17 Dec 2026. The head of Welsh opens it, types their address, names their school, and the school is created **inside Sarah's region**. No email, no code. **Do not post it publicly** — each use creates a school |
 
 ---
 
@@ -76,15 +82,21 @@ tapping Resend silently kills the code already sitting in the inbox. Rhian's 3 S
 four code requests in nine minutes against four failed verifies; Amanda Potts at Chepstow had five
 sends in ninety seconds. Every link in this document routes around that entirely.
 
-### The one place a school link does not work
+### Three doors, and who needs which
 
-If a teacher has **already asked for a sign-in code at some point**, an account exists for that
-address and the school link answers *"an account already exists for this email"* — a deliberate
-security fix from 5 September (`api/_utils/shellClaim.ts`, CWE-1188 account pre-hijacking) that
-cannot tell that person apart from an attacker.
+| Who they are | What they use | Who can give it |
+|---|---|---|
+| **A. Never touched SSi.** No account of any kind | The school's link from the table above | Anyone — it is a standing link |
+| **B. Has a working account and is already on their school's Teachers page**, but cannot receive a code | **Access code** on their own row on the school's Teachers page — an eight-character code, or `saysomethingin.app/join/ABCD-EFGH`. Single use, 48 hours | Their own school admin, on the spot. Also: a password, if they ever set one, at `saysomethingin.app/schools` |
+| **C. Asked for a code once, never got in, and belongs to no school.** Six people, listed below | **Only an SSi admin can help.** `/intel/person` → *"Make a one-off sign-in link"*. It is a magic link, single use, about an hour | SSi, and nobody else |
 
-Six people are in exactly that state — an account, never confirmed, never signed in, attached to no
-school:
+**Door B is not available to the six people in group C**, and that is the correction worth knowing:
+the Teachers-page Access code refuses anyone who is not already staff at that school
+(`api/school/staff-signin-link.ts` answers *"That person is not a member of your school"*), and all
+six belong to no school — that is exactly what makes them stuck. Their school admin cannot rescue
+them; only SSi can.
+
+The six:
 
 | Address | First asked | Sends | Likely school |
 |---|---|---|---|
@@ -95,10 +107,19 @@ school:
 | philipwoods@chepstowschool.**n** | 4 Sep 10:59 | 0 | Chepstow — truncated domain, so no mail could ever arrive |
 | aggletona5@monmouthshireschools.wales | 3 Sep 10:16 | 1 | Monmouth — wrong domain; she got in on her hwbcymru address the same morning |
 
-Their rescue is a **per-person Access code**: their school admin opens the Teachers page, taps
-**Access code** on that row, and reads out the eight characters. It is single-use and lasts 48 hours,
-which is why none is pre-minted here — one minted today is dead by Saturday. The three typo addresses
-need nothing but the correct spelling on the school link.
+Three of them — the two typos and the wrong-domain one — need **nothing at all**: the person should
+use their correct address on their school's link, which has no account behind it and lets them
+straight in. The other three need the SSi-minted link. Because it lasts about an hour, it has to be
+minted while the person is at their keyboard, not emailed ahead.
+
+**Once signed in that way they are not yet in their school** — they hold a session and nothing else.
+They then open their school's link from the table above, and because they already have a session the
+page asks them to confirm rather than asking for a credential, and joins them (`RedeemCode.vue`).
+Two taps, both while SSi is on the phone with them.
+
+The permanent fix for all of this is job #188 — making the code step idempotent and cooling the
+Resend button, so a second code request stops killing the first. Until that ships, the table above
+is the whole of what a teacher can actually do today.
 
 ## 4. Two duplicates worth deciding about
 
@@ -123,7 +144,12 @@ classes if it is done carelessly.
   outside the normal flow, not a teacher signing up. Left alone.
 - The seat and the attachments are verified by replicating `schoolsForGroupSubtree`'s own parent_id
   walk against live data: 11 nodes, 10 schools. They have **not** been verified by signing in as
-  Sarah — that would mean redeeming her single-use-ish link before she does.
+  Sarah — that would mean redeeming her link before she does.
+- **Corrected 10:20 on 2026-09-18**, after a cold-check of the first version of this document. The
+  new-school link was minted with no group on it, so a school created through it would have landed
+  outside Sarah's region; that is fixed and re-verified, and no school had been created through it in
+  the meantime. And the first version said the school links get a teacher in without saying loudly
+  enough that an existing account stops them — section 3 above is the corrected instruction.
 - Six of the eleven schools carry no `school_identity_claims` row, because the 8 September backfill
   only reached schools that existed then. It blocks nobody — an off-domain arrival still gets in first
   time — it only means those teachers show as "unverified" on the Teachers page.
