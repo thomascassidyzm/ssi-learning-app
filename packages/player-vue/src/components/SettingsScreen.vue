@@ -1667,18 +1667,42 @@ const handleUpdateToLatest = () => {
       run: async () => {
         // What the deployment is serving right now. Cross-origin on a bundled
         // shell, same-origin everywhere today — either way this is the only
-        // source that can disagree with the running build.
+        // source that can disagree with the running build. Bounded to 5s so a
+        // stalled request can't stall the whole flow — the fix has to finish
+        // either way.
         try {
-          const res = await fetch('/version.json', { cache: 'no-store' })
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 5000)
+          let res: Response
+          try {
+            res = await fetch('/version.json', { cache: 'no-store', signal: controller.signal })
+          } finally {
+            clearTimeout(timeout)
+          }
           if (res.ok) {
-            const live = String((await res.json())?.buildNumber || '')
+            const body = await res.json()
+            const live = String(body?.buildNumber || '')
             if (live) {
-              fixSteps.value[0].label = shaPrefixEq(normaliseBuildId(live), normaliseBuildId(buildNumber))
-                ? 'You already have the latest version'
-                : 'A newer version is ready'
+              if (shaPrefixEq(normaliseBuildId(live), normaliseBuildId(buildNumber))) {
+                fixSteps.value[0].label = 'You already have the latest version'
+              } else {
+                // A SHA alone carries no ordering — it can't say which build
+                // came first. Only buildTime can; fall back to the honest
+                // "different" when either side doesn't have one.
+                const liveTime = Date.parse(String(body?.buildTime || ''))
+                const ownTime = Date.parse(buildTime)
+                fixSteps.value[0].label = (!isNaN(liveTime) && !isNaN(ownTime) && liveTime <= ownTime)
+                  ? 'You already have the latest version'
+                  : 'A different version is live'
+              }
             }
           }
-        } catch { /* offline or no version.json — say nothing */ }
+        } catch (err) {
+          // Timeout (AbortError), offline, or no version.json — say nothing.
+          if ((err as { name?: string })?.name === 'AbortError') {
+            fixSteps.value[0].label = 'Could not check for updates — no response'
+          }
+        }
         const reg = await navigator.serviceWorker?.getRegistration?.()
         if (reg) { try { await reg.update() } catch { /* offline / no SW */ } }
       },

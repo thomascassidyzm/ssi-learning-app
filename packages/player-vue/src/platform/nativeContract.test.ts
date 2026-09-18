@@ -14,7 +14,7 @@
  * protocol between the two halves and it is written down in two places by
  * necessity: the shell appends it, capabilities.ts parses it.
  */
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { WEB_REQUIRES_NATIVE_LEVEL, needsStoreUpdate } from './nativeContract'
@@ -84,9 +84,32 @@ describe('the native contract', () => {
     expect(needsStoreUpdate()).toBe(false)
   })
 
-  it('tells a shell that is genuinely behind', () => {
-    configurePlatform({ shell: 'webview', os: 'android', nativeLevel: WEB_REQUIRES_NATIVE_LEVEL - 1 })
-    expect(needsStoreUpdate()).toBe(true)
+  it('tells a shell that is genuinely behind', async () => {
+    // WEB_REQUIRES_NATIVE_LEVEL is 0 at rest (see "stays quiet" below), so
+    // `WEB_REQUIRES_NATIVE_LEVEL - 1` was -1 — a shell level that can never
+    // really exist (levels start at 0, unmarked shells included). Exercise the
+    // comparison with a shell an installed APK could actually be at (level 0)
+    // against a genuinely positive requirement, by mocking the module's own
+    // constant for this one test rather than trusting the real resting value.
+    vi.doMock('./nativeContract', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('./nativeContract')>()
+      return {
+        ...actual,
+        WEB_REQUIRES_NATIVE_LEVEL: 1,
+        needsStoreUpdate: () => {
+          const p = platform()
+          if (p.shell !== 'webview') return false
+          return p.nativeLevel < 1
+        },
+      }
+    })
+    try {
+      const mocked = await import('./nativeContract')
+      configurePlatform({ shell: 'webview', os: 'android', nativeLevel: 0 })
+      expect(mocked.needsStoreUpdate()).toBe(true)
+    } finally {
+      vi.doUnmock('./nativeContract')
+    }
   })
 
   it('stays quiet at rest — nothing in the web requires a native level yet', () => {
