@@ -1,6 +1,6 @@
 {
-  "version": "120ffdbbb87a",
-  "generatedAt": "2026-09-16",
+  "version": "697b02eac132",
+  "generatedAt": "2026-09-18",
   "truth": {
     "verbs": [
       {
@@ -56,15 +56,15 @@
       "Demo",
       "Paid — all courses",
       "No end date — inactive",
-      "Phrases practised this week",
-      "Minutes played as class this week",
+      "Phrases practised in total",
+      "Minutes played as class in total",
       "Phrases travelled together",
       "Teachers",
-      "Minutes in the app this week",
+      "Minutes in the app in total",
       "Groups",
       "Learners",
       "Classes",
-      "Classes practising this week"
+      "Classes that have practised"
     ],
     "measures": [
       {
