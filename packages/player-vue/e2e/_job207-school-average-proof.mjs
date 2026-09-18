@@ -45,9 +45,8 @@ page.on('response', async (r) => {
   try { const j = await r.json(); if (j?.week) payload = { url: decodeURIComponent(r.url()).slice(0,200), week: { window: j.week.window, entity: j.week.entity, cohort: j.week.cohort } } } catch {}
 })
 
-await page.goto(`${BASE}/admin/classes/${CLASS}/insights?window=this_week`, { waitUntil: 'domcontentloaded' })
-await page.waitForTimeout(12000)
-const card = await page.evaluate(() => {
+const SCHOOL_NODE = '568fe0ca-4846-4d4b-ac3d-5af94eb30073' // Chepstow's node group
+const readCard = () => page.evaluate(() => {
   const txt = (el) => (el?.textContent || '').replace(/\s+/g, ' ').trim()
   const row = (k) => [...document.querySelectorAll(`.wk-row-${k} .wk-cell`)].map((c) => txt(c)).join(' | ')
   return {
@@ -61,7 +60,20 @@ const card = await page.evaluate(() => {
     denominator: txt(document.querySelector('.wk-denominator')),
   }
 })
-console.log('\nSTAGING CARD:', JSON.stringify(card, null, 1))
-console.log('\nSERVER PAYLOAD:', JSON.stringify(payload, null, 1))
-await page.screenshot({ path: `${OUT}/staging-10p-this-week.png`, fullPage: true })
+
+async function visit(tag, url) {
+  payload = null
+  await page.goto(url, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(12000)
+  const card = await readCard()
+  console.log(`\n── ${tag} ──`)
+  console.log('CARD:', JSON.stringify(card, null, 1))
+  if (payload) console.log('SERVER cohort:', JSON.stringify(payload.week.cohort))
+  await page.screenshot({ path: `${OUT}/${tag}.png`, fullPage: true })
+}
+
+await visit('10p-this-week', `${BASE}/admin/classes/${CLASS}/insights?window=this_week`)
+await visit('10p-last-week', `${BASE}/admin/classes/${CLASS}/insights?window=last_week`)
+await visit('10p-all-time', `${BASE}/admin/classes/${CLASS}/insights?window=all_time`)
+await visit('school-this-week', `${BASE}/admin/groups/${SCHOOL_NODE}/insights?window=this_week`)
 await browser.close()
