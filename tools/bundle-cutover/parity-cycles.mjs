@@ -18,6 +18,12 @@
  *   node tools/bundle-cutover/parity-cycles.mjs [--wire] [--courses=a,b] [--out=f.json]
  *   (--wire needs node ≥22 for TypeScript stripping)
  *
+ *
+ * 2026-09-18: the SEED-PHASE tier (offsets ≥144) was DELETED from both
+ * generators on Tom's ruling — spaced rep stops at 89 everywhere now — so a
+ * seed-phase extra can no longer arise and this allowance should never fire
+ * again. It is kept so an old artifact still reads the same way; a case that
+ * DOES report one means something is serving the retired tier.
  * Exit code 1 if any case is DRIFT. SUPERSET_SEED_PHASE_ONLY is a PASS: the
  * generator schedules reviews at the SEED-PHASE offsets (≥144) that cycles.ts
  * documents as a deliberate gap versus the walk, so extra cycles at exactly

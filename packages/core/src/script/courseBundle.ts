@@ -221,10 +221,11 @@ export interface BundlePhrase {
  *
  * `knownText`/`targetText`/`targetTextNative`/`audio` are additive
  * (bundle-cutover Phase 1, archive/docs-retired-2026-08-24/bundle-cutover-design.md §3 parity item 2):
- * they carry the seed's own known/target audio+text so the shared generator
- * can emit SEED-PHASE spaced-rep reviews (offsets ≥ `SEED_PHASE_START_OFFSET`
- * — the full parent seed sentence, not a use-phrase). Absent on courses/rows
- * where the upstream content build hasn't populated seed audio.
+ * they carry the seed's own known/target audio+text. They were added for the
+ * SEED-PHASE spaced-rep tier, which was deleted on 2026-09-18 (see
+ * `REVIEW_OFFSET_CEILING`); they stay in the bundle because the offline
+ * snapshot and the cups listening interlude read seed audio. Absent on
+ * courses/rows where the upstream content build hasn't populated seed audio.
  */
 export interface BundleSeed {
   seedId: string

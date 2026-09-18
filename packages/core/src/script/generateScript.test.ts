@@ -507,11 +507,13 @@ describe('generateScript — infplay mode', () => {
 })
 
 // ===========================================================================
-// SEED-PHASE spaced-rep reviews (offsets ≥ 144) — parity item added in the
-// bundle-cutover Phase 1 promotion (archive/docs-retired-2026-08-24/bundle-cutover-design.md §3).
+// NO SEED-PHASE TIER — spaced rep stops at offset 89 (Tom, 2026-09-18:
+// "Delete the additional SEED once it's dropped out of the Spaced Rep.
+// Because the cups handle it."). These tests are RED on the pre-ruling
+// generator, which served the parent sentence at offsets ≥144.
 // ===========================================================================
-describe('generateScript — SEED-PHASE spaced-rep reviews (offset ≥ 144)', () => {
-  it('main loop: offset 144 reviews the full parent seed sentence, not a use-phrase', () => {
+describe('generateScript — a drained seed is never re-served (offsets stop at 89)', () => {
+  it('main loop: round 145 emits ten use-phrase reviews and no seed review', () => {
     const bundle = makeBundle({ legoCount: 150, buildsPerLego: 0, usesPerLego: 1 })
     const { rounds } = generateScript({
       bundle,
@@ -521,114 +523,32 @@ describe('generateScript — SEED-PHASE spaced-rep reviews (offset ≥ 144)', ()
     const round145 = rounds[0]
     expect(round145.roundNumber).toBe(145)
 
-    const seedReview = round145.cycles.find((c) => c.id === 'S0001L01_seedrep')
-    expect(seedReview).toBeDefined()
-    expect(seedReview!.type).toBe('review')
-    expect(seedReview!.known.text).toBe('known-seed-S0001')
-    expect(seedReview!.target.text).toBe('target-seed-S0001')
-
-    // The other 10 offsets below SEED_PHASE_START_OFFSET (1,2,3,5,8,13,21,34,55,89)
-    // still resolve to ordinary use-phrase reviews (usesPerLego=1 → 1 cycle each).
-    expect(round145.cycles.filter((c) => c.type === 'review')).toHaveLength(11)
+    expect(round145.cycles.some((c) => c.id.includes('seedrep'))).toBe(false)
+    // The ten offsets 1,2,3,5,8,13,21,34,55,89 — and nothing for offset 144,
+    // even though the bundle's own scriptShape still carries the long tail.
+    expect(round145.cycles.filter((c) => c.type === 'review')).toHaveLength(10)
   })
 
-  it('main loop: falls back to a use-phrase review when the seed lacks audio', () => {
-    const bundle = makeBundle({
-      legoCount: 150,
-      buildsPerLego: 0,
-      usesPerLego: 1,
-      seedAudio: false,
-    })
+  it('main loop: the offset-144 LEGO draws nothing at all, not a use-phrase either', () => {
+    const bundle = makeBundle({ legoCount: 150, buildsPerLego: 0, usesPerLego: 1 })
     const { rounds } = generateScript({
       bundle,
       position: { mode: 'main', fromLegoId: 'S0145L01' },
       roundLimit: 1,
     })
-    const round145 = rounds[0]
-
-    expect(round145.cycles.some((c) => c.id === 'S0001L01_seedrep')).toBe(false)
-    const fallback = round145.cycles.find((c) => c.id.startsWith('S0001L01_use_01_'))
-    expect(fallback).toBeDefined()
-    expect(fallback!.type).toBe('review')
-    expect(fallback!.known.text).toBe('known-S0001L01_use_01')
+    // Round 145 − 144 = round 1 = S0001L01. Nothing in the round may name it.
+    expect(rounds[0].cycles.some((c) => c.legoId === 'S0001L01')).toBe(false)
   })
 
-  it('main loop: two LEGOs sharing a seed are reviewed only once per round', () => {
-    // Hand-built, sparse round map: round 156 and round 67 both belong to
-    // seed S0001 (different LEGOs); round 300 is where generation starts.
-    // At round 300, offset 144 → round 156 (S0001L01) and offset 233 →
-    // round 67 (S0001L02) both land in SEED-PHASE — same seed, one review.
-    const legoA = makeLego({ seedNumber: 1, legoIndex: 1 })
-    const legoB = makeLego({ seedNumber: 1, legoIndex: 2 })
-    const startLego = makeLego({ seedNumber: 9999, legoIndex: 1 })
-
-    // `Array.prototype.findIndex` (used by `generateMain` to locate the start
-    // position) visits holes in a sparse array, unlike most array methods —
-    // so every index needs a real (if unused) entry, not just the three we
-    // care about.
-    const roundMap: BundleRoundMapEntry[] = Array.from({ length: 300 }, (_, i) => ({
-      roundIndex: i + 1,
-      legoId: `SUNUSED${i}L01`,
-      seedNumber: 10000 + i,
-    }))
-    roundMap[66] = { roundIndex: 67, legoId: legoB.legoId, seedNumber: 1 }
-    roundMap[155] = { roundIndex: 156, legoId: legoA.legoId, seedNumber: 1 }
-    roundMap[299] = { roundIndex: 300, legoId: startLego.legoId, seedNumber: 9999 }
-
-    const bundle: CourseBundle = {
-      courseCode: 'test_course',
-      version: 1,
-      contentVersion: 1,
-      scriptShape: FIXTURE_SCRIPT_SHAPE,
-      scriptShapeVersion: 1,
-      generatorVersion: GENERATOR_VERSION,
-      mainLoopCount: 300,
-      legos: [legoA, legoB, startLego],
-      phrases: [],
-      seeds: [
-        {
-          seedId: 'S0001',
-          seedNumber: 1,
-          knownText: 'known-seed-S0001',
-          targetText: 'target-seed-S0001',
-          audio: {
-            known: persistentAudioRef('S0001-known', 2000),
-            target1: persistentAudioRef('S0001-t1', 2200),
-            target2: persistentAudioRef('S0001-t2', 2200),
-          },
-        },
-      ],
-      roundMap,
-      pods: [],
-    }
-
-    const { rounds } = generateScript({
-      bundle,
-      position: { mode: 'main', fromLegoId: startLego.legoId },
-      roundLimit: 1,
-    })
-    const round300 = rounds[0]
-    const seedReviews = round300.cycles.filter((c) => c.id.endsWith('_seedrep'))
-    expect(seedReviews).toHaveLength(1)
-    // Dedup keeps whichever offset is walked first (offset 144, the smaller one).
-    expect(seedReviews[0].id).toBe(`${legoA.legoId}_seedrep`)
-  })
-
-  it('infplay: offset 144 emits an infseedrep-tagged review of the full seed sentence', () => {
+  it('infplay: no infseedrep cycle is ever built', () => {
     const bundle = makeBundle({ legoCount: 150, buildsPerLego: 0, usesPerLego: 1 })
     const { rounds } = generateScript({
       bundle,
       position: { mode: 'infplay', fromInfRound: 1 },
-      roundLimit: 1,
+      roundLimit: 3,
       random: mulberry32(1),
     })
-    const seedReview = rounds[0].cycles.find((c) => c.id.includes('_infseedrep_R1_'))
-    expect(seedReview).toBeDefined()
-    expect(seedReview!.type).toBe('review')
-    // 10 offsets below SEED_PHASE_START_OFFSET (1..89) emit first (cycleSeq
-    // 1-10, one use-phrase cycle each since usesPerLego=1), then offset 144.
-    expect(seedReview!.id).toBe('S0007L01_infseedrep_R1_11')
-    expect(seedReview!.known.text).toBe('known-seed-S0007')
+    expect(rounds.flatMap((r) => r.cycles).some((c) => c.id.includes('seedrep'))).toBe(false)
   })
 })
 

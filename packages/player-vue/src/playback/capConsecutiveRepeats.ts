@@ -201,20 +201,11 @@ export interface PromptIdentifiableCycle {
   type?: string
   known?: { text?: string; audioUrl?: string }
   target?: { text?: string; voice1Url?: string }
-  /** See Cycle.seedSandwich — the four slots of one drained seed review. */
-  seedSandwich?: boolean
-  /** Cycle id; the per-slot discriminator for the sandwich. */
+  /** Cycle id. */
   id?: string
 }
 
 export function cyclePromptIdentity(cycle: PromptIdentifiableCycle): string {
-  // The drained seed sandwich repeats its sentence on purpose and asks for no
-  // production, so the law about repeated PROMPTS does not reach it — same
-  // standing as a listening cup or a pod play. Giving each slot its own
-  // identity keeps all four, contiguous and in order. (mintonman's second
-  // Basque report, 2026-09-17: the cap and the generator's duplicate pass
-  // between them left him one Basque clip out of four.)
-  if (cycle.seedSandwich) return `seedsandwich:${cycle.id ?? ''}`
   const norm = (text: string | null | undefined): string =>
     text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
   const known = norm(cycle.known?.text)

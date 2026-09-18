@@ -19,12 +19,6 @@ import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
 
-/**
- * Hold after a drained seed-sandwich slot, in ms. LegoAssembly deals its tiles
- * over 250 ms + 150 ms per extra tile, so this covers a sentence of ~8 tiles
- * and leaves it on screen long enough to read before the next slot.
- */
-export const SEED_SANDWICH_LINGER_MS = 1600
 import { apiUrl } from '@/platform/apiBase'
 import {
   playbackSpeedForVoice, voicePaceForSlot, MIN_SPEED,
@@ -325,10 +319,6 @@ function* toSimpleRoundsGen(
         // Pod plays carry exactly one of {knownAudioId (translation play),
         // target1Id (target play at slow/fast/2× via playbackSpeed)}.
         if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
-      } else if (i.type === 'spaced_rep' && i.reviewItemKind === 'seed') {
-        // Drained SEED-PHASE review sub-cycles (the t→k→t→t sandwich) carry
-        // exactly one of {knownAudioId, target1Id}, same shape as pod plays.
-        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
@@ -373,7 +363,6 @@ function* toSimpleRoundsGen(
 
       const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
       const isPod = i.type === 'pod'
-      const isSeedSandwich = i.type === 'spaced_rep' && i.reviewItemKind === 'seed'
 
       cycles.push({
         id: i.uuid,
@@ -401,29 +390,17 @@ function* toSimpleRoundsGen(
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its
         // "no audio, skipping" warnings for the phases left empty by design.
-        ...((isBookend || isPod || i.type === 'listening' || isSeedSandwich) ? { singleAudio: true } : {}),
-        // Marks the four slots of one drained seed review so the A-64 cap can
-        // tell a deliberate sandwich from a repeated prompt (see
-        // cyclePromptIdentity).
-        ...(isSeedSandwich ? { seedSandwich: true } : {}),
-        // Intro/listening/component_intro/bookends/pods/drained-seed-sandwich:
-        // no pause — each sub-cycle carries at most one audio track, chained
-        // straight through on 'ended' (no production-recall gap). Other
-        // cycles: dynamic pause based on target audio lengths.
-        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod || isSeedSandwich)
+        ...((isBookend || isPod || i.type === 'listening') ? { singleAudio: true } : {}),
+        // Intro/listening/component_intro/bookends/pods: no pause — each
+        // sub-cycle carries at most one audio track, chained straight through
+        // on 'ended' (no production-recall gap). Other cycles: dynamic pause
+        // based on target audio lengths.
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
           ? 0
           : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_FAST),
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),
-        // The seed sandwich carries no voice2 clip, so VOICE_2 ends in the same
-        // frame it begins — and VOICE_2 is where LegoAssembly starts dealing
-        // the target tiles out one at a time (250 ms plus 150 ms per extra
-        // tile). Without a hold the words begin to appear and are snatched
-        // away: "the basque words begin to appear card by card but then the app
-        // moves on to the next exercise" (mintonman, 2026-09-17). Long enough
-        // to finish dealing a long sentence and still read it.
-        ...(isSeedSandwich ? { lingerMs: SEED_SANDWICH_LINGER_MS } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
