@@ -336,13 +336,16 @@ const metricDesc = computed(() => {
             line. No axes; it is there to be glanced at.
          Worth knowing. Nothing here is a score, a rank or a percentage — two columns
          of plain numbers, and you do the comparing. Totals are never compared at all:
-         a whole school's history has nothing fair to sit beside. A class that was set
-         up and has never played is in no average anywhere. The average counts every class in
-         that scope that has started this course, including the one you are looking
-         at, so it reads the same number whichever class you open it from. The line
-         under the second column says how many. A week spent going back over old
-         ground reads zero new phrases and a healthy pile of minutes, which is
-         exactly what that week was; tap **why?** on the card for the rest.
+         a whole school's history has nothing fair to sit beside. The average counts
+         every class in that scope that **practised in the week you are reading**,
+         including the one you are looking at when it practised. A class that was quiet
+         that week is not counted as a zero, so the average says what a class that ran
+         a lesson actually did, and the line under the second column says how many are
+         in it. It reads the same number whichever class you open it from. If nobody
+         else practised that week there is no second column at all, and the card says
+         so. A week spent going back over old ground reads zero new phrases and a
+         healthy pile of minutes, which is exactly what that week was; tap **why?** on
+         the card for the rest.
          checked: e2bed1f2.5af95451
     -->
     <div v-if="engineState && weekMode" class="nre-bar" data-walk="insights-window">

@@ -121,8 +121,10 @@ describe('WeekNumbersCard — one card, two columns, three numbers, no rank', ()
     })
     await leader.find('.wk-why').trigger('click')
     // Seen RED before the fix: "the mean of every class in that scope" on a
-    // page whose denominator says 3 schools.
-    expect(leader.text()).toContain('the mean of every school in that scope that has started this course, this school included')
+    // page whose denominator says 3 schools. The RULE the sentence states
+    // changed on 2026-09-18 — practised-in-the-window, not started — but the
+    // thing this test guards did not: the NOUN follows the cohort's own unit.
+    expect(leader.text()).toContain('the mean of every school in that scope that practised in the week you are reading, this school included')
     expect(leader.text()).not.toContain('every class in that scope')
 
     const teacher = render({ data: block(), unitNoun: 'class' })
@@ -187,5 +189,52 @@ describe('WeekNumbersCard — a school average is a fraction, and a fraction is 
     const quiet = chepstow()
     quiet.cohort = { ...quiet.cohort!, classMinutes: 0, pupilMinutes: 0, totalMinutes: 0, newPhrases: 0 }
     expect(rowText(render({ data: quiet }), 'class')).toBe('Play as class 8m 0m')
+  })
+})
+
+/**
+ * Tom's ruling, 2026-09-18: the average divides by the classes that PRACTISED
+ * in the window, "and the caption says so". Chepstow's live shape — 34
+ * classes, 33 started, 9 practised, 11.7 minutes — reads 1.3 over 9 where it
+ * read 0.354 over 33.
+ */
+describe('WeekNumbersCard — the caption names the denominator and the rule that chose it', () => {
+  const practising = (): WeekBlock => block({
+    window: 'this_week',
+    label: 'This week',
+    rangeLabel: '14–18 Sep',
+    entity: { label: '10P', classMinutes: 7.4, pupilMinutes: 0, totalMinutes: 7.4, newPhrases: 1, hasData: true },
+    cohort: {
+      label: 'Ysgol Cas-gwent Chepstow School average',
+      classMinutes: 1.3, pupilMinutes: 0, totalMinutes: 1.3, newPhrases: 2.3,
+      size: 9, sizeLabel: '9 classes that practised this week',
+    },
+    bars: { weeks: ['7–13 Sep', '14–20 Sep'], entity: [11.9, 7.4], cohort: [9.1, 1.3] },
+  })
+
+  it('says how many classes are in the average AND that they are the ones that practised', () => {
+    expect(render({ data: practising() }).find('.wk-denominator').text())
+      .toBe('Ysgol Cas-gwent Chepstow School average · 9 classes that practised this week')
+  })
+
+  it('and the number beside it is a real one, not a zero', () => {
+    expect(rowText(render({ data: practising() }), 'class')).toBe('Play as class 8m 2m')
+  })
+
+  it('the why? chip explains the rule a reader is being asked to trust', async () => {
+    const w = render({ data: practising() })
+    await w.find('.wk-why').trigger('click')
+    const why = w.find('.wk-why-text').text()
+    expect(why).toContain('practised in the week you are reading')
+    expect(why).toContain('is not counted as a zero')
+  })
+
+  it('when nobody else practised there is no second column, and the card says which nothing that is', () => {
+    const alone = practising()
+    alone.cohort = null
+    alone.cohortNote = 'Nothing to compare against: only this class practised this week.'
+    const w = render({ data: alone })
+    expect(w.findAll('.wk-row-class .wk-num')).toHaveLength(1)
+    expect(w.find('.wk-note').text()).toBe('Nothing to compare against: only this class practised this week.')
   })
 })
