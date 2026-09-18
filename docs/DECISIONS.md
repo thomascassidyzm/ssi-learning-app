@@ -4780,3 +4780,43 @@ banner counts as proof for enrolment; "live" for the session count means not exp
 within thirty days, so a dead GoTrue row cannot show the line to a teacher with one device; the
 second-device line lives in the founder's banner only, not in Settings' own verify row; the class
 list's short code on the teacher home is not masked — the server refuses it and the pupil reads why.
+
+## 2026-09-18 — the update that happens on open is said out loud, and holds the screen (job #217)
+
+Tom, from his phone on production: "when I open the app and it automatically checks for updates,
+it's not letting the user know what it's doing — and it often just falls over itself and often
+needs to be quit and then loaded up again."
+
+**What shipped.** `composables/useOpenUpdateGate.ts` asks once, at open, whether the live build is
+PROVABLY newer than the running one — `isProvablyStale`, not `isDifferentBuild`, so offline, a dead
+endpoint and an unreadable answer all mean "carry on" rather than "hold the app". When it is,
+`components/UpdateOnOpenOverlay.vue` says so in the app's own voice and holds the surface, and the
+reload fires 700ms later so the screen is READ before the document goes away. No update, or
+offline, or anything sounding: nothing paints, nothing is fetched twice, boot is untouched.
+
+**Four rules that are each somebody's bad morning.** Never over playing audio (Tom, 2026-05-21).
+On open means on open — past an 8s window the non-blocking banner owns it, because a screen taking
+over mid-use is an interruption rather than an explanation. ONE attempt per target build, recorded
+in sessionStorage: the reload can land on the old build anyway when the 3s navigation timeout fires
+and the precached shell answers, and reloading again would be a reload LOOP, which is worse than
+being one build behind. And a held screen escalates at 10s to "Keep waiting" / "Reload", because on
+iOS standalone a programmatic `location.reload()` can silently not take and a user gesture is the
+only thing that unsticks it — the same escape, for the same reason, as the boot watchdog's
+"tap to relaunch".
+
+**What was NOT changed, deliberately.** The waiting service worker is still never told to skip
+waiting; taking an update is still a plain reload. That ruling (PwaUpdatePrompt.vue's long comment)
+is why an old document does not have its own chunks deleted under it. The offline path, the boot
+heal ladder and the precached-shell fallback are untouched.
+
+**The telemetry finding behind it (read-only, production, 7 days).** The stated hypothesis — that
+silent updates on open are eating sessions, visible as cold_start-followed-by-nothing clustering
+after deploys — is NOT SUPPORTED. Dead-session rate is flat against deploy distance (0-30m after a
+new build first appears: 14.3%; 2-8h: 15.1%; >8h: 24.0%) and a client running a stale build is only
+marginally worse than one already current (25.0% vs 19.7%, n=64 stale — not significant). The
+instrument also cannot see the thing it was asked about: `cold_start` is emitted at player-READY,
+so a boot that never mounts writes nothing at all, and the heal ladder emits no telemetry whatever.
+What the data DOES show is Tom's own four sessions of 2026-09-18 12:10-12:32 UTC: cold_start,
+then a single tap_pause 2-3s later, then nothing, with ZERO audio_play and ZERO tap_play in any of
+them — the learner opened the app, tapped the big control expecting play, and the app read the tap
+as PAUSE. That is a separate defect from the update flow and is under investigation (job #219·H).

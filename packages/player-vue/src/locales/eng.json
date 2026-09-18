@@ -844,7 +844,12 @@
     "tapRelaunch": "Tap to relaunch",
     "newVersionAvailable": "New version available",
     "later": "Later",
-    "update": "Update"
+    "update": "Update",
+    "updatingTitle": "Updating to the latest version",
+    "updatingBody": "This takes a few seconds.",
+    "updatingSlow": "This is taking longer than usual.",
+    "keepWaiting": "Keep waiting",
+    "reloadNow": "Reload"
   },
   "me": {
     "pointsEarned": "Points earned",
