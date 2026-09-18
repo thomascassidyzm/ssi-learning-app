@@ -36,10 +36,6 @@
  * NOT repeated, deliberately:
  *   - intro and debut: Tom's ruling above (they are absent from the default
  *     type list, and a config row could add them — his call, not the code's);
- *   - SEED-PHASE production reviews (`reviewItemKind: 'seed'`): the drained
- *     t→k→t→t sandwich is already several cycles of one sentence, so repeating
- *     it would give four hearings and breach the never-more-than-twice rule.
- *     This one is structural, not a setting;
  *   - listening, pod and bookend cycles: Tom named BLD, USE, REVIEW and
  *     CONSOLIDATE, so those four are the default set.
  */
@@ -72,9 +68,6 @@ export interface RepeatPhraseCyclesOptions {
 /** Is this a cycle the active config repeats? */
 export function isRepeatedCycle(item: ScriptItem, types: ReadonlySet<string>): boolean {
   if (!types.has(item.type)) return false
-  // Seed-phase production review is already a multi-cycle sandwich — structural,
-  // never a setting.
-  if (item.reviewItemKind === 'seed') return false
   return true
 }
 

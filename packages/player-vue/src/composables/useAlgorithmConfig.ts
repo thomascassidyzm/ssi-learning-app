@@ -177,6 +177,22 @@ export interface ModeConfig {
    */
   useWordCapTiers?: UseWordCapTier[]
   /**
+   * HOW OFTEN THE LAYER-2 PODS COME ROUND, IN THIS MODE (Tom, 2026-09-18:
+   * "The listening exercises every ROUND are fine — the CUPS. The PODS (layer
+   * 2 listening exercises) need to come more often on EASY MODE. Every 2x
+   * ROUNDS in EASY MODE and every 4x ROUNDS in FAST mode.").
+   *
+   * A work DEBT, not a position rule — `usePodLapScheduler` counts every
+   * completed round and fires a lap at the first clean boundary where the debt
+   * reaches this number, so the cadence survives replays, belt skips and a
+   * crawling position. Easy ships 2, Fast ships 4.
+   *
+   * Overrides the global `algorithm_config.pods.roundInterval`, which stays as
+   * the fallback for a mode row that carries no value of its own. Absent /
+   * <1 ⇒ that fallback.
+   */
+  podRoundInterval?: number
+  /**
    * LISTENING speed ramp for this mode, over a phrase's EXPOSURES (Tom,
    * 2026-08-07): "it might be 0.8. Or maybe even Notepoint. Seven, the very
    * first time, and it might be 0.8, then it might stay on 0.8 for a few
@@ -439,6 +455,8 @@ export const DEFAULT_FAST: ModeConfig = {
   // No belt ceiling — a single 1.0 rung. Tom, 2026-08-07: "Fast may still start
   // at 1.0 as you built it — this correction is Easy-only."
   listeningBeltCeilings: DEFAULT_FAST_BELT_CEILINGS,
+  // Pods every 4 rounds in Fast (Tom, 2026-09-18).
+  podRoundInterval: 4,
 }
 
 /**
@@ -568,6 +586,31 @@ export const DEFAULT_EASY: ModeConfig = {
    * (`algorithm_config.easy_mode.listeningBeltCeilings`).
    */
   listeningBeltCeilings: DEFAULT_EASY_BELT_CEILINGS,
+  // Pods twice as often as Fast — "they need to come more often on EASY MODE"
+  // (Tom, 2026-09-18).
+  podRoundInterval: 2,
+}
+
+/**
+ * THE POD CADENCE FOR A MODE, in completed rounds per lap (Tom, 2026-09-18:
+ * every 2 rounds on Easy, every 4 on Fast). The mode's own value wins; the
+ * global `algorithm_config.pods.roundInterval` is the fallback for a stored
+ * mode row that predates the knob; 1 (every round) is the last resort, which
+ * is what the scheduler has always defaulted to.
+ */
+export function resolvePodRoundInterval(
+  mode?: Partial<Pick<ModeConfig, 'podRoundInterval'>> | null,
+  pods?: Partial<Pick<PodsConfig, 'roundInterval'>> | null,
+): number {
+  const fromMode = mode?.podRoundInterval
+  if (typeof fromMode === 'number' && Number.isFinite(fromMode) && fromMode >= 1) {
+    return Math.floor(fromMode)
+  }
+  const fromPods = pods?.roundInterval
+  if (typeof fromPods === 'number' && Number.isFinite(fromPods) && fromPods >= 1) {
+    return Math.floor(fromPods)
+  }
+  return 1
 }
 
 /**
@@ -908,7 +951,7 @@ export function resolveListeningPlayPolicy(
   }
 }
 
-const DEFAULT_PODS: PodsConfig = {
+export const DEFAULT_PODS: PodsConfig = {
   // Stage count is dynamic — the runtime reads the key count, the
   // highest-numbered key is the eternal hold.
   // Stage 1 = "Phase 0" (Tom 2026-06-10): the explainer plays INSTEAD of
@@ -1149,6 +1192,9 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
    *  override, so it resolves to the global row unchanged. */
   const scriptShapeForMode = (mode: LearningMode): ScriptShapeConfig =>
     resolveScriptShape(scriptShapeConfig.value, modeConfig(mode))
+  /** Pod-lap cadence for a mode: 2 rounds on Easy, 4 on Fast (Tom, 2026-09-18). */
+  const podRoundIntervalForMode = (mode: LearningMode): number =>
+    resolvePodRoundInterval(modeConfig(mode), podsConfig.value)
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
   const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
   const adaptationV2Config = computed(() => configs.value.adaptation_v2 as AdaptationV2Config)
@@ -1180,6 +1226,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     easyConfig,
     modeConfig,
     scriptShapeForMode,
+    podRoundIntervalForMode,
     listeningConfig,
     podsConfig,
     scriptShapeConfig,

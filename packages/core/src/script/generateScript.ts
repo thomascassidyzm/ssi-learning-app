@@ -27,18 +27,18 @@
  *   - api/courses/[code]/cycles.ts          (main-loop per-LEGO sequence)
  *   - api/courses/[code]/infplay-cycles.ts  (INF PLAY assembly)
  *   - providers/backendCyclesToRounds.ts    (cycle audio-completeness + pause math)
- *   - providers/generateLearningScript.ts   (SEED-PHASE spaced-rep reviews, offsets ≥144)
+ *
+ * The SEED-PHASE tier (offsets ≥144, the whole parent sentence) was DELETED
+ * from both paths on 2026-09-18 — see `REVIEW_OFFSET_CEILING`.
  */
 
 import type { Cycle, Round } from './playerTypes'
 import {
   legosById,
   phrasesByLegoAndRole,
-  seedsBySeedId,
   type BundleAudioRef,
   type BundleLego,
   type BundlePhrase,
-  type BundleSeed,
   type CourseBundle,
 } from './courseBundle'
 import { computePauseDuration, DEFAULT_PAUSE_CONFIG, type PauseModeConfig } from './computePauseDuration'
@@ -76,20 +76,32 @@ const DEFAULT_ROUND_LIMIT = 15
  * Fibonacci offsets for spaced rep, identical to the server's main-loop
  * + INF PLAY schedule and to `generateLearningScript.ts`'s
  * `DEFAULT_SCRIPT_SHAPE.spacedRepOffsets`. The N-1 offset gets THREE
- * different USE phrases (per `n1PhraseCount`); all other offsets get ONE —
- * except offsets ≥ `SEED_PHASE_START_OFFSET`, which review the full parent
- * seed sentence instead of a use-phrase (see `buildSeedReviewCycle`).
+ * different USE phrases (per `n1PhraseCount`); all other offsets get ONE.
+ * The tail stops at 89 — see `REVIEW_OFFSET_CEILING`.
  */
-const DEFAULT_SPACED_REP_OFFSETS = [
-  1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584,
-]
+const DEFAULT_SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
 /**
- * First offset at which a spaced-rep review switches from a use-phrase
- * (LEGO-level) to the FULL PARENT SEED SENTENCE (active production).
- * Mirrors `providers/generateLearningScript.ts`'s `SEED_PHASE_START_OFFSET`.
+ * SPACED REP STOPS BELOW THIS OFFSET — 89 is the last review a LEGO ever
+ * gets, on every path (Tom, 2026-09-18: "Delete the additional SEED once
+ * it's dropped out of the Spaced Rep. Because the cups handle it.").
+ *
+ * Offsets ≥ 144 used to carry the SEED-PHASE tier: the walk served the
+ * parent seed sentence as a four-slot listening sandwich, this generator
+ * served it as an ordinary three-clip production exercise, and the two were
+ * a live A/B nobody chose. A seed that has drained out of spaced repetition
+ * is no longer re-served as production at all; the cups listening interlude
+ * (`useLayer1Scheduler`, runtime, identical on both paths) is its only
+ * channel. Applied as a CODE ceiling rather than by shortening the default
+ * array, because the live `algorithm_config.script_shape` row still carries
+ * the long Fibonacci tail — `reviewOffsets()` is the one filter both
+ * generators run their configured offsets through.
  */
-const SEED_PHASE_START_OFFSET = 144
+export const REVIEW_OFFSET_CEILING = 144
+
+/** The configured offsets a review may actually fire at. */
+export const reviewOffsets = (offsets: number[]): number[] =>
+  offsets.filter((o) => o < REVIEW_OFFSET_CEILING)
 
 /**
  * Fallback round shape — used only when neither `opts.shape` nor
@@ -117,11 +129,15 @@ interface ResolvedScriptShape {
 
 function resolveShape(bundle: CourseBundle, override?: Partial<ResolvedScriptShape>): ResolvedScriptShape {
   const fromBundle = (bundle as { scriptShape?: Partial<ResolvedScriptShape> }).scriptShape
-  return {
+  const merged = {
     ...DEFAULT_SCRIPT_SHAPE,
     ...(fromBundle ?? {}),
     ...(override ?? {}),
   }
+  // THE ONE PLACE the configured offsets are capped (Tom, 2026-09-18) — a
+  // baked bundle or an admin row carrying the long Fibonacci tail still
+  // stops at 89, so a drained seed is never re-served as production.
+  return { ...merged, spacedRepOffsets: reviewOffsets(merged.spacedRepOffsets) }
 }
 
 /**
@@ -261,7 +277,6 @@ function generateMain(
 
   const legoIndex = legosById(bundle)
   const phraseIndex = phrasesByLegoAndRole(bundle)
-  const seedIndex = seedsBySeedId(bundle)
   const orderedPoolsFor = makePoolOrderer(phraseIndex)
 
   const rounds: Round[] = []
@@ -325,7 +340,6 @@ function generateMain(
       bundle,
       legoIndex,
       orderedPoolsFor,
-      seedIndex,
       audioUrl,
       pauseConfig,
       shape,
@@ -375,21 +389,15 @@ function generateMain(
 /**
  * Build spaced-rep cycles for one main-loop round. Walks `SPACED_REP_OFFSETS`
  * back from the current round-map index, dedup'd by LEGO. Each entry pulls
- * 3 (N-1) or 1 (others) USE phrases from that LEGO — except offsets ≥
- * `SEED_PHASE_START_OFFSET`, which review the LEGO's full parent seed
- * sentence instead (one cycle, not a phrase draw), falling back to the
- * ordinary use-phrase review if the seed row is missing or lacks audio —
- * never an empty review. Seed reviews are additionally dedup'd by seedId
- * within the round: two LEGOs from the same seed reviewed in the same round
- * (rare, but possible — spaced-rep offsets are drawn per-LEGO) would
- * otherwise play the identical seed sentence twice.
+ * 3 (N-1) or 1 (others) USE phrases from that LEGO. The offsets are already
+ * capped below `REVIEW_OFFSET_CEILING` by `resolveShape`, so 89 is the last
+ * review a LEGO gets and nothing is emitted for a drained seed.
  */
 function buildSpacedRepCycles(
   currentRoundIndex: number,
   bundle: CourseBundle,
   legoIndex: Map<string, BundleLego>,
   orderedPoolsFor: (legoId: string) => OrderedLegoPools<BundlePhrase>,
-  seedIndex: Map<string, BundleSeed>,
   audioUrl: (id: string) => string,
   pauseConfig: PauseModeConfig,
   shape: ResolvedScriptShape,
@@ -398,7 +406,6 @@ function buildSpacedRepCycles(
 ): Cycle[] {
   const cycles: Cycle[] = []
   const seenLegos = new Set<string>()
-  const seenSeedReviews = new Set<string>()
   let repCount = 0
 
   for (let offsetIndex = 0; offsetIndex < shape.spacedRepOffsets.length; offsetIndex++) {
@@ -414,20 +421,6 @@ function buildSpacedRepCycles(
 
     const lego = legoIndex.get(mapEntry.legoId)
     if (!lego) continue
-
-    if (offset >= SEED_PHASE_START_OFFSET && !seenSeedReviews.has(lego.seedId)) {
-      const seed = seedIndex.get(lego.seedId)
-      const seedCycle = seed
-        ? buildSeedReviewCycle(seed, lego, `${lego.legoId}_seedrep`, audioUrl, pauseConfig)
-        : null
-      if (seedCycle) {
-        seenSeedReviews.add(lego.seedId)
-        repCount++
-        cycles.push(seedCycle)
-        continue
-      }
-      // seed missing / lacks audio → fall through to the use-phrase review
-    }
 
     const pool = orderedPoolsFor(mapEntry.legoId).use
     if (pool.length === 0) continue
@@ -467,7 +460,6 @@ function generateInfPlay(
   const roundMap = bundle.roundMap
   const legoIndex = legosById(bundle)
   const orderedPoolsFor = makePoolOrderer(phrasesByLegoAndRole(bundle))
-  const seedIndex = seedsBySeedId(bundle)
 
   const rounds: Round[] = []
 
@@ -517,29 +509,8 @@ function generateInfPlay(
     // encouragements, listening exercises and so on").
     const cycles: Cycle[] = []
     let cycleSeq = 0
-    const seenSeedReviews = new Set<string>()
 
-    for (const { lego, offset, offsetIndex, phraseCount } of spacedRepEntries) {
-      if (offset >= SEED_PHASE_START_OFFSET && !seenSeedReviews.has(lego.seedId)) {
-        const seed = seedIndex.get(lego.seedId)
-        const seedCycle = seed
-          ? buildSeedReviewCycle(
-              seed,
-              lego,
-              `${lego.legoId}_infseedrep_R${infRound}_${cycleSeq + 1}`,
-              audioUrl,
-              pauseConfig,
-            )
-          : null
-        if (seedCycle) {
-          cycleSeq++
-          seenSeedReviews.add(lego.seedId)
-          cycles.push(seedCycle)
-          continue
-        }
-        // seed missing / lacks audio → fall through to the use-phrase review
-      }
-
+    for (const { lego, offsetIndex, phraseCount } of spacedRepEntries) {
       // The SAME urn the main loop uses — a per-LEGO monotonic round-robin over
       // the shortest-first USE pool, not an independent `Math.random` sample.
       // The old sample had no cross-draw memory at all, so a LEGO's reviews
@@ -735,46 +706,6 @@ function buildPhraseCycle(
     ),
     displayTiling: phrase.displayTiling,
     decomposition: phrase.decomposition,
-  })
-}
-
-/**
- * SEED-PHASE review cycle — the FULL PARENT SEED SENTENCE (active
- * production), used for spaced-rep offsets ≥ `SEED_PHASE_START_OFFSET`
- * once a LEGO's use-phrase review tail has run its course. Requires
- * known + target1 + target2 on the seed itself (same audio-completeness
- * gate as every other cycle builder) — the caller falls back to an
- * ordinary use-phrase review when this returns null.
- */
-function buildSeedReviewCycle(
-  seed: BundleSeed,
-  lego: BundleLego,
-  id: string,
-  audioUrl: (id: string) => string,
-  pauseConfig: PauseModeConfig,
-): Cycle | null {
-  const known = seed.audio?.known
-  const target1 = seed.audio?.target1
-  const target2 = seed.audio?.target2
-  if (!known || !target1 || !target2) return null
-
-  return baseCycle({
-    id,
-    type: 'review',
-    legoId: lego.legoId,
-    seedId: seed.seedId,
-    knownText: seed.knownText ?? '',
-    knownAudioUrl: audioUrl(known.id),
-    targetText: seed.targetText ?? '',
-    targetTextNative: seed.targetTextNative,
-    target1,
-    target2,
-    audioUrl,
-    pauseDuration: computePauseDuration(
-      target1.durationMs ?? 0,
-      target2.durationMs ?? 0,
-      pauseConfig,
-    ),
   })
 }
 

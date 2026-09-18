@@ -14,7 +14,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CourseBundle } from '@ssi/core'
-import { countTargetSyllables } from '@ssi/core'
+import { countTargetSyllables, reviewOffsets } from '@ssi/core'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { validateLearningScript } from './validateLearningScript'
 import { applyAudioRef, fetchRevisedAudioRefs, stampRowAudioRefs } from './revisedAudioRefs'
@@ -57,9 +57,11 @@ export interface ScriptItem {
   syllableCount?: number
   fibPosition?: number
   reviewOf?: number
-  /** Set to 'seed' when this spaced_rep item is a SEED-PHASE review (offset
-   * ≥ SEED_PHASE_START_OFFSET): the payload is the full parent seed sentence,
-   * not a use-phrase. Absent for ordinary use-phrase reviews. */
+  /** RETIRED 2026-09-18 — the SEED-PHASE tier this marked (offset ≥144, the
+   * full parent seed sentence) no longer exists on either path; see
+   * `REVIEW_OFFSET_CEILING` in @ssi/core. Kept on the type ONLY so a script
+   * blob cached before the deletion still parses; nothing sets it now, and
+   * every reader that acted on it has gone. Delete once caches have rolled. */
   reviewItemKind?: 'seed'
   /** Which loop this item's round belongs to — see core Round.revival. */
   revival?: boolean
@@ -109,7 +111,7 @@ export const DEFAULT_SCRIPT_SHAPE: ScriptShape = {
   // SEED-PHASE production reviews (whole parent seed sentence). The live
   // algorithm_config.script_shape row is the runtime source of truth; this is
   // the fallback when that fetch fails.
-  spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584],
+  spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
   maxBuildPhrases: 7,
   useConsolidationCount: 2,
   maxSpacedRepPhrases: 12,
@@ -117,23 +119,19 @@ export const DEFAULT_SCRIPT_SHAPE: ScriptShape = {
 }
 
 /**
- * First skip offset at which a spaced-rep PRODUCTION review switches from a
- * use-phrase (LEGO-level) to the FULL PARENT SEED SENTENCE. Mirrors the
- * dashboard generator. 144 is the first Fibonacci term past the historical
- * use-phrase tail (…,55,89), so the 89-step stays the last use-phrase.
+ * SPACED REP STOPS AT 89 ON THIS PATH TOO (Tom, 2026-09-18: "Delete the
+ * additional SEED once it's dropped out of the Spaced Rep. Because the cups
+ * handle it.").
  *
- * Distinct from L1 listening (the 30-cup model): cups are passive INPUT
- * (hearing whole sentences you've stopped producing); a seed-phase spaced-rep
- * review is active PRODUCTION (recalling the whole sentence from a known cue).
- * Complementary channels, not redundant — so a graduated seed (dropped from
- * use-phrase review) stays eligible for seed-phase production review.
+ * The SEED-PHASE tier used to start at offset 144 and serve the full parent
+ * sentence — here as the four-slot t→k→t→t sandwich, on the bundle as a plain
+ * three-clip production exercise. It is gone from both. A seed that has
+ * drained out of spaced repetition reaches the learner through the cups
+ * listening interlude (`useLayer1Scheduler`, runtime, path-agnostic) and
+ * through nothing else. `reviewOffsets` is the shared filter — it caps the
+ * configured `algorithm_config.script_shape` row, which still carries the long
+ * Fibonacci tail, so the ceiling holds without a DB edit.
  */
-export const SEED_PHASE_START_OFFSET = 144
-
-/** Is a spaced-rep review at this skip offset in the seed-sentence phase? */
-export function reviewItemIsSeed(offset: number): boolean {
-  return offset >= SEED_PHASE_START_OFFSET
-}
 
 // Role → runtime playback rate for Layer-2 pod plays (emitPodLap, retained
 // for hot-fix rollback — see the comment above emitPodLap). All audio
@@ -148,18 +146,17 @@ const ROLE_SPEED: Record<string, number> = {
 }
 
 // Per Aran's listening-layers spec.
-// Graduation is event-driven (1 LEGO == 1 round; a seed graduates once
-// all its LEGOs have been introduced and the offset has elapsed).
 //
 // 2026-05-19: L1 listening pulled out of the main flow, replaced by the
 // runtime 30-cup wheel (useLayer1Scheduler.ts). L2 stays in (every
-// POD_ROUND_INTERVAL rounds, runtime-scheduled); L1 graduation still
-// tracks here (graduatedSeeds) purely to gate SEED-PHASE production
-// review continuation (reviewItemIsSeed) once a seed's use-phrase review
-// has lapsed — see the SPACED REP phase below.
+// POD_ROUND_INTERVAL rounds, runtime-scheduled). 2026-09-18: seed
+// graduation went with the SEED-PHASE review tier — the generator no
+// longer tracks it at all, so `offset` is inert here.
 export interface ListeningConfig {
   enabled: boolean
-  offset: number              // rounds after last LEGO before seed graduates
+  /** @deprecated INERT since 2026-09-18 — it gated the deleted SEED-PHASE
+   *  review tier. Kept so stored `algorithm_config.listening` rows parse. */
+  offset: number
   // Layer 2 — Pod 0
   /** First pod lap fires at end of this main round (start of seed 2).
    *  Optional now that the field's primary home is PodsConfig — callers
@@ -379,30 +376,6 @@ async function fetchAllPracticePhrases(
 const WALK_SLICE_BUDGET_MS = 40
 
 /**
- * A sub-cycle of the drained SEED-PHASE sandwich (target → known → target →
- * target, offset ≥144 — see emitSeedSandwich).
- *
- * WHY THIS PREDICATE EXISTS (mintonman's second Basque report, 2026-09-17).
- * All four sub-cycles display the SAME seed sentence on both sides, because
- * all four are the same sentence — that is the whole point of the sandwich.
- * So the two duplicate passes further down read them as one prompt repeated
- * four times: the consecutive-duplicate removal threw three away outright,
- * INCLUDING the only English clip, and the A-64 cap would have re-interleaved
- * whatever survived. What reached the learner was a single Basque clip with
- * English on screen — "only the basque is spoken (with English displayed)".
- * Confirmed in one Basque learner's telemetry: exactly one `audio_play` per
- * seed review, always role target1, never `known`, with the cycle counter
- * stepping by four.
- *
- * The sandwich is comprehensible input. It has no mic pause and asks for no
- * production, so "the same PROMPT twice" does not describe it any more than it
- * describes a listening cup or a pod play, both of which are already exempt.
- */
-export function isSeedSandwichItem(item: Pick<ScriptItem, 'type' | 'reviewItemKind'>): boolean {
-  return item.type === 'spaced_rep' && item.reviewItemKind === 'seed'
-}
-
-/**
  * Prompt identity for the A-64 consecutive-repeat cap: what the learner
  * actually hears as "the same thing again".
  *
@@ -415,10 +388,6 @@ export function isSeedSandwichItem(item: Pick<ScriptItem, 'type' | 'reviewItemKi
  * is the honest answer — it is the same clip.
  */
 export function scriptItemIdentity(item: ScriptItem): string {
-  // The sandwich's four slots are one unit, not four repeats (see above).
-  // Each slot gets its own identity so the cap can neither drop one nor pull
-  // another review in between them.
-  if (isSeedSandwichItem(item)) return `seedsandwich:${item.uuid}`
   const norm = (text: string | null | undefined): string =>
     text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
   const known = norm(item.knownText)
@@ -504,7 +473,11 @@ export async function generateLearningScript(
   infplayRandom?: () => number,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
-  const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
+  // Offsets run through the SHARED ceiling (@ssi/core `reviewOffsets`): the
+  // live config row still carries the long Fibonacci tail, and everything at
+  // or past 144 belonged to the deleted SEED-PHASE tier. 89 is the last
+  // review on every path.
+  const SPACED_REP_OFFSETS = reviewOffsets(scriptShape.spacedRepOffsets)
   const MAX_BUILD_PHRASES = scriptShape.maxBuildPhrases
   const USE_CONSOLIDATION_COUNT = scriptShape.useConsolidationCount
   const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
@@ -547,7 +520,13 @@ export async function generateLearningScript(
   // bug: any course-wide derivation (graduated seeds, anchor ordinals,
   // cross-LEGO references) needs the whole inventory in scope, not just
   // the current chunk's window.
-  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult, revisedAudioRefs, courseRowResult] = await Promise.all([
+  // TWO QUERIES WENT ON 2026-09-18 with the SEED-PHASE review tier: the
+  // course_seeds fetch, whose only consumer was the seed review (the cups
+  // listening interlude does its own reads, via listeningMetaCache), and the
+  // course-wide LEGO catalogue, which existed only to give every LEGO an
+  // absolute ordinal for seed graduation. The last bare `.limit(10000)` on
+  // this path went with the second of them.
+  const [legosResult, phrasesResult, bookendsResult, podsResult, revisedAudioRefs, courseRowResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_gloss_segments, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -558,14 +537,6 @@ export async function generateLearningScript(
     // Paginated — a single .limit() is capped by PostgREST max-rows and big
     // courses have 15-17k phrase rows; truncation starved INF PLAY (see helper).
     fetchAllPracticePhrases(supabase, courseCode),
-    // Seed sentences — needed for L1 listening (cups) AND seed-phase spaced-rep
-    // reviews (offset ≥144, the whole parent sentence). Loaded unconditionally
-    // so seed-phase production reviews work even when listening is disabled.
-    supabase
-      .from('course_seeds')
-      .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
-      .eq('course_code', courseCode)
-      .order('seed_number', { ascending: true }),
     // Pre-fetch the two LISTEN-block bookend audio rows for this course.
     // Generated by scripts/generate-listen-bookends.cjs in the dashboard repo;
     // missing rows just mean this course's bookends haven't been generated yet
@@ -602,21 +573,6 @@ export async function generateLearningScript(
             .eq('pod_id', podId)
             .order('global_order', { ascending: true }),
         )
-      : Promise.resolve({ data: [], error: null }),
-    // Course-wide LEGO catalogue (just seed_number + lego_index). Used to
-    // assign every LEGO an absolute ordinal position in the course — drives
-    // L1 graduation tracking. Now redundant with the legos query above (same
-    // course-wide scope), but kept as a separate fetch with only the two
-    // columns needed for ordinal mapping — slightly cheaper than re-iterating
-    // legosResult.
-    listeningConfig.enabled
-      ? supabase
-          .from('course_legos')
-          .select('seed_number, lego_index')
-          .eq('course_code', courseCode)
-          .order('seed_number', { ascending: true })
-          .order('lego_index', { ascending: true })
-          .limit(10000)
       : Promise.resolve({ data: [], error: null }),
     // Per-clip versioned audio refs. This walk reads the denormalised
     // `*_audio_id` columns straight from Supabase, so — unlike the /cycles
@@ -699,7 +655,6 @@ export async function generateLearningScript(
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
-  if (seedsResult.error) throw new Error('Failed to query seeds for listening: ' + seedsResult.error.message)
   if (bookendsResult.error) throw new Error('Failed to query listen bookends: ' + bookendsResult.error.message)
   if (podsResult.error) throw new Error('Failed to query pod sentences: ' + podsResult.error.message)
 
@@ -712,7 +667,6 @@ export async function generateLearningScript(
   if (revisedAudioRefs.size > 0) {
     legosResult.data = stampRowAudioRefs(revisedAudioRefs, legosResult.data || [])
     phrasesResult.data = stampRowAudioRefs(revisedAudioRefs, phrasesResult.data || [])
-    seedsResult.data = stampRowAudioRefs(revisedAudioRefs, seedsResult.data || [])
     bookendsResult.data = stampRowAudioRefs(revisedAudioRefs, bookendsResult.data || [])
     podsResult.data = stampRowAudioRefs(revisedAudioRefs, podsResult.data || [])
     console.log(`[generateLearningScript] ${revisedAudioRefs.size} revised clip(s) in ${courseCode} — audio refs stamped`)
@@ -745,11 +699,9 @@ export async function generateLearningScript(
   //                     by usePodLapScheduler. Pod-round counts fires,
   //                     not main-rounds. Stage table unchanged.
   //   Layer 1:          REMOVED from main flow 2026-05-19, replaced by the
-  //                     runtime 30-cup wheel (useLayer1Scheduler.ts).
-  //                     Graduated seeds are still tracked here
-  //                     (graduatedSeeds) purely to gate SEED-PHASE
-  //                     production review continuation — see the
-  //                     SPACED REP phase below.
+  //                     runtime 30-cup wheel (useLayer1Scheduler.ts). Seed
+  //                     graduation went with the SEED-PHASE review tier on
+  //                     2026-09-18 — see the SPACED REP phase below.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound ?? 6
   const POD_ROUND_INTERVAL = Math.max(1, Math.floor(podRoundInterval))
@@ -875,21 +827,6 @@ export async function generateLearningScript(
       })
     }
     return true
-  }
-
-  // Build seed map for listening phase
-  interface SeedData {
-    seed_number: number
-    known_text: string
-    target_text: string
-    target_text_roman?: string
-    known_audio_id?: string
-    target1_audio_id?: string
-    target2_audio_id?: string
-  }
-  const seedMap = new Map<number, SeedData>()
-  for (const seed of (seedsResult.data || []) as SeedData[]) {
-    seedMap.set(seed.seed_number, seed)
   }
 
   // FLAG: LEGOs with bracket explanations (these shouldn't exist in production)
@@ -1150,38 +1087,6 @@ export async function generateLearningScript(
   let cycleNum = 0
   let roundNumber = 0
 
-  // Listening phase state.
-  // Graduation is anchored to absolute LEGO position in the course
-  // catalogue, NOT chunk-local roundNumber. The chunk's roundNumber
-  // resets to 0 every script generation, so the old `seedLastRound`
-  // map was incomplete whenever a chunk didn't start at seed 1 (belt
-  // skip, partial loads) — earlier seeds never entered the map and
-  // never graduated, so L1 silently never fired. Catalogue ordinals
-  // are stable: pos(S0001L01) = 1, pos(S0001L02) = 2, ... regardless
-  // of which chunk is being generated.
-  const seedLastLegoOrdinal = new Map<number, number>()  // seedNum → ordinal of its highest-index LEGO
-  const legoOrdinalMap = new Map<string, number>()       // legoKey → ordinal
-  {
-    const catalogue = (catalogueResult.data || []) as Array<{ seed_number: number; lego_index: number }>
-    let ord = 0
-    for (const row of catalogue) {
-      ord++
-      const k = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
-      legoOrdinalMap.set(k, ord)
-      // Final write for each seed wins → that's the seed's last-LEGO ordinal
-      // because the query is ordered by (seed_number, lego_index).
-      seedLastLegoOrdinal.set(row.seed_number, ord)
-    }
-  }
-  let currentLegoOrdinal = 0  // updated as each LEGO is introduced in the walk
-  // Graduated-seed tracking: gates SEED-PHASE production review continuation
-  // (reviewItemIsSeed) once a seed's use-phrase review has lapsed — see the
-  // SPACED REP phase below. (The L1 fire-count/stage/urn machinery that used
-  // to read this was deleted 2026-07-14 — dead since the 2026-05-19 L1
-  // main-flow removal; L1 listening now lives in the runtime 30-cup wheel,
-  // useLayer1Scheduler.ts.)
-  const graduatedSeeds = new Set<number>()         // idempotency check
-
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
   // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
   const legoTextMap = new Map<string, string>()
@@ -1323,11 +1228,6 @@ export async function generateLearningScript(
       // both, never target2Id. The "all three audio IDs" check below would
       // wrongly drop every pod item, leaving the round-end lap empty.
       if (!item.knownAudioId && !item.target1Id) return
-    } else if (item.type === 'spaced_rep' && item.reviewItemKind === 'seed') {
-      // Drained SEED-PHASE review sub-cycles (the t→k→t→t sandwich, see
-      // emitSeedSandwich): same single-audio shape as pod plays — exactly
-      // one of {knownAudioId, target1Id}, never target2Id.
-      if (!item.knownAudioId && !item.target1Id) return
     } else {
       // Non-intro items need all three audio IDs to be useful
       if (!item.knownAudioId || !item.target1Id || !item.target2Id) return
@@ -1357,47 +1257,6 @@ export async function generateLearningScript(
       ? { displayTiling: item.display_tiling }
       : {}),
   })
-
-  /**
-   * Drained/eternal SEED-PHASE review (offset ≥144): the comprehensible-input
-   * sandwich — target → known → target → target, all @1× (Tom + Aran,
-   * 2026-07-14). Mirrors the Layer-1 listening cups sandwich: a seed this far
-   * through spaced rep no longer needs an active-recall gap, so this emits
-   * FOUR single-audio sub-cycles (the same per-role split the pod/listening
-   * cycles use — see toSimpleRounds.ts's singleAudio flag) instead of the
-   * standard prompt/pause/voice1/voice2 production cycle.
-   * Known slot is omitted — never silenced — when the seed has no known audio.
-   */
-  const emitSeedSandwich = (
-    seed: SeedData,
-    base: {
-      reviewKey: string; reviewSeedId: string; reviewLegoNum: string
-      roundNumber: number; fibPosition: number; reviewOf: number; uuidPrefix: string
-    },
-    bumpCycle: () => number,
-  ): void => {
-    const roles: Array<'target' | 'known'> = seed.known_audio_id
-      ? ['target', 'known', 'target', 'target']
-      : ['target', 'target', 'target']
-    for (const role of roles) {
-      const cycleNum = bumpCycle()
-      emitItem({
-        uuid: `${base.uuidPrefix}_${cycleNum}`,
-        cycleNum, roundNumber: base.roundNumber, seedId: base.reviewSeedId, legoKey: base.reviewKey,
-        seedCode: base.reviewSeedId, legoCode: base.reviewLegoNum,
-        type: 'spaced_rep',
-        reviewItemKind: 'seed',
-        knownText: seed.known_text,
-        targetText: seed.target_text_roman || seed.target_text,
-        ...nativeFields(seed),
-        ...(role === 'known' ? { knownAudioId: seed.known_audio_id } : { target1Id: seed.target1_audio_id }),
-        isNew: false,
-        fibPosition: base.fibPosition,
-        reviewOf: base.reviewOf,
-        playbackSpeed: 1.0,
-      })
-    }
-  }
 
   // Process each seed
   for (const seedNum of sortedSeedNums) {
@@ -1592,11 +1451,6 @@ export async function generateLearningScript(
         seedNum, legoIndex: lego.lego_index, lego
       })
 
-      // Update absolute LEGO ordinal for graduation tracking. Catalogue
-      // lookup, NOT chunk-local roundNumber — see seedLastLegoOrdinal
-      // comment for why.
-      currentLegoOrdinal = legoOrdinalMap.get(legoKey) ?? currentLegoOrdinal
-
       // Phase 4: SPACED REP
       const dueForReview: { key: string; state: LegoState; fibPosition: number; phraseCount: number }[] = []
       const seenLegos = new Set<string>()
@@ -1608,10 +1462,6 @@ export async function generateLearningScript(
 
         for (const [prevKey, state] of legoState.entries()) {
           if (prevKey === legoKey || seenLegos.has(prevKey)) continue
-          // Graduated seeds drop out of use-phrase review, but stay eligible
-          // for SEED-PHASE production review (offset ≥144) — nothing truly
-          // retires; whole-sentence production continues at growing cadence.
-          if (graduatedSeeds.has(state.seedNum) && !reviewItemIsSeed(offset)) continue
           if (state.lastRound === reviewRound) {
             const isN1 = offset === 1
             const phraseCount = isN1 ? N1_PHRASE_COUNT : 1
@@ -1627,29 +1477,6 @@ export async function generateLearningScript(
 
         const reviewLegoNum = reviewKey.match(/L(\d+)/)?.[1] || ''
         const reviewSeedId = reviewKey.match(/S\d+/)?.[0] || ''
-
-        // SEED-PHASE review (offset ≥144): emit the FULL PARENT SEED SENTENCE
-        // (drained comprehensible-input sandwich) instead of a use-phrase. One
-        // review slot, not phraseCount (N-1 is never seed-phase). Falls back
-        // to the use-phrase path if the seed row is missing or lacks target
-        // audio — never an empty review.
-        const reviewOffset = SPACED_REP_OFFSETS[fibPosition]
-        if (reviewItemIsSeed(reviewOffset)) {
-          const seed = seedMap.get(state.seedNum)
-          if (seed && seed.target1_audio_id) {
-            const seedPhraseId = getPhraseId(seed.known_text, seed.target_text)
-            if (!usedPhrasesThisRound.has(seedPhraseId)) {
-              usedPhrasesThisRound.add(seedPhraseId)
-              spacedRepCount++
-              emitSeedSandwich(seed, {
-                reviewKey, reviewSeedId, reviewLegoNum, roundNumber, fibPosition,
-                reviewOf: state.lastRound, uuidPrefix: `${reviewKey}_seed_rep`,
-              }, () => ++cycleNum)
-            }
-            continue
-          }
-          // seed missing / no target audio → fall through to the use-phrase review
-        }
 
         if (state.usePhrases.length === 0) continue
 
@@ -1734,17 +1561,11 @@ export async function generateLearningScript(
       }
 
       // Layer 1 main-flow emission was removed 2026-05-19 (now the runtime
-      // 30-cup wheel, useLayer1Scheduler.ts). Graduation is still tracked
-      // here purely to gate SEED-PHASE production review continuation
-      // (reviewItemIsSeed) once a seed's use-phrase review has lapsed.
-      if (listeningConfig.enabled) {
-        for (const [sNum, lastOrd] of seedLastLegoOrdinal) {
-          if (graduatedSeeds.has(sNum)) continue
-          if (currentLegoOrdinal === 0) continue
-          if (currentLegoOrdinal - lastOrd < listeningConfig.offset) continue
-          graduatedSeeds.add(sNum)
-        }
-      }
+      // 30-cup wheel, useLayer1Scheduler.ts). Seed GRADUATION went with the
+      // SEED-PHASE review tier on 2026-09-18: it existed only to let a
+      // drained seed keep drawing whole-sentence production reviews, and
+      // with reviews stopping at offset 89 a graduated seed can no longer be
+      // due for anything. Nothing tracks it here now.
 
       // L2 (pod laps) stays runtime-scheduled by usePodLapScheduler —
       // every POD_ROUND_INTERVAL rounds from podActivationRound onward,
@@ -1809,8 +1630,6 @@ export async function generateLearningScript(
       if (reviewRound < 1) break
       for (const [prevKey, state] of legoState.entries()) {
         if (seenLegos.has(prevKey)) continue
-        // Graduated seeds stay eligible for SEED-PHASE production review (≥144).
-        if (graduatedSeeds.has(state.seedNum) && !reviewItemIsSeed(offset)) continue
         if (state.lastRound === reviewRound) {
           const isN1 = offset === 1
           const phraseCount = isN1 ? N1_PHRASE_COUNT : 1
@@ -1895,28 +1714,6 @@ export async function generateLearningScript(
         const reviewLegoNum = reviewKey.match(/L(\d+)/)?.[1] || ''
         const reviewSeedId = reviewKey.match(/S\d+/)?.[0] || ''
 
-        // SEED-PHASE review (offset ≥144): the FULL PARENT SEED SENTENCE
-        // (drained comprehensible-input sandwich) instead of a use-phrase.
-        // Falls back to the use-phrase path if the seed row is missing or
-        // lacks target audio.
-        const reviewOffset = SPACED_REP_OFFSETS[fibPosition]
-        if (reviewItemIsSeed(reviewOffset)) {
-          const seed = seedMap.get(state.seedNum)
-          if (seed && seed.target1_audio_id) {
-            const seedPhraseId = getPhraseId(seed.known_text, seed.target_text)
-            if (!usedPhrasesThisRound.has(seedPhraseId)) {
-              usedPhrasesThisRound.add(seedPhraseId)
-              spacedRepCount++
-              emitSeedSandwich(seed, {
-                reviewKey, reviewSeedId, reviewLegoNum, roundNumber, fibPosition,
-                reviewOf: state.lastRound, uuidPrefix: `${reviewKey}_inf_seed_R${roundNumber}`,
-              }, () => ++cycleNum)
-            }
-            continue
-          }
-          // seed missing / no target audio → fall through to the use-phrase review
-        }
-
         if (state.usePhrases.length === 0) continue
 
         // Same known-side pull filter as the main loop's review. Revival
@@ -1986,11 +1783,8 @@ export async function generateLearningScript(
 
   for (const item of items) {
     await yieldTick()
-    // Exempt: types whose repetition is the design, not an accident. The
-    // drained seed sandwich joins them — its four slots are deliberately the
-    // same sentence, and dropping three of them is what reached mintonman as
-    // a lone Basque clip (see isSeedSandwichItem).
-    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro' || isSeedSandwichItem(item)) {
+    // Exempt: types whose repetition is the design, not an accident.
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') {
       dedupedItems.push(item)
       continue
     }
@@ -2125,9 +1919,7 @@ export async function generateLearningScript(
   const mainLoopRoundCount = new Set(
     roundCapped.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
   ).size
-  const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
-    ? `, ${graduatedSeeds.size} seeds graduated`
-    : ''
+  const listeningStats = ''
   console.debug(`[generateLearningScript] ${roundCapped.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${introsSkippedForAudio + debutsSkippedForAudio > 0 ? `, ${introsSkippedForAudio + debutsSkippedForAudio} no-audio intro/debut cycles` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
   return { items: roundCapped, cycleCount: roundCapped.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized, syllableCapApplied, useWordCapApplied }
 }

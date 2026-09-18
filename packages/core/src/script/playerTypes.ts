@@ -62,16 +62,10 @@ export interface Cycle {
   target1DurationMs?: number
   target2DurationMs?: number
   /** True for cycles that carry AT MOST one audio track (listening / pod /
-   * bookend / drained-seed-sandwich sub-cycles) — the other 3-phase gaps are
+   * bookend cycles) — the other 3-phase gaps are
    * by design, not missing data. Lets SimplePlayer suppress its "no audio,
    * skipping" warnings without switch-casing on `type` string values. */
   singleAudio?: boolean
-  /** One of the four slots of the drained SEED-PHASE sandwich (target → known
-   * → target → target, spaced-rep offset ≥144). All four carry the same
-   * sentence on both sides by design, so the A-64 consecutive-prompt cap must
-   * treat them as one comprehensible-input unit rather than four repeats —
-   * see cyclePromptIdentity. */
-  seedSandwich?: boolean
 }
 
 export interface Round {
