@@ -55,6 +55,12 @@
  *
  *   node --experimental-strip-types tools/bundle-cutover/parity-infplay.mjs \
  *     [--courses=a,b] [--rounds=1,7,95] [--out=f.json]
+ *
+ * 2026-09-18: the SEED-PHASE tier (offsets ≥144) was DELETED from both
+ * generators on Tom's ruling — spaced rep stops at 89 everywhere now — so a
+ * seed-phase extra can no longer arise and this allowance should never fire
+ * again. It is kept so an old artifact still reads the same way; a case that
+ * DOES report one means something is serving the retired tier.
  */
 import { writeFileSync } from 'node:fs'
 

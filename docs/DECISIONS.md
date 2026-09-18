@@ -1,3 +1,60 @@
+## 2026-09-18 — A drained seed is not re-served; and the pods come round twice as often on Easy (job #232)
+
+**Two rulings from Tom, both delivery-side, both taken here.** On the first: *"Delete the additional
+SEED once it's dropped out of the Spaced Rep. Because the cups handle it."* On the second: *"The
+listening exercises every ROUND are fine — the CUPS. The PODS (layer 2 listening exercises) need to
+come more often on EASY MODE. Every 2x ROUNDS in EASY MODE and every 4x ROUNDS in FAST mode. The 3
+SEEDS in a cup are all good still every ROUND."*
+
+**What the first ruling settles.** The SEED-PHASE tier — spaced-rep offsets ≥144, where a review
+stopped drawing a use-phrase and served the whole parent sentence — shipped in two different shapes
+on two live paths and had been a silent A/B nobody chose: the walk built the four-slot t→k→t→t
+listening sandwich Tom and Aran designed on 2026-07-14, while `@ssi/core`'s generator built an
+ordinary three-clip production exercise asking the learner to produce, cold, a sentence they last met
+144 rounds ago. Job #226's audit put that question in front of him and this is the answer: **neither**.
+Spaced rep stops at offset **89** on every path — the walk, the shared generator, and
+`/api/courses/:code/cycles`, which already stopped there and now agrees exactly. Nothing at all is
+emitted for a drained seed beyond 89, not even the use-phrase fallback those offsets used to take
+when a seed lacked audio. The cups listening interlude is its only channel, which is what "the cups
+handle it" means, and cups are unchanged: one per round, `seedsPerCup` untouched.
+
+**The ceiling is code, not config** (`REVIEW_OFFSET_CEILING` + `reviewOffsets()` in `@ssi/core`, run
+over the configured offsets in exactly one place per generator). The live
+`algorithm_config.script_shape` row and every bundle already baked and cached carry the long
+Fibonacci tail to 2584; a shortened default array would have left both of them serving the deleted
+tier. Seed GRADUATION went with it: it existed only to let a drained seed keep drawing whole-sentence
+reviews, and with reviews stopping at 89 a graduated seed can never be due for anything, so it was
+dead weight rather than a rule. Two course-wide walk queries went with graduation — `course_seeds`,
+whose only consumer was the seed review, and the LEGO catalogue, which carried the last bare
+`.limit(10000)` on that path. Better × simpler × cheaper on all three legs: one methodology instead
+of two, ~300 fewer lines and two fewer queries per walk generation, and one fewer thing for the two
+paths to disagree about while step 7 is outstanding. `997faff61`'s fix, which had made the walk's
+sandwich survive the duplicate pass that morning, is moot and did not survive — its tests and its
+e2e probe are deleted, its write-up is left standing as the dated record it is, marked superseded.
+
+**Parity, before and after.** `parity-cycles` went from 10 identical / 2 `SUPERSET_SEED_PHASE_ONLY`
+to **12/12 identical** — the superset verdict now has nothing left to describe. `parity-fullscript`
+walk-vs-bundle round diffs fell from 63 to 8 across the six sampled courses (`gle` 21→1, `tur` 21→1,
+`nld` 18→3, the other three unchanged at 1). Every one of the remaining 8 is a PRE-EXISTING
+divergence with nothing to do with this ruling, present identically in the before run: one extra USE
+cycle on the bundle in an early round on all six courses, and two rounds on `nld_for_eng` where the
+two paths pull a different USE phrase from the same LEGO. They are logged, not fixed here.
+
+**What the second ruling changes.** Pod cadence was one global number — `algorithm_config.pods
+.roundInterval`, 5 for everybody. It is now per mode: `ModeConfig.podRoundInterval`, shipping 2 on
+Easy and 4 on Fast, with the global row kept as the fallback for a stored mode row that carries no
+value of its own. It lives beside the other Easy/Fast levers because it IS one, and because a DB row
+can retune it by ear without a deploy. It touches neither script path — pods are a runtime scheduler
+(`usePodLapScheduler`) and the cadence is a work DEBT rather than a position rule, so it keeps
+surviving replays, belt skips and a crawling position, and a mid-session mode toggle re-cadences from
+the next completed round.
+
+**Proof.** Eleven new assertions across three files, every one of them seen RED on the pre-ruling
+sources and GREEN on these: `core/src/script/generateScript.test.ts` (round 145 emits ten reviews and
+no seed review; the offset-144 LEGO draws nothing at all; no `infseedrep` cycle is ever built),
+`providers/noSeedPhaseReview.test.ts` (the walk, on a 150-seed course long enough to reach the tier),
+and `composables/useAlgorithmConfig.test.ts` (the cadence resolution, including its fallbacks).
+
 ## 2026-09-18 — The not-ready tap is answered, not held; and a tap_pause row now means a pause tap (job #223)
 
 **Two defects, both diagnosed by job #219 against production telemetry.** `togglePlayback()` opened

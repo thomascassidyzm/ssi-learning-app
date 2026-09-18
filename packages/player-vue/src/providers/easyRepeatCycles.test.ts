@@ -139,10 +139,6 @@ describe('1. the doubling pass itself', () => {
     expect(isRepeatedCycle(item({ type: 'listen_outro' }), TYPES)).toBe(false)
   })
 
-  it('leaves the SEED-PHASE production sandwich alone — doubling it would be 4x', () => {
-    expect(isRepeatedCycle(item({ type: 'spaced_rep', reviewItemKind: 'seed' }), TYPES)).toBe(false)
-  })
-
   it('pairs each practice cycle, gives the copy its own uuid, and renumbers cycles', () => {
     const out = repeatPhraseCycles([
       item({ type: 'intro', uuid: 'i1' }),
@@ -198,11 +194,6 @@ describe('1b. the settings are settings — count and types both come from confi
       .toEqual([...DEFAULT_REPEATED_CYCLE_TYPES].sort())
   })
 
-  it('the seed-phase sandwich stays out even when a row names spaced_rep', () => {
-    const seedReview = item({ type: 'spaced_rep', uuid: 's1', reviewItemKind: 'seed' })
-    expect(repeatPhraseCycles([seedReview], { count: 2, types: normalizeRepeatedCycleTypes(['spaced_rep']) })
-      .map(i => i.uuid)).toEqual(['s1'])
-  })
 })
 
 describe('2. end to end — an Easy script', () => {
@@ -210,7 +201,7 @@ describe('2. end to end — an Easy script', () => {
 
   it('plays every BUILD, REVIEW and CONSOLIDATE cycle exactly twice, back to back', async () => {
     const { items } = await run(easy)
-    const practice = items.filter(i => ['build', 'spaced_rep', 'use'].includes(i.type) && i.reviewItemKind !== 'seed')
+    const practice = items.filter(i => ['build', 'spaced_rep', 'use'].includes(i.type))
     expect(practice.length).toBeGreaterThan(0)
 
     // Walk each round and check the pairing directly: a practice item is
@@ -225,7 +216,6 @@ describe('2. end to end — an Easy script', () => {
       for (let i = 0; i < round.length; i++) {
         const current = round[i]
         if (!['build', 'spaced_rep', 'use'].includes(current.type)) continue
-        if (current.reviewItemKind === 'seed') continue
         if (current.uuid.endsWith('_x2')) continue // this IS a twin
         const twin = round[i + 1]
         expect(twin, `no twin after ${current.uuid}`).toBeDefined()

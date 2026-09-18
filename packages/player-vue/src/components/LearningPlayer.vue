@@ -464,6 +464,7 @@ const {
   easyConfig,
   fastConfig,
   scriptShapeForMode,
+  podRoundIntervalForMode,
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
@@ -4779,9 +4780,13 @@ const podScheduler = supabase?.value
       stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
       stageDuration: computed(() => podsConfig.value.stageDuration),
       stageDurations: computed(() => podsConfig.value.stageDurations),
-      // Pod-lap cadence — lives alongside the stage playlist + gap matrix
-      // on the pods config (semantically all "how pods behave" lives here).
-      roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // POD-LAP CADENCE, BY MODE (Tom, 2026-09-18): every 2 rounds on Easy,
+      // every 4 on Fast — "the PODS need to come more often on EASY MODE".
+      // Reactive on `learningMode`, so a mid-session toggle re-cadences the
+      // pod debt from the next completed round; the global
+      // `algorithm_config.pods.roundInterval` stays the fallback for a stored
+      // mode row that carries no value of its own.
+      roundInterval: computed(() => podRoundIntervalForMode(learningMode.value)),
       // The 2026-08-07 one-mode redesign: one T·K·T·T pattern at one
       // exposure-ramped speed, superseding the nine-stage playlist above
       // (which stays wired only for the DB escape hatch).
