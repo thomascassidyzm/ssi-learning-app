@@ -35,6 +35,19 @@ durably, since the proof is still owed; the courtesy code is not awaited into th
 The GoTrue code lifetime is hosted-dashboard config this repo cannot read, and after this change it
 no longer gates anything.
 
+**Addendum, 10:15 the same day, Tom's design point.** Job #189 read the production rows: nobody is
+stuck at provisioning; what people hit is RETURN sign-in, because they got in once by a code, never
+set a password, and every return drops them onto the code path and the Resend trap. Three things
+changed with it. The password prompt is the default first step on entry: `SchoolsPasswordPrompt`
+moved from the teacher dashboard into `SchoolsContainer`, above every schools page, and opens its
+form itself the first time a passwordless account lands; "Not now" stays durable, closing the form
+leaves the card. The /schools sign-in leads with the password, with "No password yet? Email me a
+code instead" as the fallback, and a failed password names the likely cause. Supersession is named:
+`auth/codeSupersession.ts` carries the one sentence under every Resend, a sixty-second cooldown
+after any send, and the failed-verify copy that says only the newest code works, used by the
+schools sign-in, the signup door, the sign-in modal and the mailbox banner. Sixty seconds is a
+taste default.
+
 **Retired for the school door:** the "Send my code" step as a gate. Nothing about
 `school_identity_claims`, the domain-claim mechanism or the join links changed.
 

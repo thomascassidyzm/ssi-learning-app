@@ -12,7 +12,6 @@ import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
-import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
@@ -386,8 +385,8 @@ async function handlePlayClass(cls: ClassInfo) {
 
 <template>
   <div class="dashboard-view">
-    <!-- A password is the one way back in that needs no inbox. -->
-    <SchoolsPasswordPrompt />
+    <!-- The password prompt lives in SchoolsContainer now (job #188), above
+         every schools page, opening itself on first entry. -->
     <WalkOffer :persona="explainerPersona" place="dashboard" />
 
     <!-- Govt drill-down breadcrumb -->
