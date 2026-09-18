@@ -30,6 +30,12 @@ const ledger = { userId: null, schoolId: null, classId: null, codeId: null }
 const browser = await chromium.launch({ args: ['--disable-gpu','--no-sandbox'], ...(process.env.PW_EXEC ? { executablePath: process.env.PW_EXEC } : {}) })
 const ctx = await browser.newContext({ viewport:{width:1200,height:900} })
 const p = await ctx.newPage()
+p.on('response', async (r) => {
+  if (/\/api\/(auth\/setup-mint|onboarding\/provision|email\/verify)/.test(r.url())) {
+    let body = ''; try { body = (await r.text()).slice(0, 200) } catch {}
+    console.log('API', r.url().split('/api/')[1], '->', r.status(), body)
+  }
+})
 try {
   // 1. The door.
   await p.goto(`${BASE}/schools1`, { waitUntil:'domcontentloaded', timeout:60000 })
@@ -44,14 +50,17 @@ try {
   } catch { /* heritage door preselects */ }
   await p.locator('#ob-email').fill(EMAIL)
   await p.locator('button', { hasText: /Set up my school/ }).first().click()
-  await p.waitForTimeout(15000)
+  try { await p.waitForURL((u) => /\/org\/|\/schools(?!1)/.test(u.toString()), { timeout: 90000 }) } catch { console.log('DOOR: still on', p.url(), '—', (await p.locator('body').innerText()).replace(/\s+/g,' ').slice(0, 300)) }
+  await p.waitForTimeout(6000)
+  const landingUrl = p.url()
   check('door lands in the dashboard with no code typed', /\/schools|\/org\//.test(p.url()) && !(await p.locator('body').innerText()).includes('Check your email'), p.url())
   check('mailbox banner shown', await p.locator('.mailbox-banner').count() > 0)
 
   // Find the probe rows.
   const { data: link0 } = await admin.auth.admin.generateLink({ type:'magiclink', email: EMAIL })
   ledger.userId = link0?.user?.id
-  const { data: school } = await admin.from('schools').select('id, school_name').eq('admin_user_id', ledger.userId).maybeSingle()
+  const { data: school } = await admin.from('schools').select('id, school_name, platform_status, platform_expires_at').eq('admin_user_id', ledger.userId).maybeSingle()
+  console.log('SCHOOL ROW', JSON.stringify(school))
   ledger.schoolId = school?.id
   check('school provisioned on the unproved founder', !!ledger.schoolId, school?.school_name)
   const { data: u0 } = await admin.auth.admin.getUserById(ledger.userId)
@@ -86,11 +95,14 @@ try {
   }
 
   // 3. Prove in the banner.
-  await p.goto(`${BASE}/org/${ledger.schoolId}`, { waitUntil:'domcontentloaded', timeout:60000 }).catch(()=>{})
+  await p.goto(landingUrl, { waitUntil:'domcontentloaded', timeout:60000 }).catch(()=>{})
   await p.waitForTimeout(8000)
+  await p.locator('.mailbox-banner__input').first().waitFor({ timeout: 30000 })
   const { data: link } = await admin.auth.admin.generateLink({ type:'magiclink', email: EMAIL })
   await p.locator('.mailbox-banner__input').first().fill(link.properties.email_otp)
-  await p.locator('.mailbox-banner__btn').first().click()
+  // The password prompt opens over the page on first entry, so submit the
+  // strip's form from the keyboard rather than through a pointer it intercepts.
+  await p.locator('.mailbox-banner__input').first().press('Enter')
   await p.waitForTimeout(8000)
   const status = (await p.locator('.mailbox-banner__status').allInnerTexts()).join('|')
   check('banner confirms the code', /sorted for good/.test(status), status)
@@ -106,7 +118,7 @@ try {
     const line = p.locator('.mailbox-banner__sessions')
     check('RULING 3: the second-device line is shown on the proving device', await line.count() > 0, (await line.allInnerTexts()).join('|'))
     await p.screenshot({ path: `${process.env.CS_SCRATCH}/195-2-line.png`, fullPage:true })
-    if (await line.count()) { await line.locator('button').first().click(); await p.waitForTimeout(500) }
+    if (await line.count()) { await line.locator('button').first().evaluate((el) => el.click()); await p.waitForTimeout(800) }
     check('RULING 3: Keep hides the line', await p.locator('.mailbox-banner__sessions').count() === 0)
     const { data: n } = await admin.rpc('live_session_count', { p_user_id: ledger.userId })
     check('RULING 3: Keep ended nothing — both sessions still live', typeof n === 'number' && n >= 2, `live_session_count=${n}`)
