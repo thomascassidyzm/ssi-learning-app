@@ -141,6 +141,12 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
     if (!isNonEmpty(item.knownAudioId) && !isNonEmpty(item.target1Id)) {
       results.push(makeError(item, 'audio', 'pod cycle missing both knownAudioId and target1Id', 'error'))
     }
+  } else if (item.type === 'spaced_rep' && item.reviewItemKind === 'seed') {
+    // Drained seed-sandwich slots carry exactly one of {knownAudioId,
+    // target1Id}, same shape as a pod play — never a second voice.
+    if (!isNonEmpty(item.knownAudioId) && !isNonEmpty(item.target1Id)) {
+      results.push(makeError(item, 'audio', 'seed-sandwich cycle missing both knownAudioId and target1Id', 'error'))
+    }
   } else {
     // debut, build, spaced_rep, use — all require knownAudioId + target IDs
     if (!isNonEmpty(item.knownAudioId)) {
