@@ -3,7 +3,6 @@ import { openInApp } from '../composables/useInAppBrowser'
 import { ref, inject, provide, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
-import MailboxBanner from '@/components/schools/MailboxBanner.vue'
 import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
 import { INSTITUTIONAL_PURCHASE_IN_BUILD, institutionalPurchaseAvailable } from '@/platform/paymentRoute'
 import { SignInModal } from '@/components/auth'
@@ -880,10 +879,6 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
         ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
         <router-link v-if="seatPurchaseAvailable" to="/schools/upgrade">Manage billing</router-link>
       </div>
-
-      <!-- Unproven mailbox, for a leader who came through the no-code door
-           (job #188). Non-blocking: takes the six digits whenever they land. -->
-      <MailboxBanner />
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <SchoolsErrorBoundary>

@@ -55,7 +55,6 @@ import { leaderGroupId, readOrgPlatformState, ORG_TRIAL_DAYS } from '../_utils/o
 import { findSiblingSlugCollisions, duplicateNameBody } from '../_utils/groupSlug'
 import { enforceMintRateLimit, CLASS_MINT_OUTCOME, SCHOOL_MINT_OUTCOME } from '../_utils/mintRateLimit'
 import { claimDomainForSchool, schoolsClaimingDomainOf } from '../_utils/schoolDomain'
-import { isMailboxUnproven } from '../_utils/mailboxProof'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -137,11 +136,10 @@ export default async function handler(
     const authEmail = (authUserLookup?.user?.email || '').trim().toLowerCase()
 
     // 1c. Real-email enforcement (api/_utils/emailValidation.ts) — same
-    // disposable-domain blocklist possession-redeem applies. The tutor and
-    // org tracks prove mailbox RECEIPT via a real OTP round-trip before ever
-    // reaching here; the SCHOOL track no longer does (job #188 — it mints
-    // first and proves later, and setup-mint.ts applies the blocklist at the
-    // mint). Either way, a disposable
+    // disposable-domain blocklist possession-redeem applies. This track
+    // proves mailbox RECEIPT via a real OTP round-trip before ever reaching
+    // here (unlike possession-redeem, which never emails anyone), so the
+    // MX/needs_verification machinery doesn't apply — but a disposable
     // provider can still deliver a real OTP, so it's not itself proof
     // against trial-farming with throwaway addresses. Tutor-only: this is
     // a real-earnings product (£15/mo + per-student payouts), the specific
@@ -552,30 +550,18 @@ export default async function handler(
 
       // THE FOUNDING ADMIN CLAIMS THE DOMAIN (Tom, 2026-09-08: "the very first
       // admin person to sign up a school therefore claims the domain for the
-      // school"). A public domain is refused inside and never written. Runs on
-      // every provision, like the two heals above, so a school that predates
-      // this gets its claim on the admin's next pass. Non-fatal: the school is
-      // the thing; the claim is a fact about it.
-      //
-      // ONLY A PROVEN ADDRESS CLAIMS (job #188, 2026-09-18). The school door
-      // now mints the session with no code (api/auth/setup-mint.ts), so the
-      // address behind this session may be one somebody merely TYPED. A claim
-      // is the school vouching for everyone at that domain — written on a
-      // typed address it is exactly "anyone can claim the domain", the thing
-      // Tom named. So an unproven founding admin claims nothing here; the
-      // claim is written the moment their mailbox is proved, by
-      // api/email/verify.ts. Nothing else about the school waits on it.
-      if (isMailboxUnproven(authUserLookup?.user?.user_metadata)) {
-        console.info('[onboarding/provision] founding admin unproven, domain claim deferred to mailbox proof:', authEmail)
-      } else {
-        const claim = await claimDomainForSchool(supabase, {
-          schoolId, email: authEmail, source: 'founding_admin', addedBy: auth.userId,
-        })
-        if (claim.status === 'error') console.warn('[onboarding/provision] domain claim failed (non-fatal):', claim.message)
-        // Worth a line in the log: this school's teachers will verify by code,
-        // because its domain is a tenant other schools live on (job #385).
-        if (claim.status === 'not_claimable' && claim.reason === 'shared_tenant') console.info('[onboarding/provision] domain is a shared tenant, not claimed:', claim.domain)
-      }
+      // school"). This track proved the mailbox by OTP before it got here, so
+      // the claim rests on a proven address. A public domain is refused inside
+      // and never written. Runs on every provision, like the two heals above,
+      // so a school that predates this gets its claim on the admin's next
+      // pass. Non-fatal: the school is the thing; the claim is a fact about it.
+      const claim = await claimDomainForSchool(supabase, {
+        schoolId, email: authEmail, source: 'founding_admin', addedBy: auth.userId,
+      })
+      if (claim.status === 'error') console.warn('[onboarding/provision] domain claim failed (non-fatal):', claim.message)
+      // Worth a line in the log: this school's teachers will verify by code,
+      // because its domain is a tenant other schools live on (job #385).
+      if (claim.status === 'not_claimable' && claim.reason === 'shared_tenant') console.info('[onboarding/provision] domain is a shared tenant, not claimed:', claim.domain)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a
