@@ -49,6 +49,23 @@ export function makeChainable(db: DB, table: string) {
       pending = fresh.length === 0 ? { kind: 'noop', values: {} } : { kind: 'insert', values: Array.isArray(values) ? fresh : fresh[0] }
       return builder
     },
+    /**
+     * PostgREST `or=(a,b)`: the comma-separated clauses, ANY of which may
+     * match. Only the forms this repo actually writes are understood —
+     * `col.not.is.null` and `col.is.null` — so an unsupported clause is loud
+     * rather than quietly true.
+     */
+    or: (clauses: string) => {
+      const tests = clauses.split(',').map((c) => {
+        const notNull = c.match(/^(\w+)\.not\.is\.null$/)
+        if (notNull) return (r: Row) => r[notNull[1]] != null
+        const isNull = c.match(/^(\w+)\.is\.null$/)
+        if (isNull) return (r: Row) => r[isNull[1]] == null
+        throw new Error(`_testkit: unsupported or() clause "${c}"`)
+      })
+      filters.push((r) => tests.some((t) => t(r)))
+      return builder
+    },
     /** PostgREST paging: rows [from, to] of the filtered set. */
     range: (from: number, to: number) => { rangeOf = [from, to]; return builder },
     delete: () => { pending = { kind: 'delete', values: {} }; return builder },
