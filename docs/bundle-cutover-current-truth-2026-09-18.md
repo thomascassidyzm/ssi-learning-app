@@ -465,6 +465,14 @@ rather than a learner base, and only `cym_s_for_eng` (142 learners) looks like a
 standalone copy https://watson-1.tail4968cb.ts.net/d/ef74dbfc. I re-verified the two
 load-bearing claims myself, independently, because they are severe:
 
+> **Correction, after cross-family cold-verify (#230·H, GPT-6 Astra, folded 2026-09-18).**
+> Two claims in this section are wrong as written and the appendix at the foot of this document
+> carries the full re-check. In short: the `parity-fullscript` DRIFT is **not** a urn violation on
+> the walk — it is the known seed-sandwich divergence; and the urn half of the parity test asserts
+> its properties on a **restatement** of `drawReviewPhrases`, not on the function itself. The
+> central finding — that no gate runs any of it — stands, and its history turns out to be worse
+> than reported.
+
 - **No gate reaches `packages/core`.** `vitest.api.config.ts` includes `api/**` and
   `scripts/**`; `packages/player-vue/vitest.config.ts` includes `src/**` rooted at
   player-vue; `packages/core` has no vitest config at all and its `"test"` script is bare
@@ -1072,9 +1080,13 @@ L1 wheel at all. Those are different builds.
 - The **"~700 ms – 5 s on a phone"** figure attributed to job #225 could not be verified from here: no
   committed document or commit for that job exists in this tree. The 700 ms end is verifiable
   (`docs/bundle-cutover-step6-verified-2026-08-29.md` §1); the 5 s end is not.
-- Whether the committed **`parity-fullscript-final` DRIFT** is a real urn defect on the walk or an
-  artefact of running the walk against live anon Supabase with 730 phrases skipped for missing audio.
-  Not determined; it reproduces the 2026-08-29 number exactly, which argues old-and-stable.
+- ~~Whether the committed **`parity-fullscript-final` DRIFT** is a real urn defect on the walk.~~
+  **CLOSED by cold-verify — see the appendix.** It is the seed-sandwich divergence of §4(a): the walk
+  emits four single-audio cycles carrying the same sentence with one audio slot each
+  (`emitSeedSandwich`, `generateLearningScript.ts:1371-1400`), the bundle emits one ordinary review
+  cycle. Repeated text and empty audio slots are what that function is *for*. Not an urn defect.
+  One residual: a cold-verify run also found an extra bundle-side USE cycle at `gle_for_eng`
+  `S0001L04`, so the diffs are not exclusively seed-phase — unverified by this room.
 - How many phrase rows on the 15 bundle courses have a **null `decomposition`** — decides whether the
   bundle's missing segmentation fallback is a footnote or a second job #158. Needs a live count.
 - Whether the client runs the bundle's **`scriptShapeVersion` HEAD probe** before reusing a cached
@@ -1088,3 +1100,57 @@ L1 wheel at all. Those are different builds.
 *Read-only audit, 2026-09-18. No code was changed and no test suite was run beyond the named
 parity harnesses. Tree: `d73662013`, which is `origin/dev`, `origin/staging` and `origin/main`
 alike today. Worker slices: #227·H census, #228·H divergence, #229·H parity gate.*
+
+
+---
+
+## Appendix — cross-family cold-verify, folded 2026-09-18
+
+`#229·H`'s report was cold-verified by GPT-6 Astra (`#230·H`), given the claim and the published
+evidence only. It returned seven verifications, five refutations and one gap. Every refutation below
+was re-checked against the code by this room before being accepted; all five are upheld, and one
+finding Astra added is the most useful fact in the section.
+
+**Upheld, and it changes the story: the gate was built and then deleted.** `522bcfe56` — the very
+commit that created `selectionParity.test.ts` — also added a `Core tests` step running
+`pnpm --filter @ssi/core test` to **both** GitHub workflows (`git show 522bcfe56 -- .github`). Those
+workflows were deleted on 2026-09-04 by `8c2a88303`, *"chore(ci): delete the two dead GitHub Actions
+workflows"*, as collateral of retiring Actions in favour of the command surface — and the nightly
+`ci-checks.sh` never picked the core-test leg up. So this is not "nobody wired the gate". **The gate
+was deliberately wired on the day the test was written, and silently dropped two months later by an
+unrelated cleanup, and nothing noticed for a fortnight.** (Side note worth knowing before rewiring
+it: `@ssi/core`'s `test` script is bare `vitest`, i.e. watch mode — fine under CI with no TTY, it
+hangs locally. Any repair should use `vitest run`.)
+
+**Upheld: the urn properties are asserted on a restatement, not on the function.**
+`selectionParity.test.ts:252-264` defines a local `urnIndices` that re-implements
+`drawReviewPhrases`'s cursor arithmetic line for line (compare `phraseSelection.ts:388-393`) rather
+than calling it. The membership test *does* call the real function; non-repeat, wraparound and
+coverage do not. This is the same class of hole as the frozen walk transcription, and #229·H did not
+name it. Consequence in practice: with `N1_PHRASE_COUNT = 3` and seventeen offsets, the sequence is
+at most 19 draws, so for pools of 20-24 the non-repeat and coverage assertions are **vacuous** — the
+window loop runs zero times and the coverage test `continue`s. The wraparound test still covers them,
+and `+1 mod poolLength` does imply non-repeat, so the property is not unproven — but it is proven
+about a copy of the code, one step further from the thing that ships than the report implied.
+
+**Upheld: the DRIFT is the seed sandwich, not a urn violation.** `emitSeedSandwich`
+(`generateLearningScript.ts:1371-1400`) emits three or four cycles carrying the *same* known and
+target text, each setting exactly one of `knownAudioId` / `target1Id`. "The same review phrase three
+to four times in one round, several with missing audio-id slots" is a literal description of that
+function working as designed — dated, and attributed to Tom and Aran, 2026-07-14. It also reconciles
+the two worker slices: §4(a) found independently that the walk builds the sandwich and the bundle
+never has, which is exactly what a whole-script diff would report as drift.
+
+**Upheld: two harness descriptions were too generous.** `parity-fullscript.mjs:321-327` compares
+cycle content only inside three ten-round windows; only the LEGO sequence is compared end to end.
+And `parity-infplay.mjs:267` rejects a round-size mismatch only when `newMax < oldMin` — an entirely
+larger new range passes, so "round-size ranges overlap" overstates what is checked.
+
+**Claimed, not re-checked here:** that a live run also surfaces an extra bundle-side USE cycle at
+`gle_for_eng` `S0001L04`, i.e. that the fullscript diffs are not exclusively seed-phase. Plausible
+and consistent with the seed-sandwich explanation being incomplete; this room did not run it.
+
+**Unchanged by any of this:** no gate in the estate reaches `packages/core` today (re-verified
+independently against `package.json:15-17` and `ops/ci/ci-checks.sh:174-183`); the test passes, 40
+tests in ~550 ms; fixture coverage is exactly the 15 cut-over courses at up to 20 LEGOs each, frozen
+2026-08-29; and the three coverage holes §3 names all exist.
