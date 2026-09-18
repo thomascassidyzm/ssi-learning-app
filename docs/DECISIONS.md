@@ -4820,3 +4820,32 @@ What the data DOES show is Tom's own four sessions of 2026-09-18 12:10-12:32 UTC
 then a single tap_pause 2-3s later, then nothing, with ZERO audio_play and ZERO tap_play in any of
 them — the learner opened the app, tapped the big control expecting play, and the app read the tap
 as PAUSE. That is a separate defect from the update flow and is under investigation (job #219·H).
+## 2026-09-18 — Every school's support thread lands in Admin → Support (job #220)
+
+Tom, 14:16Z: platform admins should be able to see in-app support messages
+somewhere in the app, even though agents will handle most of them. Job #218 had
+already proved the gap by reading the code: `resolveSupportScope` resolves a
+school_admin's one school or a govt_admin's one group and nothing else, so an
+ssi_admin could open no school's thread at all — not even under View As.
+
+**What was decided.** The schools channel joins the learner reports in the ONE
+list at `/admin/support`, ordered the same way: waiting first, newest first. No
+second page, no dashboard. Server side, the cross-school read is a passthrough
+behind `verifyAdmin` (`api/_utils/platformSupport.ts` + `api/admin/support/*`),
+modelled on `scopeForSchoolRead` — NOT a new branch in `resolveSupportScope`,
+which is left exactly as it was so a school still reads only its own thread
+through its own scope, under the same RLS and the same column-scoped grant.
+
+**The reply is the watcher's own row.** An ssi_admin's answer is an ordinary
+`support_messages` 'out' row: the `user_messages_from_support_reply` trigger
+fans it into the school admins' inboxes, `GET /api/support/thread` marks those
+read when she opens it, and `api/cron/support-doorbell` emails her if it sits
+unopened. Nothing new had to be built to deliver it, and `last_read_at` is
+deliberately untouched — it is the SCHOOL's reading, and the doorbell keys on
+it. Open questions in the thread are stamped `answered_at` so the watson-1
+watcher does not answer them a second time.
+
+**THE ONE GUARD kept (Tom, 2026-09-14).** The reply is authored from
+verifyAdmin's own verified uid and can be nobody else's, and a write carrying
+the View-As header is refused outright by `refuseViewAsWrite`. Both are pinned
+by tests that were watched to fail on a mutated route and pass on this one.
