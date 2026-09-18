@@ -8,7 +8,7 @@
  * "74 min" with no hour form); green after.
  */
 import { describe, it, expect } from 'vitest'
-import { secondsToMinutes, hoursToMinutes, formatPracticeMinutes } from './practiceMinutes'
+import { secondsToMinutes, hoursToMinutes, formatPracticeMinutes, formatPracticeMinutesCompact, formatAverageCount } from './practiceMinutes'
 
 describe('practiceMinutes — minutes round UP, hours only from an hour', () => {
   it('25 seconds of play reads 1 min, never 0', () => {
@@ -38,5 +38,47 @@ describe('practiceMinutes — minutes round UP, hours only from an hour', () => 
     expect(formatPracticeMinutes(60)).toBe('1 h')
     expect(formatPracticeMinutes(272)).toBe('4 h 32 min')
     expect(formatPracticeMinutes(14)).not.toMatch(/0 h/)
+  })
+})
+
+/**
+ * Tom on production 2026-09-18 (job #207), Chepstow's leader dashboard: the
+ * school average read "0m" for a week in which nine classes practised and the
+ * class he had open read 8 min. 11.7 minutes over the 33 classes that have
+ * started is 0.354 of a minute — a real number that both insight cards'
+ * private Math.round formatter printed as zero.
+ *
+ * Red on that formatter (0.354 -> "0m"), red on a plain ceiling too
+ * (0.354 -> "1m", three times the practice there was); green on "<1m".
+ */
+describe('a fraction of a minute is not zero — job #207, Chepstow', () => {
+  it('the school average of 11.7 min over 33 classes never reads zero', () => {
+    const average = 11.7 / 33 // 0.3545…
+    expect(formatPracticeMinutesCompact(average)).toBe('<1m')
+    expect(formatPracticeMinutes(average)).toBe('<1 min')
+    expect(formatPracticeMinutesCompact(average)).not.toBe('0m')
+  })
+  it('and never overstates itself as a whole minute either', () => {
+    expect(formatPracticeMinutesCompact(0.354)).not.toBe('1m')
+    expect(formatPracticeMinutes(0.354)).not.toBe('1 min')
+  })
+  it('zero is still zero — a school that did nothing is told so', () => {
+    expect(formatPracticeMinutesCompact(0)).toBe('0m')
+    expect(formatPracticeMinutes(0)).toBe('0 min')
+    expect(formatPracticeMinutesCompact(null)).toBe('0m')
+  })
+  it('the compact form is the SAME rule as the long one, tight enough for two columns', () => {
+    // 7 min 22 s — the class page ceilings it to 8 min, and so does the card
+    expect(formatPracticeMinutesCompact(7.37)).toBe('8m')
+    expect(formatPracticeMinutes(7.37)).toBe('8 min')
+    expect(formatPracticeMinutesCompact(60)).toBe('1h')
+    expect(formatPracticeMinutesCompact(85)).toBe('1h 25m')
+    expect(formatPracticeMinutesCompact(59)).toBe('59m')
+  })
+  it('an average NUMBER OF PHRASES takes the same law', () => {
+    expect(formatAverageCount(0.6)).toBe('<1')   // was "1"
+    expect(formatAverageCount(0.4)).toBe('<1')   // was "0"
+    expect(formatAverageCount(0)).toBe('0')
+    expect(formatAverageCount(21)).toBe('21')
   })
 })

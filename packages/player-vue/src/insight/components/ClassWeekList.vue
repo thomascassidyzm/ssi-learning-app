@@ -21,6 +21,7 @@
 // with its comparison.
 // ============================================================================
 import { computed } from 'vue'
+import { formatPracticeMinutesCompact } from '@/composables/schools/practiceMinutes'
 import { useI18n } from '@/composables/useI18n'
 import WeekBars from './WeekBars.vue'
 import type { WeekClassRow } from './WeekNumbersCard.vue'
@@ -38,13 +39,12 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 
-function mins(n: number): string {
-  const whole = Math.round(n)
-  if (whole < 60) return `${whole}m`
-  const h = Math.floor(whole / 60)
-  const m = whole % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
+/**
+ * THE ONE formatter (composables/schools/practiceMinutes.ts). A class that
+ * played for forty seconds reads "<1m" on this list, never the "0m" that used
+ * to sit beside "practised today" and contradict it.
+ */
+const mins = formatPracticeMinutesCompact
 
 /** "today", "yesterday", "3 days ago", "5 weeks ago" — a school's own words. */
 function since(iso: string | null): string {

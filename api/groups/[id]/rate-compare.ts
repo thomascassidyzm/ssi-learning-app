@@ -93,6 +93,7 @@ import {
   weeklyPhrasesBars,
   meanBars,
   cohortFor,
+  cohortForWindow,
   type ScopedSessionRow,
   type MeasureId,
 } from '../../_utils/rateCompare'
@@ -943,12 +944,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       [{ id: nodeMeta.id, classIds: entityClassIds }, ...rawMembers]
     const candidateIds = [...new Set(cohortUnits.flatMap((u) => u.classIds))]
     await ensureFirstPlay(candidateIds)
-    // A unit is in a week's cohort once ANY of its classes has started, and it
-    // is measured over exactly those classes — a school that opened its second
-    // class in week 9 counts one class in weeks 1-8 and two from week 9.
-    const cohortUnitsAt = (weekEndMs: number): { id: string; classIds: string[] }[] =>
+    // ─── WHO THE AVERAGE DIVIDES BY (Tom's ruling, 2026-09-18): the units
+    // that ACTUALLY PRACTISED in the window being read, the entity included on
+    // the same terms as any peer. "Classes that did not use the app in the
+    // window are EXCLUDED from the school average — the denominator is classes
+    // with any practice in that window, and the caption says so."
+    //
+    // This supersedes the started-by-the-end-of-the-window half of the
+    // 2026-09-16 rule for every AVERAGE on this page; the rest of that ruling
+    // stands exactly. The set is still viewer-independent, so the number reads
+    // the same whichever class a leader opens it from — and it no longer
+    // describes a school nobody was looking at: Chepstow's 11.7 minutes over
+    // its 33 STARTED classes was 0.35, over its 8 PRACTISING classes it is 1.5.
+    //
+    // ONE rule, three callers — the card's number, the twelve bars beneath it
+    // and the leader page's normal line — because two denominators on one
+    // screen is the bug this replaces, and it is the same bug whichever way
+    // the denominator is chosen.
+    const cohortUnitsActiveIn = (startMs: number, endMs: number): { id: string; classIds: string[] }[] =>
       cohortUnits
-        .map((u) => ({ id: u.id, classIds: cohortFor(u.classIds, firstPlay, weekEndMs) }))
+        .map((u) => ({ id: u.id, classIds: cohortForWindow(rows, u.classIds, startMs, endMs) }))
         .filter((u) => u.classIds.length > 0)
 
     const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
@@ -976,14 +991,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let weekBlock: Record<string, unknown> | null = null
     if (weekWindowId || allTimeMode) {
       const buckets = weekBuckets(nowMs, timeZone, TREND_WEEKS)
+      // The window in a school's own words, said once and used by both the
+      // denominator caption and the nothing-to-compare note, so they cannot
+      // describe different windows.
+      const windowWord = weekWindowId === 'last_week' ? 'last week' : 'this week'
       const entityWeek = weekNumbersForClassIds(rows, entityClassIds, currentWeek.startMs, currentWeek.endMs)
       // The cohort, evaluated at the end of the window for the card and
       // AGAIN at the end of each bucket for the bars — one function, three
       // callers, so a bar and the number above it can never disagree. Under
       // ALL TIME there is no cohort at all: totals stand on their own.
-      const windowCohort = allTimeMode ? [] : cohortUnitsAt(currentWeek.endMs)
+      const windowCohort = allTimeMode ? [] : cohortUnitsActiveIn(currentWeek.startMs, currentWeek.endMs)
       const cohortWeek = meanWeekNumbers(
         windowCohort.map((u) => weekNumbersForClassIds(rows, u.classIds, currentWeek.startMs, currentWeek.endMs)))
+      // Each bucket asks the same question of its OWN week — "who practised
+      // then" — so history never moves: whether a class practised in week 5 is
+      // settled forever on the day week 5 ended. `weeklyMinutesBars` hands the
+      // callback a bucket END, and the ends are unique, so the bucket it
+      // belongs to is the one thing that needs looking up.
+      const bucketByEnd = new Map(buckets.map((b) => [b.endMs, b]))
+      const activeInBucket = (ids: string[]) => (weekEndMs: number): string[] => {
+        const b = bucketByEnd.get(weekEndMs)
+        return b ? cohortForWindow(rows, ids, b.startMs, b.endMs) : []
+      }
+      // A week nobody in the cohort practised has no "normal" to draw, so the
+      // faint line breaks there rather than lying flat at zero — and the
+      // entity's own bar below it still reads a real 0, which is the honest
+      // pair of facts about a half term.
+      const cohortActiveBars = (pick: typeof weeklyMinutesBars) => meanBars(
+        cohortUnits.map((u) => pick(rows, u.classIds, buckets, activeInBucket(u.classIds))))
       // The entity's OWN series: the sum of ITS classes that had started by
       // each week, and absence before any of them had. A zero in a week the
       // class did not yet exist as a playing class would say it was idle.
@@ -998,19 +1033,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // and the cohort bar is the mean of those, never the mean of bare
       // classes. Mean-of-schools and mean-of-classes are different numbers
       // whenever schools differ in size, and the caption says schools.
-      const cohortBars = allTimeMode
-        ? buckets.map(() => null)
-        : meanBars(cohortUnits.map((u) =>
-          weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      const cohortBars = allTimeMode ? buckets.map(() => null) : cohortActiveBars(weeklyMinutesBars)
       // The phrases twin of both series (job #26, the display lab): same
       // buckets, same cohortFor, so a phrases bar and the newPhrases number
       // above it are one function. Additive — the minutes fields are untouched.
       const entityPhrasesBars = weeklyPhrasesBars(rows, entityClassIds, buckets,
         (end) => cohortFor(entityClassIds, firstPlay, end))
-      const cohortPhrasesBars = allTimeMode
-        ? buckets.map(() => null)
-        : meanBars(cohortUnits.map((u) =>
-          weeklyPhrasesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      const cohortPhrasesBars = allTimeMode ? buckets.map(() => null) : cohortActiveBars(weeklyPhrasesBars)
+      // ─── SOVEREIGNTY, UNDER THE NEW DENOMINATOR. An average made of one
+      // unit is not an average: if the entity is that unit the two columns are
+      // the same number twice, and if it is not, the "average" IS one named
+      // peer's exact week. So the column needs at least `effectiveFloor` units
+      // in it besides the entity — the same floor the structural cohort has
+      // always used, applied to the set that is actually being averaged. Below
+      // that the column goes, the bars stay (peers did practise in other
+      // weeks), and the card says which of the two nothings this is.
+      const practisingPeers = windowCohort.filter((u) => u.id !== nodeMeta.id).length
+      const quietWindowNote = allTimeMode || noCohortReason || practisingPeers >= effectiveFloor
+        ? null
+        : windowCohort.length === 0
+          ? `Nothing to compare against: no ${classRow ? 'class' : 'school'} in this scope practised ${windowWord}.`
+          : `Nothing to compare against: only this ${classRow ? 'class' : 'school'} practised ${windowWord}.`
+
       weekBlock = {
         window: appliedWindowValue,
         label: windowConfig.label,
@@ -1030,18 +1074,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         },
         // An empty cohort is ABSENCE — no numbers at all, never a row of
         // zeros that reads as "the school did nothing".
-        cohort: windowCohort.length === 0 || noCohortReason ? null : {
+        cohort: windowCohort.length === 0 || noCohortReason || quietWindowNote ? null : {
           label: compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average',
           classMinutes: cohortWeek.classMinutes,
           pupilMinutes: cohortWeek.pupilMinutes,
           totalMinutes: cohortWeek.totalMinutes,
           newPhrases: cohortWeek.newPhrases,
           size: windowCohort.length,
-          // "school average · 27 classes" (Watson, 2026-09-16) — the
-          // denominator said in four words, with the right noun at every
-          // level. Counted off the SAME windowCohort the numbers above it
-          // were averaged over, so the caption cannot drift from them.
-          sizeLabel: `${windowCohort.length} ${cohortNoun(windowCohort.length)}`,
+          // "school average · 8 classes that practised this week" — the
+          // denominator AND the rule that chose it, in the reader's own words
+          // (Tom, 2026-09-18: "the caption says so"). Counted off the SAME
+          // windowCohort the numbers above it were averaged over, so the
+          // caption cannot drift from them, and it now says the one thing a
+          // leader has to know to read the number: which classes are in it.
+          sizeLabel: `${windowCohort.length} ${cohortNoun(windowCohort.length)} that practised ${windowWord}`,
         },
         bars: {
           weeks: buckets.map((b) => weekLabel(b, timeZone)),
@@ -1050,6 +1096,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           entityPhrases: entityPhrasesBars,
           cohortPhrases: noCohortReason ? cohortPhrasesBars.map(() => null) : cohortPhrasesBars,
         },
+        // Why the second column is absent on a week where peers exist but
+        // nobody practised. Distinct from `reason` (no comparable cohort at
+        // all), which is a fact about the scope rather than about the week.
+        cohortNote: quietWindowNote,
         // Named, not hidden: past the cap Y is not read at all, so the total
         // is class play only and says so.
         pupilMinutesCapped: entityClassIds.length > PUPIL_CLASS_CAP,
@@ -1070,9 +1120,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // not once per class — 27 identical copies is payload, not meaning.
         // Absent under All time: a "normal" line is an average, and All time
         // carries no comparison figure of any kind.
+        // Same denominator as the card above it (Tom, 2026-09-18): the mean
+        // over the classes that PRACTISED each week, not over every class that
+        // has ever started. A leader reading a class card against this line is
+        // reading it against what a class that ran a lesson did.
         classesNormal: classRow || allTimeMode ? undefined : meanBars(entityAllClasses
           .filter((c) => c.course_code === courseCode)
-          .map((c) => weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)))),
+          .map((c) => weeklyMinutesBars(rows, [c.id], buckets, activeInBucket([c.id])))),
         classes: classRow ? undefined : entityAllClasses
           .filter((c) => c.course_code === courseCode)
           .map((c) => {
