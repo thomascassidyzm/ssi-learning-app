@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `c54ddd71af17` · generated 2026-09-17 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `073efe3dded1` · generated 2026-09-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -370,12 +370,12 @@ Moment: setting-up · section: seeing-progress · roles: school_admin, teacher �
 
 Moment: every-lesson · section: seeing-progress · roles: school_admin, leader, admin · anchor: `insights-classes` · in `packages/player-vue/src/insight/components/ClassWeekList.vue` · has a walk
 
-**What it's for.** Seeing every class under this level at a glance, the one that has gone longest without practising first, with its week beside its name.
+**What it's for.** Seeing every class under this level at a glance, the one that has gone longest without practising first, with its own figures beside its name.
 
 **Where it is.** Under the card on a school's or a group's insights page.
 
-1. Read down the list. Each card says when that class last practised, then its total time and new phrases for the week, then that class's last twelve weeks as small bars with the average here drawn across them as a faint line.
-2. Tap a class to open its own card, with the average beside it.
+1. Read down the list. Each card says when that class last practised, then its total time and phrases over whatever the card above is set to — totals since it started on **All time**, the week's own numbers on a week — then that class's last twelve weeks as small bars.
+2. Tap a class to open its own card, with the average beside it on a week.
 3. Classes that have not started yet are counted in one quiet line at the end; open it to see their names.
 
 **Worth knowing.** This is not a league table. Nothing is ranked by minutes and nobody is scored. A class that has not practised shows the gap — "not in the last 12 weeks" — rather than a zero.

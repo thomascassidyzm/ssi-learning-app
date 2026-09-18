@@ -1,6 +1,6 @@
 {
-  "version": "c54ddd71af17",
-  "generatedAt": "2026-09-17",
+  "version": "073efe3dded1",
+  "generatedAt": "2026-09-18",
   "walks": [
     {
       "id": "add-a-class-under-a-group",
@@ -4627,11 +4627,11 @@
         "/org/:id/insights"
       ],
       "walk": "reading-insights",
-      "what": "Seeing every class under this level at a glance, the one that has gone longest without practising first, with its week beside its name.",
+      "what": "Seeing every class under this level at a glance, the one that has gone longest without practising first, with its own figures beside its name.",
       "where": "Under the card on a school's or a group's insights page.",
       "how": [
-        "Read down the list. Each card says when that class last practised, then its total time and new phrases for the week, then that class's last twelve weeks as small bars with the average here drawn across them as a faint line.",
-        "Tap a class to open its own card, with the average beside it.",
+        "Read down the list. Each card says when that class last practised, then its total time and phrases over whatever the card above is set to — totals since it started on **All time**, the week's own numbers on a week — then that class's last twelve weeks as small bars.",
+        "Tap a class to open its own card, with the average beside it on a week.",
         "Classes that have not started yet are counted in one quiet line at the end; open it to see their names."
       ],
       "note": "This is not a league table. Nothing is ranked by minutes and nobody is scored. A class that has not practised shows the gap — \"not in the last 12 weeks\" — rather than a zero."
