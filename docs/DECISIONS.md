@@ -1,3 +1,49 @@
+## 2026-09-18 — The not-ready tap is answered, not held; and a tap_pause row now means a pause tap (job #223)
+
+**Two defects, both diagnosed by job #219 against production telemetry.** `togglePlayback()` opened
+with a bare `if (isAwakening && !isAudioPlaying) return`, so while the player was not ready every
+transport tap was discarded with no state change, no telemetry and no learner-visible response. That
+window is not short: over the week to 2026-09-18 `cold_start.mountToReadyMs` ran p50 2.3s, p90 10.5s,
+p99 46s, with 96 cold starts over 10s and 44 over 20s. Tom's own session 5aec7f60 reports 47,350ms,
+and two of his seven opens that lunchtime never reached ready at all — which is exactly his report
+from his phone: the app "often just falls over itself and often needs to be quit and then loaded up
+again". Separately, `handlePause()` logged `tap_pause` unconditionally from seven call sites, six of
+which are not the transport: the Library and Settings overlays, entering and leaving Listening and
+Pronunciation mode, the bottom-nav exit, and an in-app course change. 1,305 `tap_pause` rows against
+849 `tap_play` in the week; 32 sessions logged a pause BEFORE their own `cold_start`.
+
+**Decision: VISIBLE REFUSAL, not held intent.** Both shapes were on the table. Held intent — bank the
+tap, honour it at `loadingStage === 'ready'` — loses on *simpler* and on *better* for one concrete
+reason: the iOS audio unlock lives INSIDE the user gesture (`handleResume` sets `audioEngaged` and
+the silent-loop keepalive hooks that gesture), so a play started later, outside the gesture, can be
+refused by iOS and leave the machine believing it is playing — the very silent-playing state job
+#217 wrongly hypothesised. Honouring a tap from 46 seconds ago is also not obviously what the learner
+still wants. A visible refusal closes the trap completely and carries none of that: *better* (the
+learner is told the app heard them, which is the same complaint Tom made about updates one screen
+down), *simpler* (no queued-intent state machine, no watcher, no gesture question, and it deletes a
+branch in BottomNav rather than adding one), *cheaper* (a ref, a computed, one CSS rule and one
+event). The ready-guard itself is untouched in what it BLOCKS, so the reverted-`bf281cd1` hazard —
+`handleResume` running concurrently with `onMounted`'s engine init, Tom's 2026-06-08 "audio the pause
+button couldn't stop" — stays shut by construction.
+
+**What landed.** A not-ready tap now calls `acknowledgeNotReadyTap()`: it emits
+`tap_ignored {reason, loadingStage, msSinceMount}` so the refusal is measurable rather than inferred,
+and it takes over the awakening line the learner is already reading with "Got you — still getting
+your session ready…", pulsing once so the change cannot be missed. The bottom-nav play button no
+longer drops the tap at its own `isPlayDisabled` guard — it hands it to the player, which is the one
+place that decides; its spinner stays until the player is genuinely ready. **The welded door is
+open**: `progressLoadFailed` pins `isAwakening` true permanently while the screen says "Your progress
+is safe — have another go", and every go was swallowed, leaving the retry link's reload as the only
+exit. A transport tap on that screen IS the learner having another go, so it now runs the same retry.
+**And the event is separated**: `handlePause` split into `stopEverything()` — the shared halt routine,
+deliberately silent, what the six non-transport callers want — and `handleTransportPause()`, which
+logs `tap_pause` and is called only from `togglePlayback`. From this build on, a `tap_pause` row is a
+pause tap and the estate's play/pause figures are trustworthy.
+
+**Proof.** `LearningPlayer.tapIntent.test.ts` AST-extracts the component's real functions and runs
+them against a stub harness (the `pendingHydration` idiom). All nine assertions fail on the pre-fix
+sources and pass on these — seen both ways, not believed.
+
 ## 2026-09-18 — The Android live-update channel is the deployment itself; what was missing was the native declaration (job #214)
 
 **The brief's premise had been overturned ten days earlier, and the reversal is live on `main`.**
