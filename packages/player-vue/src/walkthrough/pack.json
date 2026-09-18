@@ -1,5 +1,5 @@
 {
-  "version": "073efe3dded1",
+  "version": "82d8a3a8368e",
   "generatedAt": "2026-09-18",
   "walks": [
     {
@@ -4248,6 +4248,42 @@
         "Tap **Add domain**."
       ],
       "note": "This grants nothing. Somebody at your domain still sees no learner until you give them a class, and somebody who is not still gets in with one tap. Public providers such as gmail.com or outlook.com cannot be added, because they do not identify a school. Schools in the same trust share each other's domains automatically."
+    },
+    {
+      "id": "confirm-your-email-from-the-dashboard",
+      "title": "Confirm your email from the dashboard",
+      "section": "your-own-account",
+      "moment": "setting-up",
+      "personas": [
+        "school_admin"
+      ],
+      "keywords": [
+        "email",
+        "code",
+        "confirm",
+        "verify",
+        "spam filter",
+        "hwb",
+        "banner"
+      ],
+      "place": {
+        "route": "dashboard"
+      },
+      "anchor": "mailbox-banner-confirm",
+      "surface": "schools",
+      "source": "packages/player-vue/src/components/schools/MailboxBanner.vue",
+      "routes": [
+        "/org",
+        "/schools"
+      ],
+      "walk": null,
+      "what": "Proving the address your school was set up with actually reaches you, without it ever standing between you and your dashboard.",
+      "where": "The strip across the top of every schools page, for as long as your address is unconfirmed.",
+      "how": [
+        "Wait for our six-digit code. School mail systems can hold it for a while.",
+        "Type it into the strip and tap **Confirm**."
+      ],
+      "note": "A code that has gone stale just says so; tap **Send a fresh code** and use the newest one. If your school address eats our mail, tap **Use a different address** and confirm from a personal one instead. Nothing in your school waits on this."
     },
     {
       "id": "copy-a-class-link-without-opening-the-class",
