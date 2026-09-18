@@ -1,3 +1,56 @@
+## 2026-09-18 — The school door needs no code: set up, land, confirm the mailbox later (job #188)
+
+Tom's diagnosis, verbatim: "The account IS created. That is the whole point. The account is created
+instantly. But the teacher does not know it because they are being asked for the code still." Job
+#186's production read confirmed it: a Hwb head's auth row was created the instant she first asked
+for a code and sat unconfirmed for eight days, because `Onboarding.vue` only reached
+`POST /api/onboarding/provision` from inside `verify()`, after `verifyOtp`. The account never waited
+on the mail; the school did.
+
+**Decision.** The school door mints the session server-side and provisions the school before any
+mail is read. `POST /api/auth/setup-mint` does exactly what `api/auth/possession-redeem.ts` has done
+for invited teachers since July: `createUser` with no mail, `generateLink`, `verifyOtp` on the
+`token_hash`, hand the session back. Better: a head lands in her dashboard in one tap and a late,
+doubled or eaten code costs her nothing. Simpler: no new verification system — the six digits still
+go out through `send-code`, and the banner proves them through the existing `api/email/verify.ts`,
+the existing `onboarded_via:'possession'` reading of "unproven", and the existing unclaimed-mint
+contest rule. Cheaper: one route, one banner, no schema change, no dashboard config we cannot read.
+
+**"Anyone can claim the domain" is closed in two places, and this is the sentence.** An unproven
+founding admin claims no email domain — `provision.ts` defers the claim and `api/email/verify.ts`
+writes it the moment the mailbox is proved — and a stranger's mint on a typed address is stamped
+contestable, so the real owner's own sign-in by mail evicts it. A stranger gets a school called
+"My school" that vouches for nobody.
+
+**Rails kept.** A CONFIRMED account is never minted a session at the door: `existing:true`, and the
+code is the sign-in, worded "You already have an account here" rather than as a wall. An untouched
+shell — code requested, never typed — IS adopted, because refusing it protects nothing on a door
+where a fresh account can be created for any address, and it strands exactly the Hwb teachers this
+is for. Disposable domains refused; per-address and per-network throttles on the mint.
+
+**Taste defaults taken, each one Tom's to overrule:** school track only, tutor and org doors keep
+the code at the door; the banner is a standing closable strip for the setup-door account only,
+invited teachers keep the once-per-moment card; "Later" closes it for the browsing session, never
+durably, since the proof is still owed; the courtesy code is not awaited into the door's outcome.
+The GoTrue code lifetime is hosted-dashboard config this repo cannot read, and after this change it
+no longer gates anything.
+
+**Addendum, 10:15 the same day, Tom's design point.** Job #189 read the production rows: nobody is
+stuck at provisioning; what people hit is RETURN sign-in, because they got in once by a code, never
+set a password, and every return drops them onto the code path and the Resend trap. Three things
+changed with it. The password prompt is the default first step on entry: `SchoolsPasswordPrompt`
+moved from the teacher dashboard into `SchoolsContainer`, above every schools page, and opens its
+form itself the first time a passwordless account lands; "Not now" stays durable, closing the form
+leaves the card. The /schools sign-in leads with the password, with "No password yet? Email me a
+code instead" as the fallback, and a failed password names the likely cause. Supersession is named:
+`auth/codeSupersession.ts` carries the one sentence under every Resend, a sixty-second cooldown
+after any send, and the failed-verify copy that says only the newest code works, used by the
+schools sign-in, the signup door, the sign-in modal and the mailbox banner. Sixty seconds is a
+taste default.
+
+**Retired for the school door:** the "Send my code" step as a gate. Nothing about
+`school_identity_claims`, the domain-claim mechanism or the join links changed.
+
 ## 2026-09-18 — A broken diary read is an error, never zero practice (job #180)
 
 Job #170 made class minutes come from the diary alone for any class with a class
@@ -4530,3 +4583,51 @@ lesson for the next rename: the drift gate compares the pack against the SURFACE
 inside a ruling passes it silently. Grep `tools/explainer/rulings/` for the old words whenever a
 stat word changes. The year-group tiles are still weekly and their handbook comments stay as they
 are.
+
+## 2026-09-18 — Increment 1 of the schools-access design re-landed with Tom's three security rulings (job #195)
+
+Tom read the design document of job #188 and said "Ok. Yes. This sounds good. Let's build the case
+for a single push to main." That supersedes his 10:18 "design first, nothing built until he decides":
+the three reverts that ruling caused on `dev` and `staging` are undone here, and increment 1 — the
+no-code school door, the mailbox banner, password first on return, the Resend cooldown and the
+superseded-code copy — is back on `dev` exactly as it was proven live on staging that morning.
+
+What is new is the security position, which Tom settled in a discussion he opened with "Not sure
+about the security argument. Let's discuss." Three rulings, verbatim where he spoke:
+
+**Ruling 1 — an unproven school can build but not enrol.** "No pupil join codes, no class codes,
+nothing a child can use, until the mailbox is proven or an admin vouches. Then an attacker's stolen
+school is an empty room and the eight days cost nothing." Tom: "Ok for 1." Built as
+`api/_utils/schoolProof.ts`, one predicate asked by every route a pupil code passes through
+(`code/redeem`, `code/validate`, `auth/possession-redeem`, `teacher/by-code`), gated on the
+USABILITY of the code and failing closed when the founder cannot be read. Proof is the school's own
+address confirmed from the banner, OR a different address confirmed from the banner's "Use a
+different address" — the Hwb case, where the school address eats our mail — OR an admin's vouch.
+The teacher's own class page says the same line the server says to a pupil. The vouch is
+`api/school/vouch.ts`: a platform admin, a leader above the school, or a proven co-admin, from the
+admin read-view of the school; never the founder herself.
+
+**Ruling 2 — proof never ends sessions.** Tom rejected the wipe twice: "I don't like the idea of
+wiping previous sessions... what if a teacher doesn't want their own sessions wiped just because
+they have now proved their account?" and, on the narrower "proof keeps the proving session, ends the
+rest": "still think we're catering for the very rare attacks at the expense of the very common
+users." So `api/email/verify.ts` signs nothing out at proof and nothing built before proof is lost.
+Proof also retires the door's unclaimed-mint marker on the primary address, so the teacher's own
+next device is never shown the contest card whose "not me" is the one wipe that still exists.
+
+**Ruling 3 — the multi-session line, shown not killed, default keep.** "At proof, if there's exactly
+one live session, which is nearly everyone, nothing happens and nothing is shown. Only if there's
+more than one does the proving device see one line, 'also signed in on a laptop, keep it?',
+defaulting to keep." Built as a service-role-only `live_session_count(uuid)` read by verify.ts, an
+`other_sessions` count on its answer, one line in the banner with Keep first, and
+`api/auth/end-other-sessions.ts` behind the other button, which runs on nothing but a tap.
+
+One sentence for the record: unproven schools can build but not enrol, proof never ends sessions,
+and a second session at proof time is shown, not killed.
+
+Taste defaults taken where the conversation left a gap, each cheap for Tom to overrule: "an admin
+vouches" is the card on the admin read-view described above; proving a different address from the
+banner counts as proof for enrolment; "live" for the session count means not expired and touched
+within thirty days, so a dead GoTrue row cannot show the line to a teacher with one device; the
+second-device line lives in the founder's banner only, not in Settings' own verify row; the class
+list's short code on the teacher home is not masked — the server refuses it and the pupil reads why.

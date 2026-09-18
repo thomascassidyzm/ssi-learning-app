@@ -20,7 +20,7 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
-import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
+import { useMailboxPrompt, useEnrolmentHold } from '@/composables/useMailboxPrompt'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
 import { viewerPersona } from '@/walkthrough/handbook'
 import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
@@ -766,6 +766,11 @@ const deleteImpactLines = computed(() => {
 // The mailbox moment. Copying the join link is the act of inviting learners —
 // see composables/useMailboxPrompt.ts for when this stays shut.
 const mailboxPrompt = useMailboxPrompt()
+// TOM'S RULING 1 (job #195): an unproven school can build but not enrol. While
+// the founder's mailbox is unproved the server refuses every pupil code on
+// this class, so the card says so instead of handing out a link that will not
+// work — one line, pointing at the strip that unblocks it.
+const enrolmentHeld = useEnrolmentHold()
 </script>
 
 <template>
@@ -1402,13 +1407,20 @@ const mailboxPrompt = useMailboxPrompt()
                  Worth knowing. The link and the code both stay valid, so the same
                  one works for a student who joins in week one and a student who
                  arrives in week six. If the card says it could not load, do not
-                 hand anything out until it comes back.
-                 checked: bc4a8a6b.deda81a9
+                 hand anything out until it comes back. A school set up without
+                 a code cannot take pupils until its email address is confirmed
+                 from the strip at the top of the dashboard: until then this card
+                 shows one line saying so, and a link handed out early tells the
+                 pupil the same thing.
+                 checked: 345b984c.5a5a381e
             -->
-            <div v-if="joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" @copied="mailboxPrompt.noteKeepWorthyMoment()" /></div>
+            <div v-if="!enrolmentHeld && joinPanel.url" data-walk="class-join-link"><InviteLinkField :url="joinPanel.url" @copied="mailboxPrompt.noteKeepWorthyMoment()" /></div>
+            <p v-if="enrolmentHeld" class="join-help enrolment-held">
+              {{ t('schools.classDetail.enrolmentHeld', "Pupils can't join yet. Confirm your school's email address from the strip at the top first, and this link goes live.") }}
+            </p>
 
             <button
-              v-if="!showCode"
+              v-if="!enrolmentHeld && !showCode"
               type="button"
               class="btn-text join-show-code"
               data-walk="class-join-code"
@@ -1416,7 +1428,7 @@ const mailboxPrompt = useMailboxPrompt()
             >
               {{ t('schools.classDetail.showCodeInstead', 'Show code instead') }}
             </button>
-            <template v-else>
+            <template v-else-if="!enrolmentHeld">
               <div class="join-code" data-walk="class-join-code">{{ joinPanel.code }}</div>
               <p
                 class="join-help join-help-small"
