@@ -17,6 +17,18 @@
 // so the proof here is the DOM and the entry-script fingerprint, never a log
 // line.
 //
+// WHAT IT ACTUALLY SHOWED, 2026-09-18 (run twice on staging across two real
+// deploys): INCONCLUSIVE, and the reason is itself the finding. On a healthy
+// network the reopen's navigation is NetworkFirst and simply fetches the NEW
+// index.html, so the running build is already current by the time the gate
+// asks and the screen correctly does not appear. The stale-shell condition the
+// gate exists for needs the worker's own navigation fetch to fail, and neither
+// setOffline (which also blinds the version read) nor route-aborting the
+// worker's request reproduced it from outside the browser. The behaviour is
+// proven instead by _217-open-update-local-probe.mjs, which stands up a real
+// production build behind a server that answers /version.json with a newer
+// build — the same condition, controlled.
+//
 // Read-only: it visits staging as a guest and writes nothing anywhere.
 import { chromium } from '@playwright/test'
 import fs from 'node:fs'
