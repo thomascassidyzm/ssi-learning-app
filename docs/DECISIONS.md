@@ -1,3 +1,43 @@
+## 2026-09-18 — The school door needs no code: set up, land, confirm the mailbox later (job #188)
+
+Tom's diagnosis, verbatim: "The account IS created. That is the whole point. The account is created
+instantly. But the teacher does not know it because they are being asked for the code still." Job
+#186's production read confirmed it: a Hwb head's auth row was created the instant she first asked
+for a code and sat unconfirmed for eight days, because `Onboarding.vue` only reached
+`POST /api/onboarding/provision` from inside `verify()`, after `verifyOtp`. The account never waited
+on the mail; the school did.
+
+**Decision.** The school door mints the session server-side and provisions the school before any
+mail is read. `POST /api/auth/setup-mint` does exactly what `api/auth/possession-redeem.ts` has done
+for invited teachers since July: `createUser` with no mail, `generateLink`, `verifyOtp` on the
+`token_hash`, hand the session back. Better: a head lands in her dashboard in one tap and a late,
+doubled or eaten code costs her nothing. Simpler: no new verification system — the six digits still
+go out through `send-code`, and the banner proves them through the existing `api/email/verify.ts`,
+the existing `onboarded_via:'possession'` reading of "unproven", and the existing unclaimed-mint
+contest rule. Cheaper: one route, one banner, no schema change, no dashboard config we cannot read.
+
+**"Anyone can claim the domain" is closed in two places, and this is the sentence.** An unproven
+founding admin claims no email domain — `provision.ts` defers the claim and `api/email/verify.ts`
+writes it the moment the mailbox is proved — and a stranger's mint on a typed address is stamped
+contestable, so the real owner's own sign-in by mail evicts it. A stranger gets a school called
+"My school" that vouches for nobody.
+
+**Rails kept.** A CONFIRMED account is never minted a session at the door: `existing:true`, and the
+code is the sign-in, worded "You already have an account here" rather than as a wall. An untouched
+shell — code requested, never typed — IS adopted, because refusing it protects nothing on a door
+where a fresh account can be created for any address, and it strands exactly the Hwb teachers this
+is for. Disposable domains refused; per-address and per-network throttles on the mint.
+
+**Taste defaults taken, each one Tom's to overrule:** school track only, tutor and org doors keep
+the code at the door; the banner is a standing closable strip for the setup-door account only,
+invited teachers keep the once-per-moment card; "Later" closes it for the browsing session, never
+durably, since the proof is still owed; the courtesy code is not awaited into the door's outcome.
+The GoTrue code lifetime is hosted-dashboard config this repo cannot read, and after this change it
+no longer gates anything.
+
+**Retired for the school door:** the "Send my code" step as a gate. Nothing about
+`school_identity_claims`, the domain-claim mechanism or the join links changed.
+
 ## 2026-09-18 — A broken diary read is an error, never zero practice (job #180)
 
 Job #170 made class minutes come from the diary alone for any class with a class
@@ -4521,3 +4561,12 @@ The code is right and both checks were reading the old wording, so both were re-
 and `_306-top-three-probe.mjs` now asserts "Phrases practised in total". The probe's real ruling —
 the headline never says "spoken" (job #306) — is untouched and still asserted. Verified against
 deployed staging: 13/13, the headline read "PHRASES PRACTISED IN TOTAL".
+
+**Addendum, same night, job #160.** The recompile above fixes the truth manifest, which is derived;
+it cannot fix the hand-written rulings, which are not. The leader ruling still told a leader to
+watch "**Minutes in the app this week**" — a card that no longer says that — so `rulings/leader.md`
+now names the live label and the pack was recompiled with it (`697b02eac132` → `f03bcb4b9d98`). The
+lesson for the next rename: the drift gate compares the pack against the SURFACES, so stale prose
+inside a ruling passes it silently. Grep `tools/explainer/rulings/` for the old words whenever a
+stat word changes. The year-group tiles are still weekly and their handbook comments stay as they
+are.

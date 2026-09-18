@@ -44,6 +44,25 @@ export function isMailboxUnproven(metadata: Record<string, unknown> | null | und
   return metadata.onboarded_via === 'possession' && metadata.email_confirmed_manually !== true
 }
 
+/**
+ * THE STANDING STRIP, for a founding admin only (job #188, 2026-09-18). The
+ * school signup door mints the session with no code and provisions the
+ * school on it, so a leader can have a whole school resting on an address
+ * nobody has proved. For that one account the honest shape is a closable
+ * strip at the top of every schools page, not a once-per-moment card:
+ * components/schools/MailboxBanner.vue. `setup_door` is stamped by
+ * api/auth/setup-mint.ts and nothing else, so invited teachers never see it.
+ * `collapsed` is per browsing session — the proof is still owed.
+ */
+export function shouldShowMailboxBanner(state: {
+  metadata: Record<string, unknown> | null | undefined
+  collapsed: boolean
+}): boolean {
+  if (state.collapsed) return false
+  if (!state.metadata || !state.metadata.setup_door) return false
+  return isMailboxUnproven(state.metadata)
+}
+
 /** Per-account, so a shared browser never inherits somebody else's answer. */
 export function dismissalStorageKey(authUserId: string): string {
   return `ssi-mailbox-prompt-dismissed:${authUserId}`

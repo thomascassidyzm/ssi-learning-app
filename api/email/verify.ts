@@ -13,6 +13,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { applyCors } from '../_utils/cors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
+import { claimDomainForSchool } from '../_utils/schoolDomain'
 import {
   getClientIp,
   hashIp,
@@ -290,6 +291,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .update({ needs_verification: false })
         .eq('user_id', userId)
       if (clearErr) console.warn('[email/verify] Failed to clear needs_verification (non-fatal):', clearErr.message)
+
+      // THE FOUNDING ADMIN'S DOMAIN CLAIM LANDS HERE (job #188, 2026-09-18).
+      // api/onboarding/provision.ts writes no claim for an unproven address —
+      // the school door mints with no code now — so the first moment the
+      // claim rests on a proven mailbox is this one. Same call, same refusals
+      // (public domain, shared tenant), non-fatal, idempotent (already_ours).
+      const { data: ownSchool } = await admin
+        .from('schools')
+        .select('id')
+        .eq('admin_user_id', userId)
+        .limit(1)
+        .maybeSingle()
+      if (ownSchool?.id) {
+        const claim = await claimDomainForSchool(admin, {
+          schoolId: ownSchool.id, email: normalizedEmail, source: 'founding_admin', addedBy: userId,
+        })
+        if (claim.status === 'error') console.warn('[email/verify] domain claim failed (non-fatal):', claim.message)
+      }
     }
 
     return res.status(200).json({ success: true, email: normalizedEmail })

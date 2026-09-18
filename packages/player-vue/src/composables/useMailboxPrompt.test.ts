@@ -13,6 +13,7 @@ import { mount } from '@vue/test-utils'
 import {
   isMailboxUnproven,
   shouldShowMailboxPrompt,
+  shouldShowMailboxBanner,
   dismissalStorageKey,
   useMailboxPrompt,
   __resetMailboxPromptSession,
@@ -129,5 +130,18 @@ describe('useMailboxPrompt', () => {
     api.noteKeepWorthyMoment()
     await nextTick()
     expect(api.isOpen.value).toBe(false)
+  })
+})
+
+describe('shouldShowMailboxBanner — the founding admin\'s standing strip (job #188)', () => {
+  it('shows only for an unproven account that came through the setup door', () => {
+    expect(shouldShowMailboxBanner({ metadata: { onboarded_via: 'possession', setup_door: 'school' }, collapsed: false })).toBe(true)
+    // an invited teacher (no setup_door) keeps the moment-based card, never the strip
+    expect(shouldShowMailboxBanner({ metadata: possessionUnproven, collapsed: false })).toBe(false)
+    // proved → gone
+    expect(shouldShowMailboxBanner({ metadata: { ...possessionProved, setup_door: 'school' }, collapsed: false })).toBe(false)
+    // closed for this session
+    expect(shouldShowMailboxBanner({ metadata: { onboarded_via: 'possession', setup_door: 'school' }, collapsed: true })).toBe(false)
+    expect(shouldShowMailboxBanner({ metadata: null, collapsed: false })).toBe(false)
   })
 })

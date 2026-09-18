@@ -582,6 +582,62 @@ function changeEmail() {
   otp.value = ''
   error.value = ''
   requiresCheckout.value = false
+  returningAccount.value = false
+}
+
+// THE SCHOOL DOOR NEEDS NO CODE TO GET IN (job #188, Tom 2026-09-18: "The
+// account IS created. That is the whole point. The account is created
+// instantly. But the teacher does not know it because they are being asked
+// for the code still."). POST /api/auth/setup-mint hands the browser a real
+// session for the typed address — the possession-redeem shape, no mail — and
+// the school is provisioned on it straight away. The six digits still go out,
+// as a COURTESY: the dashboard's mailbox banner takes them whenever they land,
+// and a late, doubled or eaten code costs the head nothing at the door.
+//
+// Three answers from the mint, and only one of them shows a code screen:
+//   session       → setSession, provision, dashboard. No 'otp' step at all.
+//   existing:true → somebody has PROVED this mailbox already; the code is
+//                   the sign-in, so the ordinary code step follows, worded as
+//                   "welcome back", never as a wall.
+//   anything else → the route is missing, unconfigured or down: today's
+//                   code flow, unchanged. Fails soft, like send-code itself.
+// The tutor and org doors keep the code at the door until their owners rule.
+const returningAccount = ref(false)
+
+async function setupSchoolWithoutCode(): Promise<'entered' | 'existing' | 'fallback'> {
+  const address = email.value.trim().toLowerCase()
+  let data: any = null
+  try {
+    const res = await fetch('/api/auth/setup-mint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: address, track: props.track }),
+    })
+    data = await res.json().catch(() => ({}))
+    if (res.status === 400 || res.status === 429) {
+      // A real refusal is a real answer (bad address, throttle): show it.
+      throw new Error(data?.error || 'Please check the email address.')
+    }
+    if (!res.ok) return 'fallback'
+  } catch (e: any) {
+    if (e?.message && !/fetch/i.test(e.message)) throw e
+    return 'fallback'
+  }
+  if (data?.existing) return 'existing'
+  if (!data?.session?.access_token || !data?.session?.refresh_token) return 'fallback'
+  const { error: sessionErr } = await supabase.value.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  })
+  if (sessionErr) throw new Error(sessionErr.message || 'Could not sign you in')
+  otpVerified.value = false
+  verifiedEmail.value = ''
+  // The courtesy code. Minted AFTER the session mint so the digits in the
+  // mail are the live ones. Never awaited into the door's outcome: a mail
+  // failure is the banner's problem, not a reason to stop a head at the door.
+  sendSignInCode(supabase.value, address).catch(() => {})
+  await finishProvisioning()
+  return 'entered'
 }
 
 async function sendCode() {
@@ -598,6 +654,11 @@ async function sendCode() {
   error.value = ''
   requiresCheckout.value = false
   try {
+    if (props.track === 'school' && !isResend) {
+      const outcome = await setupSchoolWithoutCode()
+      if (outcome === 'entered') return
+      returningAccount.value = outcome === 'existing'
+    }
     const { error: e } = await sendSignInCode(supabase.value, email.value)
     if (e) {
       error.value = friendlySendCodeError(e.message)
@@ -752,7 +813,14 @@ async function verify() {
         // (the fall-through below records it as verified, same as a clean pass)
         if (!(await hasLiveSessionFor(supabase.value, addr))) {
           loginCodeAudit.failed(addr, e.message)
-          error.value = e.message || 'That code did not work'
+          // Soft, and never a dead end: GoTrue's "Token has expired or is
+          // invalid" reads as a verdict on the person. On a school mail
+          // estate the usual truth is a late or superseded code, and the
+          // way on — a fresh code, or a different address — is right below.
+          error.value = t(
+            'onboarding.codeDidNotWork',
+            "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh code below and use the newest one, or try a different email address.",
+          )
           return
         }
         loginCodeAudit.alreadySignedIn(addr)
@@ -1179,6 +1247,10 @@ async function continueIn() {
             {{ t('session.continue') }}
           </Button>
           <template v-else>
+            <!-- The school door: one tap, no code to type (job #188). The
+                 mechanism is setupSchoolWithoutCode() above; the capability a
+                 teacher reads about lives on the dashboard banner that takes
+                 the code later (components/schools/MailboxBanner.vue). -->
             <Button
               variant="primary"
               size="lg"
@@ -1187,21 +1259,29 @@ async function continueIn() {
               :disabled="!canSend"
               @click="sendCode"
             >
-              {{ t('onboarding.sendMyCode') }}
+              {{ props.track === 'school' ? t('onboarding.setUpMySchool', 'Set up my school') : t('onboarding.sendMyCode') }}
             </Button>
-            <p class="ob-fine">{{ t('onboarding.wellEmailDigitCode') }}</p>
+            <p class="ob-fine">{{ props.track === 'school' ? t('onboarding.schoolReadyStraightAway', "Your school is ready straight away. We'll email you a code to confirm your address — you can enter it any time from your dashboard.") : t('onboarding.wellEmailDigitCode') }}</p>
           </template>
         </section>
 
         <!-- STEP 2: OTP -->
         <section v-else-if="step === 'otp'" key="otp" class="ob-step">
-          <p class="ob-trial ob-trial-quiet">{{ t('onboarding.almostThere') }}</p>
+          <p class="ob-trial ob-trial-quiet">{{ returningAccount ? t('onboarding.welcomeBack') : t('onboarding.almostThere') }}</p>
           <h1 class="ob-title">{{ t('onboarding.checkEmail') }}</h1>
+          <!-- A returning account is never a wall (job #188): somebody has
+               already proved this mailbox, so the code is simply the sign-in. -->
           <p class="ob-sub">
             {{
-              t(
-                'onboarding.enterCodeSentTo',
-                'Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive.',
+              (returningAccount
+                ? t(
+                    'onboarding.returningEnterCodeSentTo',
+                    'You already have an account here, so we sent a sign-in code to {email}. Enter it to carry on into your school. It can take a couple of minutes to arrive.',
+                  )
+                : t(
+                    'onboarding.enterCodeSentTo',
+                    'Enter the 6-digit code we sent to {email}. It can take a couple of minutes to arrive.',
+                  )
               ).replace('{email}', email)
             }}
           </p>
