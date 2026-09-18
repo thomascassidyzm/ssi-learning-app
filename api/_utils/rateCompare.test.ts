@@ -98,15 +98,21 @@ describe('aggregateWindowPace', () => {
     expect(agg).toEqual(single)
   })
 
-  it('averages pace across member classes that have data, ignoring members with none', () => {
+  // Flipped deliberately on Tom's ruling 2026-09-16 ("a set member should
+  // ALWAYS be included in the average, not excluded"): a member class that
+  // did not practise advanced 0 LEGOs, so its true pace is 0 and it stays in
+  // the denominator. This used to read mean(21, 49) = 35.
+  it('averages pace across EVERY member class — a member with no rows counts at 0', () => {
     const rows: ScopedSessionRow[] = [
       row({ class_id: 'c1', start_ord: 1, end_ord: 4, end_lego_id: 'S1L04' }), // pace 21 (single-session floor)
       row({ class_id: 'c2', start_ord: 1, end_ord: 8, end_lego_id: 'S2L08' }), // pace 49
-      // c3 has no rows at all — excluded from the mean, not treated as 0.
+      // c3 has no rows at all — averaged in at its true value, 0.
     ]
     const agg = aggregateWindowPace(rows, ['c1', 'c2', 'c3'], 90, NOW)
     expect(agg.hasData).toBe(true)
-    expect(agg.pace).toBe(35) // mean(21, 49)
+    expect(agg.pace).toBe(23.3) // mean(21, 49, 0)
+    // …and dropping the dormant member is what changes it, nothing else.
+    expect(aggregateWindowPace(rows, ['c1', 'c2'], 90, NOW).pace).toBe(35)
   })
 
   it('picks the highest-ordinal furthest lego across members (comparable — same course)', () => {
@@ -131,20 +137,29 @@ describe('aggregateWeeklyTrend', () => {
     expect(aggregateWeeklyTrend(rows, ['c1'], 8, NOW)).toEqual(weeklyTrendForClass(rows, 'c1', 8, NOW))
   })
 
-  it('mean-trends across member classes, ignoring members with no rows', () => {
+  // Flipped with aggregateWindowPace above (Tom, 2026-09-16): the dashed
+  // comparison series must be a mean over the SAME denominator as the
+  // headline average, so a member with no rows contributes zeros rather than
+  // dropping out of the mean. This used to read mean(10, 20) = 15.
+  it('mean-trends across EVERY member class — a member with no rows contributes zeros', () => {
     const rows: ScopedSessionRow[] = [
       row({ class_id: 'c1', end_ord: 10, started_at: NOW.toISOString() }),
       row({ class_id: 'c2', end_ord: 20, started_at: NOW.toISOString() }),
     ]
     const trend = aggregateWeeklyTrend(rows, ['c1', 'c2', 'c3'], 8, NOW)
     expect(trend).toHaveLength(8)
-    expect(trend.reduce((a, b) => a + b, 0)).toBe(15) // mean(10, 20) landing in the final week
+    expect(trend.reduce((a, b) => a + b, 0)).toBe(10) // mean(10, 20, 0) in the final week
+    expect(aggregateWeeklyTrend(rows, ['c1', 'c2'], 8, NOW).reduce((a, b) => a + b, 0)).toBe(15)
   })
 })
 
 describe('weeklyTrendForClass', () => {
-  it('returns an empty array for a class with no rows at all', () => {
-    expect(weeklyTrendForClass([], 'c1', 8, NOW)).toEqual([])
+  // Flipped on Tom's ruling 2026-09-16: an empty array silently dropped the
+  // class out of meanTrend's denominator, so the dashed comparison line
+  // disagreed with the headline average it was supposed to draw. Zeros are
+  // the honest value — the class advanced nothing in every period.
+  it('returns zeros, one per period, for a class with no rows at all', () => {
+    expect(weeklyTrendForClass([], 'c1', 8, NOW)).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
   })
 
   it('returns exactly `weeks` points, oldest -> newest', () => {

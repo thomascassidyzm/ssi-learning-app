@@ -18,6 +18,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useI18n } from '@/composables/useI18n'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
+import ClassWeekList from '@/insight/components/ClassWeekList.vue'
+import type { WeekClassRow } from '@/insight/components/WeekNumbersCard.vue'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import LensTabs from '@/components/admin/LensTabs.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
@@ -26,8 +28,7 @@ import { cacheNodeHome, cachedNodeHome, cachedRail, dropCachedNode } from '@/com
 import { isMemberNodeSurface } from '@/composables/nodeSurfacePaths'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import VadPanel from '@/insight/VadPanel.vue'
-import { fetchVadScope, type VadScopePayload } from '@/insight/data/vadScope'
-import { summariseVad, type VadSummary } from '@/insight/data/vadUptake'
+import { fetchVadAggregate, type VadAggregatePayload } from '@/insight/data/vadScope'
 import OrgIntelPanel from '@/insight/OrgIntelPanel.vue'
 import { derivePreset } from '@/composables/nodeTerminology'
 import { fetchOrgIntel, OrgIntelError, type OrgIntelPayload } from '@/insight/data/orgIntel'
@@ -64,6 +65,36 @@ watch(
 )
 
 const state = ref<EngineState | null>(null)
+
+// ─── THE LEADER'S PAGE (Tom via RBF, 2026-09-16): the card, then the same
+// card's numbers once per class, quietest first. The engine's one round trip
+// already carries `week.classes` for a node, off the same rows and the same
+// week as the card above — so the list costs no second read and cannot
+// disagree with the card. Everything else this page used to open on lives
+// behind a tap below. ───
+const weekClasses = ref<WeekClassRow[] | null>(null)
+/** The faint normal line across every per-class card: the mean over this level's classes. */
+const weekClassesNormal = ref<(number | null)[] | null>(null)
+const weekLabel = ref<string>('')
+// THE CARD DECIDES THE SCOPE (job #32 fix-up). Whatever course the card
+// resolved — the one the picker shows — every panel below it reads the same
+// one. Before this the expanded panels answered for all four of a school's
+// classes while the card answered for the one Marathi class above them.
+const appliedCourse = ref<string | null>(null)
+function onEngineData(json: Record<string, unknown> | null): void {
+  const week = json?.week as { classes?: WeekClassRow[]; classesNormal?: (number | null)[]; label?: string } | null | undefined
+  weekClasses.value = Array.isArray(week?.classes) ? week!.classes! : null
+  weekClassesNormal.value = Array.isArray(week?.classesNormal) ? week!.classesNormal! : null
+  weekLabel.value = week?.label ? week.label.toLowerCase() : ''
+  const applied = json?.applied as { course_code?: string | null } | null | undefined
+  appliedCourse.value = applied?.course_code ?? null
+}
+const classLinkFor = (id: string): string => (member.value ? `/org/${id}/insights` : `/admin/classes/${id}/insights`)
+
+// NO PER-PUPIL DISPLAY ANYWHERE IN INSIGHTS (Tom, 2026-09-16 16:31Z): pupils
+// having their own accounts is optional and everything is fine as-class. Per-
+// pupil practice is RECORDED, never PUBLISHED — the rows stay in the DB for
+// later analysis; nothing here renders a named pupil, ranked or otherwise.
 
 // ─── The node-home chrome: same rail + identity data, same endpoint the
 // node home reads. One light fetch per node; the org map doesn't churn, so
@@ -121,10 +152,12 @@ const labelWord = computed(() => {
   return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : t('org.insights.labelGroup', 'Group')
 })
 const title = computed(() => home.value?.node?.name || rail.value?.node?.name || state.value?.node.name || '…')
+// The page opens on All time (Tom, 2026-09-17), so the standing subtitle says
+// what it opens on; a reader who switches to a week is told by the card itself.
 const subtitle = computed(() =>
   isClass.value
-    ? t('org.insights.subtitleClass', 'How this class is moving, compared with the average you choose.')
-    : t('org.insights.subtitleDefault', 'How everyone below this is moving, compared with the average you choose.'))
+    ? t('org.insights.subtitleClassAllTime', 'This class’s totals, and its week beside the average you choose.')
+    : t('org.insights.subtitleAllTime', 'The totals here, then each class, quietest first.'))
 
 // An organisation with no class structure anywhere below it (the neutral
 // preset, derived from the same /home payload the node home reads). The
@@ -151,17 +184,26 @@ const classless = computed(() => !!home.value && !isClass.value && derivePreset(
 // The node's :id may be a group, a school or a class; the endpoint resolves all
 // three with the same precedence as the node-home endpoint, so nothing is
 // guessed client-side.
-const vad = ref<VadScopePayload | null>(null)
+//
+// AGGREGATES ONLY ON THIS PAGE (job #32 fix-up, 2026-09-16). Tom's ruling of
+// 16:31Z is that nothing in Insights names a pupil; a hidden row is still a
+// row that arrived, and this page was receiving 86 pupil names and 537
+// learner-keyed metric rows for one school. So it calls the endpoint's
+// aggregate door: the summary and the per-class uptake, computed server-side,
+// with no roster and no name in the response at all. The admin board keeps
+// the named read. The course is the CARD's course, so the panel and the card
+// cannot describe different classes.
+const vad = ref<VadAggregatePayload | null>(null)
 const vadLoading = ref(true)
 const vadError = ref<string | null>(null)
 
-watch(nodeId, async (id) => {
+watch([nodeId, appliedCourse], async ([id, courseCode]) => {
   vad.value = null
   vadError.value = null
   if (!id) { vadLoading.value = false; return }
   vadLoading.value = true
   try {
-    vad.value = await fetchVadScope({ groupId: id }, await getAuthToken())
+    vad.value = await fetchVadAggregate({ groupId: id }, await getAuthToken(), { courseCode })
   } catch (e: unknown) {
     vadError.value = e instanceof Error ? e.message : t('org.insights.vadReadError', 'Could not read the voice & pause data.')
   } finally {
@@ -169,14 +211,10 @@ watch(nodeId, async (id) => {
   }
 }, { immediate: true })
 
-const vadSummary = computed<VadSummary | null>(() => {
-  const v = vad.value
-  if (!v) return null
-  return summariseVad(v.scope.learnerIds, v.names, v.metricsByLearner, v.prosodyByLearner, v.prosodyAvailable)
-})
-const vadScopeLabel = computed(() => vad.value?.scope.label || title.value)
+const vadSummary = computed(() => vad.value?.summary ?? null)
+const vadScopeLabel = computed(() => vad.value?.scope?.label || title.value)
 // Class rows only make sense above a class; a class scope IS one class.
-const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.value?.scope.classes ?? []))
+const vadClassUptake = computed(() => (vad.value?.scope?.kind === 'class' ? [] : vad.value?.classUptake ?? []))
 
 // ─── THE ORG QUESTIONS, scoped to this node ─────────────────────────────────
 // Tom, 2026-09-10: the intelligence surface is "great for ssi admin / but why
@@ -190,13 +228,27 @@ const vadClasses = computed(() => (vad.value?.scope.kind === 'class' ? [] : vad.
 const orgIntel = ref<OrgIntelPayload | null>(null)
 const orgIntelLoading = ref(true)
 const orgIntelError = ref<string | null>(null)
-watch(nodeId, async (id) => {
+watch([nodeId, appliedCourse, () => classless.value, () => isClass.value, () => homeFor.value], async ([id, courseCode, noClasses]) => {
   orgIntel.value = null
   orgIntelError.value = null
   if (!id) { orgIntelLoading.value = false; return }
+  // WAIT FOR THE NODE'S OWN KIND before reading anything. A class asks no
+  // question here, and firing the read before the payload lands would ask it
+  // anyway — this watcher re-runs the moment the kind is known.
+  if (homeFor.value !== id) { orgIntelLoading.value = true; return }
+  if (isClass.value) { orgIntelLoading.value = false; return }
   orgIntelLoading.value = true
   try {
-    orgIntel.value = await fetchOrgIntel(id, await getAuthToken())
+    // The journey is the only question this page asks, unless the node has no
+    // class structure at all — see the panel's comment below. Asking for the
+    // journey alone also means no pupil ledger is read, so no name is built.
+    // ON A CLASS THERE IS NO QUESTION LEFT (Tom, 2026-09-17, shape B): the
+    // class's journey is drawn on its Overview as the brain, and a funnel of
+    // one account is one number said twice. Nothing is read.
+    orgIntel.value = await fetchOrgIntel(id, await getAuthToken(), {
+      courseCode: noClasses ? null : (courseCode as string | null),
+      questions: noClasses ? ['practising'] : ['journey'],
+    })
   } catch (e: unknown) {
     orgIntelError.value = e instanceof OrgIntelError && e.code === 'coverage_expired'
       ? t('org.intel.coverageExpired', 'This school’s platform coverage has expired, so its practice cannot be shown.')
@@ -207,14 +259,6 @@ watch(nodeId, async (id) => {
     orgIntelLoading.value = false
   }
 }, { immediate: true })
-
-// The per-learner page is admin-only (the member surface has no equivalent —
-// its teacher-relevant content lives flat on the class node home, founder
-// ruling 2026-07-19). So a leader's rows are not clickable rather than
-// clickable into a 403.
-function openVadLearner(learnerId: string) {
-  if (!member.value) void router.push(`/admin/users/${learnerId}`)
-}
 
 // Overview = this node's home — the same URL family the lens was opened from.
 // Member mount (/org/:id/insights — a leader inside the /schools
@@ -270,11 +314,8 @@ const homeLink = computed(() => {
           </div>
         </header>
 
-        <!-- THE GRAPH TOOL LEADS (Tom, 2026-09-14: "the graph tool should be
-             the leading thing") — window / course / measure / compare, the
-             headline figure, the over-time chart and where this sits. The
-             org questions follow it, then voice. Order only; neither block
-             was redesigned. -->
+        <!-- THE CARD LEADS. The answer is the first thing on the page: one
+             card, two columns, three numbers, one week toggle, one compare-to. -->
         <NodeRateEngine
           v-if="!classless"
           v-model:course="course"
@@ -284,31 +325,72 @@ const homeLink = computed(() => {
           :node-id="nodeId"
           :get-token="getAuthToken"
           @state="state = $event"
+          @data="onEngineData"
         />
 
-        <!-- THE ORG QUESTIONS — practising, quiet, journey. -->
-        <section class="org-intel-section">
-          <header class="vad-section-head">
-            <span class="schools-kicker">{{ t('org.intel.kicker', 'Attention · practice') }}</span>
-            <h2 class="vad-section-title arsenal">{{ t('org.intel.title', 'Are they doing it, who is not, and where do they stop') }}</h2>
-            <p class="vad-section-sub">{{ classless
-              ? t('org.intel.subOne', 'One question about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.')
-              : t('org.intel.sub', 'Three questions about this level only, answered from what the app actually recorded in the last four weeks. Nothing here compares you with anyone else.') }}</p>
-          </header>
+        <!-- THE SAME CARD ONCE PER CLASS, quietest first — the page itself
+             above class level. A class node has no list: it IS the card. -->
+        <ClassWeekList
+          v-if="!classless && !isClass && weekClasses"
+          :classes="weekClasses"
+          :link-for="classLinkFor"
+          :window-label="weekLabel"
+          :normal="weekClassesNormal"
+        />
+
+        <!-- EVERYTHING ELSE IS BEHIND A TAP. Kept, reachable, never on the
+             first screen: the three org questions, who has not practised,
+             and voice & pause. -->
+
+        <!-- HANDBOOK More about this level
+             section: seeing-progress
+             moment: every-lesson
+             roles: school_admin, leader, admin
+             place: node-insights
+             keywords: more, journey, course, stop, drop off, four weeks, questions
+             What it's for. Where in the course this level's classes have got to, and
+             the point most of them stop before — kept off the first screen so the card
+             and the class list can be read at a glance.
+             Where it is. **More about this level**, under the class list on any
+             level's insights page. Tap it to open.
+             How you do it.
+             1. Tap the line to open it.
+             2. Read the journey question, answered in a sentence with its funnel
+                underneath.
+             Worth knowing. It reads the same course the card above reads. Whether
+             classes are practising, and which have gone quiet, are answered by the
+             card and the class list above rather than asked again here — they used to
+             be, counted over a different four weeks, and the two answers disagreed.
+             An organisation with no classes anywhere sees the people question here
+             instead, which is the only one that can apply to it. A single CLASS does
+             not carry this line at all: its journey is drawn on its own Overview as
+             the Course journey card, and a funnel of one account would be that same
+             number said a second time.
+             checked: c307207a.153f26d5
+        -->
+        <details v-if="!isClass" class="niv-more" data-walk="insights-more">
+          <summary class="niv-more-sum">
+            <span class="niv-more-title">{{ t('org.insights.moreTitle', 'More about this level') }}</span>
+            <span class="niv-more-count">{{ classless
+              ? t('org.insights.moreSubOne', 'one question, the last four weeks')
+              : t('org.insights.moreJourney', 'how far through the course, and where they stop') }}</span>
+          </summary>
           <OrgIntelPanel
             :payload="orgIntel"
             :is-loading="orgIntelLoading"
             :error="orgIntelError"
             :member="member"
             :classless="classless"
+            :questions="classless ? ['practising'] : ['journey']"
           />
-        </section>
+        </details>
 
         <!-- VOICE & PAUSE — the same renderer the admin board uses, scoped to
              this node by the server. Uptake first, denominators everywhere:
              a learner with no mic data is absent here, never a zero. -->
         <!-- HANDBOOK Voice and pause
              section: seeing-progress
+             moment: setting-up
              roles: admin, leader, school_admin
              place: node-insights
              keywords: voice, pause, microphone, mic, speaking, uptake, prosody, adaptive
@@ -316,43 +398,37 @@ const homeLink = computed(() => {
              how many learners have any mic-derived data at all, and for those who do,
              how the pause the app leaves them to speak in is settling, and how they
              sound when they speak.
-             Where it is. The **Voice and pause** section at the bottom of any level's
-             insights page.
+             Where it is. **Voice and pause**, the last line on any level's insights
+             page. Tap it to open.
              How you do it.
              1. Open a level and tap **See insights**.
-             2. Scroll past the rate comparison to the voice section.
+             2. Tap **Voice and pause** at the bottom of the page.
              3. Read the uptake figure first — it is how many learners this is based
                 on.
-             4. Open a class or a learner within it to see the same reading at a
-                smaller scope.
-             Worth knowing. A learner with no microphone data is absent from these
-             figures rather than counted as a zero, so the denominator is always
-             stated. A class that practises from the front counts as one learner,
-             its own class account, so a school with no pupil accounts still has a
-             roster here.
-             checked: e009121e.3bd624f8
+             4. Open a class to see the same reading at a smaller scope.
+             Worth knowing. Nobody is named here: the figures are counts over the
+             level, never a row per pupil. A learner with no microphone data is
+             absent from these figures rather than counted as a zero, so the
+             denominator is always stated. A class that practises from the front
+             counts as one learner, its own class account, so a school with no
+             pupil accounts still has a reading here.
+             checked: 1fb9e27f.4cca086b
         -->
-        <section class="vad-section" data-walk="insights-voice-pause">
-          <header class="vad-section-head">
-            <span class="schools-kicker">{{ t('org.insights.attentionVoice', 'Attention · voice') }}</span>
-            <h2 class="vad-section-title arsenal">{{ t('org.insights.voicePauseTitle', 'Voice & pause') }}</h2>
-            <p class="vad-section-sub">
-              {{ t('org.insights.voicePauseSub', 'What the microphone is actually giving us below this point — how many learners have mic-derived data at all, and for those who do, how the adaptive pause is settling and how they sound.') }}
-            </p>
-          </header>
+        <details class="niv-more" data-walk="insights-voice-pause">
+          <summary class="niv-more-sum">
+            <span class="niv-more-title">{{ t('org.insights.voicePauseTitle', 'Voice & pause') }}</span>
+            <span class="niv-more-count">{{ t('org.insights.voicePauseShort', 'what the microphone is giving us') }}</span>
+          </summary>
           <VadPanel
             :summary="vadSummary"
             :scope-label="vadScopeLabel"
             :is-loading="vadLoading"
             :error="vadError"
-            :classes="vadClasses"
-            :names="vad?.names"
-            :metrics-by-learner="vad?.metricsByLearner"
-            :prosody-by-learner="vad?.prosodyByLearner"
+            :class-uptake="vadClassUptake"
             :truncated="vad?.truncated"
-            @open-learner="openVadLearner"
+            :hide-learners="true"
           />
-        </section>
+        </details>
       </div>
     </div>
   </div>
@@ -391,19 +467,29 @@ const homeLink = computed(() => {
   align-items: flex-end;
   gap: 8px;
 }
-/* ---- The org questions ---------------------------------------------------- */
-.org-intel-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-/* ---- Voice & pause section ---------------------------------------------- */
-.vad-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.vad-section-head { display: flex; flex-direction: column; gap: 4px; }
-.vad-section-title {
-  font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 26px); font-weight: 400;
-  line-height: 1.1; letter-spacing: -0.01em; color: var(--ink-primary, #2C2622); margin: 4px 0 0;
+/* ---- Behind a tap: the org questions, who has not practised, voice ------ */
+.niv-more {
+  background: var(--schools-card, #fff);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: 12px;
+  padding: 0 16px;
+  min-width: 0;
 }
-.vad-section-sub {
-  font-size: 14px; line-height: 1.55; color: var(--ink-secondary, #5b534c);
-  max-width: 60ch; margin: 0;
+.niv-more[open] { padding-bottom: 16px; }
+.niv-more-sum {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 14px 0; cursor: pointer; list-style: none;
 }
+.niv-more-sum::-webkit-details-marker { display: none; }
+.niv-more-sum::before { content: '›'; color: var(--ink-muted, #8A8078); transition: transform 0.15s; }
+.niv-more[open] > .niv-more-sum::before { transform: rotate(90deg); }
+.niv-more-title {
+  font-family: var(--font-display); font-size: 17px; font-weight: 400; color: var(--ink-primary, #2C2622);
+}
+.niv-more-count {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--ink-muted, #8A8078);
+}
+.niv-more-note { margin: 0; font-size: 13.5px; color: var(--ink-secondary, #5b534c); }
 
 .verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .verb-btn {

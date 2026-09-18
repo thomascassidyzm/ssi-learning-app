@@ -8,6 +8,8 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import AssignClassesModal from '@/components/schools/AssignClassesModal.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { orderPending, settledStaff } from '@/composables/schools/teacherRosterSections'
 import {
   applyAssignmentDiff,
@@ -23,6 +25,7 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher, createStaffSigninLink, createNamedSeat } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 const {
@@ -385,6 +388,7 @@ watch(selectedUser, (newUser) => {
         <h1 class="arsenal page-title">{{ t('schools.teachers.pageTitle', 'Teachers') }}</h1>
         <p class="page-subtitle schools-subtle">{{ subtitle }}</p>
       </div>
+      <WalkOffer :persona="explainerPersona" place="teachers" />
       <div class="page-head-actions">
         <button v-if="teachers.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           {{ t('schools.teachers.exportCsv', 'Export CSV') }}
@@ -397,6 +401,7 @@ watch(selectedUser, (newUser) => {
              same day and the code travels on the school's own channel. -->
         <!-- HANDBOOK Add a teacher by name
              section: getting-people-in
+             moment: setting-up
              roles: school_admin
              place: teachers
              keywords: add, teacher, name, code, seat, new staff, join
@@ -570,6 +575,7 @@ watch(selectedUser, (newUser) => {
                    appear here as staff), so this is offered on every row. -->
               <!-- HANDBOOK Give a teacher their classes
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin, leader
                    place: teachers
                    keywords: assign, class, teacher, staff, classes
@@ -610,6 +616,7 @@ watch(selectedUser, (newUser) => {
                    way a teacher is. -->
               <!-- HANDBOOK Hand a teacher their access code
                    section: getting-people-in
+                   moment: something-wrong
                    roles: school_admin
                    place: teachers
                    keywords: access code, sign-in, locked out, email, teacher, link
@@ -649,6 +656,7 @@ watch(selectedUser, (newUser) => {
                    admin through the staff list) — so don't offer the control. -->
               <!-- HANDBOOK Remove a teacher from your school
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin
                    place: teachers
                    keywords: remove, teacher, leaver, staff, delete
@@ -728,6 +736,7 @@ watch(selectedUser, (newUser) => {
         </p>
         <!-- HANDBOOK Invite a teacher to your school
              section: getting-people-in
+             moment: setting-up
              roles: school_admin
              place: teachers
              keywords: teacher, invite, link, staff, join, code

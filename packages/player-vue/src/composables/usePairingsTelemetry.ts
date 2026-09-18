@@ -17,7 +17,8 @@
  * as useLearningSession's speaking_opportunities.
  */
 
-import { inject } from 'vue'
+import { inject, type Ref } from 'vue'
+import { buildPairs } from './buildLegoPairs'
 import { useUserRole } from '@/composables/useUserRole'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -33,41 +34,29 @@ export interface RecordCyclePlayOptions {
   legoIds: string[]
 }
 
+// The pairing rule itself lives in `buildLegoPairs.ts`, with no imports, so
+// the job #59 history backfill can replay the EXACT function rather than a
+// second copy of it. Re-exported here: every existing importer is unaffected.
+export { buildPairs } from './buildLegoPairs'
+
 /**
- * Build the unordered-pair array from a deduped LEGO id list. Returns a
- * 2D string array suitable for the `record_lego_pairings` RPC. Order
- * within each pair doesn't matter - the function canonicalises server-side.
- *
- * Exported for unit-test visibility.
+ * The class route (job #52). While playing AS A CLASS the tally belongs to the
+ * class's own learner id, and `record_lego_pairings` can never write it: the
+ * function is SECURITY INVOKER and `learner_lego_pairings` carries own-row RLS,
+ * so the class insert is refused ("new row violates row-level security policy")
+ * and was only ever console.warned — the table held one row for every class in
+ * every school. Class mode flushes through the teacher-authorised
+ * /api/school/class-progress endpoint instead, exactly like every other
+ * class-entity write. Returns false outside class mode, so own accounts keep
+ * using the RPC untouched.
  */
-export function buildPairs(legoIds: string[]): string[][] {
-  // Dedupe + filter empties. We rely on the RPC to dedupe further across
-  // pairs that happen to canonicalise identically, but doing it here
-  // first cuts payload size for the common case.
-  const unique: string[] = []
-  const seen = new Set<string>()
-  for (const id of legoIds) {
-    if (!id) continue
-    if (seen.has(id)) continue
-    seen.add(id)
-    unique.push(id)
-  }
-
-  // Fewer than 2 unique LEGOs? No pairs to record.
-  if (unique.length < 2) return []
-
-  // Generate every unordered pair. The RPC will canonicalise (lego_a <
-  // lego_b) and dedupe.
-  const pairs: string[][] = []
-  for (let i = 0; i < unique.length; i++) {
-    for (let j = i + 1; j < unique.length; j++) {
-      pairs.push([unique[i], unique[j]])
-    }
-  }
-  return pairs
+export interface PairingsClassRoute {
+  recordLegoPairings?: (
+    learnerId: string, courseId: string, pairs: string[][], counts: number[],
+  ) => Promise<boolean>
 }
 
-export function usePairingsTelemetry() {
+export function usePairingsTelemetry(classRoute?: Ref<PairingsClassRoute | null | undefined>) {
   const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 
   // Local co-fire tally, keyed by canonicalised pair (lego_a < lego_b). Value
@@ -121,6 +110,8 @@ export function usePairingsTelemetry() {
     const _pairs = entries.map(e => [e.a, e.b])
     const _counts = entries.map(e => e.count)
     try {
+      const viaClass = classRoute?.value?.recordLegoPairings
+      if (viaClass && (await viaClass(learnerId, courseCode, _pairs, _counts))) return
       const { error } = await supabase.rpc('record_lego_pairings', {
         _learner_id: learnerId,
         _course_code: courseCode,

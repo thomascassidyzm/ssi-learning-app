@@ -1,0 +1,67 @@
+{
+  "id": "reading-a-class-page",
+  "title": "Reading a class page — practice, journey and students",
+  "personas": [
+    "admin",
+    "leader",
+    "school_admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
+  },
+  "keywords": [
+    "class practice",
+    "together",
+    "journey",
+    "belt",
+    "students",
+    "progress",
+    "last active"
+  ],
+  "steps": [
+    {
+      "anchor": "class-practice",
+      "say": "**Class practice** leads, because a class practising together is what a programme lives on. The big figure is how many phrases the class was prompted with together in the last seven days. The line under it says when it last practised and its minutes in the app this week, pauses included. A class that has never played together says so in words and names the teacher's Play as class button as the thing that starts it.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0db2a29d.20a59c60"
+    },
+    {
+      "anchor": "class-practice-show-all",
+      "say": "Under the figure are the three phrases the class practised most this week and how many times each came round. A phrase that keeps coming back is the course bringing it back on purpose. Tap **Show all** for the whole list.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "fad51822.2a60bf6d"
+    },
+    {
+      "anchor": "class-journey",
+      "say": "**Course journey** is how far the class has travelled, in phrases. A class is one learner account played from the front, so this position is the class's own. The line underneath gives the figure, then names the next belt and how many phrases are left to reach it. Not started is said in words, never drawn as an empty bar.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "819d88e1.1a012a83"
+    },
+    {
+      "anchor": "class-students",
+      "say": "**Students on their own accounts** is the bonus layer: only pupils who have signed in themselves appear here. Each row carries that student's own position in the course, a small chart of their practice over the past week with the minutes named, and how recently they were active. The dot and word at the start say whether they are excellent, good, needing attention or inactive. Needing attention means nothing for a fortnight or under half the class average, so it is a prompt to look, not a verdict. Tap a row to open that person.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "fd0addef.d9a9532b"
+    },
+    {
+      "anchor": "class-students-show-all",
+      "say": "The first three students show. When there are more, tap **Show all** for the rest.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "Class practice first, the class's own journey second, and individual accounts as the layer beneath. This section is only there when at least one pupil has an account of their own.",
+      "checked": "c8df3632.6b12cc6d"
+    }
+  ]
+}

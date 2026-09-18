@@ -1,0 +1,36 @@
+{
+  "id": "hand-a-teacher-access-code",
+  "title": "Hand a teacher their access code",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "access code",
+    "sign-in",
+    "locked out",
+    "email",
+    "teacher"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-signin-link",
+      "say": "Tap **Access code** on a teacher's row when email isn't reaching them — school mail gateways quarantine our sign-in codes often enough that this is the rescue, not the exception. It mints a fresh code for them on the spot.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0b2bf184.edad92a0"
+    },
+    {
+      "anchor": "teacher-signin-link",
+      "say": "Read the code out, write it down, or paste the link into whatever you already use. They go to saysomethingin.app/join and type it in, then you tap **Done**.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "It works once and lasts two days. Need another? Tap Access code again — the earlier one stops working the moment you do.",
+      "checked": "0b2bf184.115a97ae"
+    }
+  ]
+}

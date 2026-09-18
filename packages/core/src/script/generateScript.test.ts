@@ -95,7 +95,11 @@ function makePhrase(
   legoId: string,
   role: 'build' | 'use',
   position: number,
-  opts: { targetTextNative?: string; complete?: boolean } = {},
+  opts: {
+    targetTextNative?: string
+    complete?: boolean
+    decomposition?: BundlePhrase['decomposition']
+  } = {},
 ): BundlePhrase {
   const phraseId = `${legoId}_${role}_${String(position).padStart(2, '0')}`
   const complete = opts.complete !== false
@@ -107,6 +111,7 @@ function makePhrase(
     knownText: `known-${phraseId}`,
     targetText: `target-${phraseId}`,
     ...(opts.targetTextNative !== undefined ? { targetTextNative: opts.targetTextNative } : {}),
+    ...(opts.decomposition ? { decomposition: opts.decomposition } : {}),
     audio: {
       ...(complete ? { known: persistentAudioRef(`${phraseId}-known`, 1200) } : {}),
       ...(complete ? { target1: persistentAudioRef(`${phraseId}-t1`, 1500) } : {}),
@@ -804,3 +809,70 @@ describe('generateScript — a phrase missing audio never enters a pool', () => 
   })
 })
 
+
+// ===========================================================================
+// DECOMPOSITION PASS-THROUGH (job #158)
+// ===========================================================================
+//
+// The phrase's authored decomposition is what the player turns into
+// `componentLegoIds`, and those ids are the ONLY source of the LEGO pairs
+// co-fired into `learner_lego_pairings`. Between the bundle cutover and
+// 2026-09-18 this builder dropped it, so every learner on a bundle course
+// wrote zero pairs while the screen still looked right (the tiles render
+// from `displayTiling`). These two tests are the whole regression.
+describe('generateScript — phrase decomposition reaches the cycle', () => {
+  const DECOMP: BundlePhrase['decomposition'] = [
+    { legoId: 'S0001L01', target: 'dw i', known: 'i am', isGhost: false },
+    { legoId: null, target: 'yn', known: '', isGhost: true },
+    { legoId: 'S0002L01', target: 'moyn', known: 'want', isGhost: false, isSalient: true },
+  ]
+
+  function bundleWithDecomposedBuild(): CourseBundle {
+    const bundle = makeBundle({ legoCount: 2, buildsPerLego: 2, usesPerLego: 3 })
+    // Give ONE build phrase a decomposition; leave its sibling without one.
+    const target = bundle.phrases.find((p) => p.legoId === 'S0001L01' && p.role === 'build')!
+    target.decomposition = DECOMP
+    return bundle
+  }
+
+  it('main mode: a phrase with a decomposition yields a cycle carrying it verbatim', () => {
+    const bundle = bundleWithDecomposedBuild()
+    const { rounds } = generateScript({
+      bundle,
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+    })
+    const cycles = rounds.flatMap((r) => r.cycles)
+    const withDecomp = cycles.filter((c) => c.decomposition)
+    expect(withDecomp.length).toBeGreaterThan(0)
+    expect(withDecomp[0].decomposition).toEqual(DECOMP)
+    // …and the bound (non-ghost) ids are what the round adapter will pair on.
+    expect(withDecomp[0].decomposition!.filter((d) => d.legoId).map((d) => d.legoId)).toEqual([
+      'S0001L01',
+      'S0002L01',
+    ])
+  })
+
+  it('main mode: a phrase with no decomposition yields a cycle with none', () => {
+    const bundle = makeBundle({ legoCount: 2, buildsPerLego: 2, usesPerLego: 3 })
+    const { rounds } = generateScript({
+      bundle,
+      position: { mode: 'main', fromLegoId: 'S0001L01' },
+    })
+    const cycles = rounds.flatMap((r) => r.cycles)
+    expect(cycles.every((c) => c.decomposition === undefined)).toBe(true)
+  })
+
+  it('infplay mode: the INF PLAY builder carries it too', () => {
+    const bundle = makeBundle({ legoCount: 30, buildsPerLego: 0, usesPerLego: 3 })
+    for (const p of bundle.phrases) p.decomposition = DECOMP
+    const { rounds } = generateScript({
+      bundle,
+      position: { mode: 'infplay', fromInfRound: 1 },
+      roundLimit: 1,
+      random: mulberry32(42),
+    })
+    const cycles = rounds.flatMap((r) => r.cycles)
+    expect(cycles.length).toBeGreaterThan(0)
+    expect(cycles.every((c) => c.decomposition === DECOMP)).toBe(true)
+  })
+})

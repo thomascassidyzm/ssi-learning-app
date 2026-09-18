@@ -21,6 +21,8 @@ type NavTab = {
    * distinguishes the Schools tab (node home, schools lens) from plain
    * node-home navigation. */
   lens?: string
+  /** Stays lit on a node page — the teacher's class page is /org/:id. */
+  orgNode?: boolean
 }
 
 import { institutionalPurchaseAvailable } from '@/platform/paymentRoute'
@@ -73,11 +75,19 @@ const auth = inject<any>('auth', null)
 // REPORT A BUG (Tom's ruling, 2026-09-14): a bug or a suggestion, filed from
 // the dashboard itself "because the bug might be with the dashboard side of
 // things" — the same postbox as the player's Settings, with source and the
-// page in view attached. HIDDEN UNDER VIEW-AS: an ssi_admin looking as a
-// persona writes nothing (jobs #606/#615/#618), and hiding the door is
-// simpler than attributing a report to the real admin through a persona
-// screen. The route refuses a view-as header too. The thank-you toast is
-// the whole reply — one way, no thread.
+// page in view attached. The thank-you toast is the whole reply — one way,
+// no thread.
+//
+// SHOWN UNDER VIEW-AS TOO (Tom, 2026-09-17, job #68): it used to be hidden
+// while an ssi_admin viewed as a persona, so the walkthrough step described a
+// control that was not on screen — Tom hit exactly that on staging as
+// "leejames". The hide was the wrong belt: "view-as writes nothing" (jobs
+// #606/#615/#618) is about the PERSONA's data, and a bug report is the real
+// admin's own note about what they are looking at. Nothing is written as the
+// persona — submit carries no view-as header, so /api/report/bug files it
+// under the admin's own bearer — and the persona rides in the report's
+// context so the row says which screen produced it. Inbox stays hidden: that
+// IS the persona's data.
 const bugModalOpen = ref(false)
 const bugToast = ref(false)
 let bugToastTimer: ReturnType<typeof setTimeout> | null = null
@@ -180,8 +190,22 @@ const tabs = computed<NavTab[]>(() => {
   // need their own reachable Upgrade tab — same UpgradeView, whose tutor
   // lane (isSchoolLane false) already resolves their own teacher-billing
   // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
+  // No Dashboard tab: the dashboard and My Classes are ONE page for a teacher
+  // (Tom's ruling, 2026-09-16). The greeting and the week's summary sit on
+  // My Classes, and /schools hands over to it. A teacher's nav is exactly
+  // My Classes, Students, Insights.
   const teacherTabs: NavTab[] = [
-    { label: t('schools.ui.topBar.tabDashboard', 'Dashboard'), to: '/schools',           routeName: 'schools-dashboard' },
+    // My Classes is a top-nav entry for the teacher shell (founder ruling,
+    // 2026-09-16). It was reachable only sideways — the 'Classes /' crumb on a
+    // class page — so a teacher's own classes, the thing they open every day,
+    // had no door of its own. The label is the page's own title ('My Classes',
+    // routed to TeacherDashboard), which is also what every Handbook
+    // description already calls it. A groupless tutor is a derived teacher and
+    // keeps the same entry: their classes live on the same page.
+    // orgNode: since job #999 a teacher's ONE class page is the class node
+    // home at /org/:id, and a teacher reaches no other node — so the tab they
+    // came through stays lit while they are on a class.
+    { label: t('schools.ui.topBar.tabMyClasses', 'My Classes'), to: '/schools/classes', routeName: 'classes', orgNode: true },
     { label: t('schools.ui.topBar.tabStudents', 'Students'),  to: '/schools/students',  routeName: 'students' },
     // Same "Insights" unification as the school_admin set above.
     { label: t('schools.ui.topBar.tabInsights', 'Insights'),  to: '/schools/analytics', routeName: 'analytics' },
@@ -199,6 +223,8 @@ function isActive(tab: NavTab): boolean {
   }
   // /schools/classes/:id should keep "Classes" tab highlighted
   if (tab.to === '/schools/classes' && route.path.startsWith('/schools/classes')) return true
+  // …and so should the class page it now redirects to.
+  if (tab.orgNode && route.path.startsWith('/org/')) return true
   return false
 }
 
@@ -362,7 +388,7 @@ if (typeof document !== 'undefined') {
       <RefreshButton />
 
       <div class="user-menu">
-        <button type="button" class="user-trigger" @click="toggleMenu">
+        <button type="button" class="user-trigger" data-walk="schools-user-menu-trigger" @click="toggleMenu">
           <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}<span v-if="inboxUnread > 0" class="avatar-dot" :aria-label="t('schools.inbox.unreadAria', 'Unread messages')"></span></span>
           <span class="identity">
             <span class="identity-name">{{ displayName }}</span>
@@ -374,6 +400,7 @@ if (typeof document !== 'undefined') {
           <router-link :to="handbookTo" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuHandbook', 'Handbook') }}</router-link>
           <!-- HANDBOOK Open your inbox
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: dashboard
                keywords: inbox, messages, unread, badge, reply, notice, undo
@@ -400,19 +427,23 @@ if (typeof document !== 'undefined') {
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">{{ t('schools.ui.topBar.menuSchoolSettings', 'School settings') }}</router-link>
           <!-- HANDBOOK Report a bug from the dashboard
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: dashboard
-               parts: schools-report-bug-toast
-               keywords: bug, report, problem, went wrong, suggestion, feedback, broken, dashboard
-               What it's for. Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on and your school are attached for you.
-               Where it is. **Report a bug** in the account menu at the top right, under your name.
+               parts: schools-report-bug-toast, schools-report-bug-modal, schools-report-bug-happened, schools-report-bug-expected, schools-report-bug-send
+               keywords: bug, report, problem, went wrong, suggestion, feedback, broken, dashboard, describe, screenshot, send
+               What it's for. Telling us when the dashboard misbehaves, or suggesting something, without leaving the dashboard. The page you are on, your school, your role and your account are attached for you.
+               Where it is. **Report a bug** in the account menu at the top right, under your name, and the window it opens.
                How you do it.
                1. Tap your name at the top right, then **Report a bug**.
-               2. Write what happened, add a screenshot if you have one, and tap **Send**.
-               Worth knowing. Nobody replies through the app: the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. The item is not shown while a platform admin is viewing the dashboard as someone else.
-               checked: 37290b79.8d741e37
+               2. Write what happened in the **What happened?** box, and what you expected if that helps. **Send** stays off until you have written something, and the box holds 2,000 characters.
+               3. Add a screenshot if you have one.
+               4. Tap **Send**. It reads **Sending…** while it goes.
+               5. Read **Got it, thank you** at the top of the page.
+               Worth knowing. That line is the whole reply: nobody replies through the app, and the note goes to one place where we read it. Questions about the dashboard go to **Support** instead. If the screenshot cannot upload the note still goes without it. It is there for every dashboard role, and for a platform admin looking at the dashboard as someone else — that report is filed from the admin's own account, with the persona named on it.
+               checked: 26c8017c.08b12510
           -->
-          <button v-if="!isViewingAs" type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
+          <button type="button" class="menu-item" data-walk="schools-report-bug" @click="openBugReport">{{ t('schools.bugReport.menuItem', 'Report a bug') }}</button>
           <!-- Roles are additive facets of ONE account — leaving the schools
                surface is a NAVIGATION, not an identity sign-out. Before this
                existed, the only exit in the menu was "Sign out", which reads

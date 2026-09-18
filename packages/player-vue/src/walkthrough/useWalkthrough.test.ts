@@ -22,13 +22,17 @@ describe('pack shape', () => {
 
 describe('walksFor (offer filtering)', () => {
   it('filters by persona × place × kind', () => {
-    // Class detail is the teacher's whole desk: running a session, the three
-    // co-teaching capabilities (A-74) — sharing, inviting, handover — and,
-    // since 2026-08-08, reading the class↔teacher relationship the other way
-    // round to move somebody between classes.
-    expect(walksFor('teacher', 'class-detail').map((x) => x.id)).toEqual([
-      'hand-over-the-lead', 'invite-a-supply-teacher', 'move-a-teacher-between-classes',
-      'run-class-session', 'share-a-class',
+    // ONE class page since job #999: the teacher's whole desk — running a
+    // session, the three co-teaching capabilities (A-74) — sharing, inviting,
+    // handover — reading the class↔teacher relationship the other way round to
+    // move somebody between classes, and the tools themselves — is offered at
+    // the class node home, because that is where all of it now lives.
+    expect(walksFor('teacher', 'class-detail')).toEqual([])
+    expect(walksFor('teacher', 'node-home', 'class').map((x) => x.id)).toEqual([
+      'add-students-to-a-class', 'class-page-play-and-manage',
+      'copy-a-teachers-play-onto-their-class', 'hand-over-the-lead',
+      'invite-a-supply-teacher', 'manage-a-class-from-its-page', 'move-a-teacher-between-classes',
+      'run-class-session', 'share-a-class', 'what-the-class-tools-page-counts', 'where-the-class-has-got-to',
     ])
     expect(walksFor('admin', 'admin-invites').map((x) => x.id)).toEqual(['invites-desk'])
     expect(walksFor('teacher', 'admin-invites')).toEqual([])
@@ -64,9 +68,11 @@ describe('walksFor (offer filtering)', () => {
     expect(signedIn).toContain('where-you-are-in-this-course')
     expect(signedIn).not.toContain('save-your-progress')
     // No dashboard walk ever reaches a learner, and no learner walk leaks onto
-    // a dashboard place.
+    // a dashboard place. A teacher at the Library gets exactly the one walk
+    // authored for them there — "Playing as yourself" — and none of the learner's.
     expect(walksFor('learner', 'node-home')).toEqual([])
-    expect(walksFor('teacher', 'library')).toEqual([])
+    expect(walksFor('teacher', 'library').map((x) => x.id)).toEqual(['playing-as-yourself'])
+    expect(walksFor('teacher', 'library', 'signed-in').map((x) => x.id)).toEqual(['playing-as-yourself'])
   })
 
   // The learner content laws (learnerExplainers.ts header) apply to walk prose
@@ -225,5 +231,16 @@ describe('walkTopic', () => {
     expect(walkTopic(walkById('save-your-progress')!)).toBe('Saving your progress')
     expect(walkTopic({ id: 'x', title: 'Only a title', personas: [], place: { route: 'library' }, steps: [] }))
       .toBe('Only a title')
+  })
+})
+
+describe('anchorSelector (job #869)', () => {
+  it('finds an anchor in the intel namespace as well as data-walk', async () => {
+    const { anchorSelector } = await import('./useWalkthrough')
+    document.body.innerHTML = '<div data-intel="scope-rail"></div><div data-walk="insights-window"></div>'
+    expect(document.querySelector(anchorSelector('scope-rail'))).not.toBeNull()
+    expect(document.querySelector(anchorSelector('insights-window'))).not.toBeNull()
+    expect(document.querySelector(anchorSelector('nothing'))).toBeNull()
+    document.body.innerHTML = ''
   })
 })

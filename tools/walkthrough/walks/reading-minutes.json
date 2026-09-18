@@ -1,0 +1,69 @@
+{
+  "id": "reading-minutes",
+  "title": "How many in-app minutes are being done",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel",
+    "kinds": [
+      "pulse"
+    ]
+  },
+  "keywords": [
+    "minutes",
+    "in-app",
+    "per person",
+    "total",
+    "course",
+    "compare",
+    "average",
+    "listening mode",
+    "main flow",
+    "enrolments",
+    "no activity"
+  ],
+  "steps": [
+    {
+      "anchor": "question-pulse",
+      "say": "The first question: how many in-app minutes are being done, per course, in total and per person, and how each course stands against the average of all courses. A minute is everything between pressing play and stopping, on every screen.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ccee3a01.82a1b9d9"
+    },
+    {
+      "anchor": "insights-window-legacy",
+      "say": "Pick the **window**: today, the last seven days or the last thirty days. The course picker beside it opens on the busiest course in that window.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "92cc795b.9f63b284"
+    },
+    {
+      "anchor": "insights-measure",
+      "say": "Pick the **measure**: minutes per person, minutes in total, new enrolments, or people with no activity. The line under the pickers says what it counts and what the average of all courses is for it.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ee636721.9b04b0ae"
+    },
+    {
+      "anchor": "evidence",
+      "say": "Two numbers: this course against the average of all courses, and the strip beneath for where the course sits among the rest. The average counts this course too, and a course with two enrolments weighs two people, not a whole course.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.88aa5da5"
+    },
+    {
+      "anchor": "rows",
+      "say": "The rows count the real people who practised in the last fourteen days, by course. Open one to see which bits of that course give trouble.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Every minute here is the same minute every school page shows, and a person on the course who did not press play still counts in the denominator.",
+      "checked": "cbac0e66.c62a6980"
+    }
+  ]
+}

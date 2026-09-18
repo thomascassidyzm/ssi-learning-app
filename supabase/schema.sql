@@ -1905,6 +1905,51 @@ COMMENT ON FUNCTION public.analytics_trial_conversion() IS 'Five-stage trial→p
 
 
 --
+-- Name: apply_play_grant(uuid, text, timestamp with time zone, timestamp with time zone, timestamp with time zone, timestamp with time zone, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.apply_play_grant(p_learner_id uuid, p_token text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_revoked_at timestamp with time zone, p_observed_at timestamp with time zone, p_event_id text, p_linked_token text DEFAULT NULL::text) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE owner_id uuid; prior_verified timestamptz;
+BEGIN
+  IF p_token IS NULL OR length(p_token) = 0 OR p_starts_at IS NULL OR p_expires_at IS NULL
+     OR p_observed_at IS NULL THEN RAISE EXCEPTION 'Incomplete verified purchase'; END IF;
+  -- Serialise linked tokens in deterministic order for upgrades and restores.
+  PERFORM pg_advisory_xact_lock(hashtextextended(t, 812))
+  FROM (SELECT DISTINCT unnest(ARRAY[p_token, p_linked_token]) AS t) tokens
+  WHERE t IS NOT NULL ORDER BY t;
+  SELECT learner_id, provider_verified_at INTO owner_id, prior_verified
+  FROM public.user_entitlements WHERE source = 'play' AND source_ref = p_token FOR UPDATE;
+  IF owner_id IS NULL AND p_linked_token IS NOT NULL THEN
+    SELECT learner_id INTO owner_id FROM public.user_entitlements
+      WHERE source = 'play' AND source_ref = p_linked_token FOR UPDATE;
+  END IF;
+  owner_id := coalesce(owner_id, p_learner_id);
+  IF p_event_id IS NOT NULL THEN
+    INSERT INTO public.processed_webhook_events(provider, event_id, event_type)
+      VALUES ('play', p_event_id, 'receipt_verified') ON CONFLICT (provider, event_id) DO NOTHING;
+    IF NOT FOUND THEN RETURN owner_id; END IF;
+  END IF;
+  IF prior_verified IS NOT NULL AND prior_verified > p_observed_at THEN RETURN owner_id; END IF;
+  INSERT INTO public.user_entitlements
+    (learner_id, source, source_ref, access_type, starts_at, expires_at, revoked_at, provider_verified_at)
+  VALUES (owner_id, 'play', p_token, 'full', p_starts_at, p_expires_at, p_revoked_at, p_observed_at)
+  ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO UPDATE SET
+    starts_at = EXCLUDED.starts_at, expires_at = EXCLUDED.expires_at,
+    revoked_at = EXCLUDED.revoked_at, provider_verified_at = EXCLUDED.provider_verified_at;
+  IF p_linked_token IS NOT NULL AND p_linked_token <> p_token THEN
+    UPDATE public.user_entitlements SET revoked_at = p_observed_at, provider_verified_at = p_observed_at
+    WHERE source = 'play' AND source_ref = p_linked_token AND learner_id = owner_id
+      AND (provider_verified_at IS NULL OR provider_verified_at <= p_observed_at);
+  END IF;
+  RETURN owner_id;
+END;
+$$;
+
+
+--
 -- Name: audio_bare_voice_id(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2246,6 +2291,42 @@ BEGIN
     END IF;
   END IF;
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: backfill_paddle_grants(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.backfill_paddle_grants(p_rows jsonb) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE expected jsonb; current_row public.subscriptions%ROWTYPE; n integer := 0;
+BEGIN
+  FOR expected IN SELECT value FROM jsonb_array_elements(p_rows) LOOP
+    SELECT * INTO STRICT current_row FROM public.subscriptions
+      WHERE id = (expected->>'id')::uuid FOR UPDATE;
+    IF to_jsonb(current_row) <> expected THEN RAISE EXCEPTION 'Subscription changed since dry run: %', current_row.id; END IF;
+    IF current_row.provider <> 'paddle' OR current_row.status NOT IN ('active', 'cancelled')
+       OR current_row.provider_subscription_id IS NULL OR current_row.current_period_end IS NULL THEN
+      RAISE EXCEPTION 'Incomplete subscription: %', current_row.id;
+    END IF;
+    INSERT INTO public.user_entitlements
+      (learner_id, source, source_ref, access_type, starts_at, expires_at, revoked_at)
+    VALUES (current_row.learner_id, 'paddle', current_row.provider_subscription_id,
+      'full', current_row.created_at, current_row.current_period_end,
+      CASE WHEN current_row.paddle_revoked_at IS NOT NULL THEN current_row.paddle_revoked_at
+           WHEN current_row.paddle_status = 'paused' THEN now() ELSE NULL END)
+    ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO NOTHING;
+    IF FOUND THEN n := n + 1;
+    ELSIF NOT EXISTS (SELECT 1 FROM public.user_entitlements WHERE source = 'paddle'
+      AND source_ref = current_row.provider_subscription_id AND learner_id = current_row.learner_id) THEN
+      RAISE EXCEPTION 'Backfill grant owner mismatch';
+    END IF;
+  END LOOP;
+  RETURN n;
 END;
 $$;
 
@@ -2648,6 +2729,32 @@ BEGIN
   RETURN old_uid;
 END;
 $$;
+
+
+--
+-- Name: class_first_play(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.class_first_play(p_class_ids uuid[]) RETURNS TABLE(class_id uuid, first_play timestamp with time zone)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  SELECT
+    c.id,
+    LEAST(
+      (SELECT min(pe.occurred_at) FROM player_events pe WHERE pe.learner_id = c.class_learner_id),
+      (SELECT min(cs.started_at)  FROM class_sessions cs WHERE cs.class_id   = c.id)
+    )
+  FROM classes c
+  WHERE c.id = ANY(p_class_ids);
+$$;
+
+
+--
+-- Name: FUNCTION class_first_play(p_class_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.class_first_play(p_class_ids uuid[]) IS 'When each class first played, over the diary (class account) and class_sessions. NULL = never started. The one source for the Class Insights cohort rule (job #989, Tom 2026-09-16): a class joins the denominator in the week it first plays and never leaves.';
 
 
 --
@@ -4468,6 +4575,15 @@ CREATE FUNCTION public.handle_new_user() RETURNS trigger
     SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
+  IF NEW.email IS NOT NULL AND NEW.email <> '' AND EXISTS (
+    SELECT 1 FROM public.learners l
+    WHERE lower(NEW.email) = ANY (coalesce(l.verified_emails, ARRAY[]::text[]))
+  ) THEN
+    -- Address already verified on a learner: this auth user is a second door
+    -- into that learner, claimed by the client on first sign-in. No stub.
+    RETURN NEW;
+  END IF;
+
   INSERT INTO public.learners (user_id, display_name, verified_emails)
   VALUES (
     NEW.id::text,
@@ -5264,6 +5380,29 @@ $$;
 
 
 --
+-- Name: live_session_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.live_session_count(p_user_id uuid) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  SELECT count(*)::integer
+  FROM auth.sessions s
+  WHERE s.user_id = p_user_id
+    AND (s.not_after IS NULL OR s.not_after > now())
+    AND COALESCE(s.refreshed_at, s.updated_at, s.created_at) > now() - interval '30 days';
+$$;
+
+
+--
+-- Name: FUNCTION live_session_count(p_user_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.live_session_count(p_user_id uuid) IS 'Sessions this account holds right now (not expired, touched within 30 days). Read by api/email/verify.ts at mailbox proof so a second device can be shown, never killed. Service role only. job #195.';
+
+
+--
 -- Name: log_pod_ratchet_reset(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5285,6 +5424,80 @@ BEGIN
     RAISE WARNING 'log_pod_ratchet_reset failed: %', SQLERRM;
   END;
   RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: mirror_paddle_individual_grant(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mirror_paddle_individual_grant() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_revoked_at timestamptz;
+  v_expires_at timestamptz;
+BEGIN
+  IF NEW.provider <> 'paddle' OR NEW.provider_subscription_id IS NULL THEN RETURN NEW; END IF;
+
+  -- Main's refund/chargeback state (see #857's header). Stamped durably on the
+  -- row so no later main write can undo it. Only ever stamped once.
+  IF NEW.paddle_revoked_at IS NULL
+     AND NEW.status = 'cancelled'
+     AND NEW.cancel_at_period_end IS TRUE THEN
+    NEW.paddle_revoked_at := now();
+  END IF;
+
+  -- past_due is DUNNING, not revocation (#879): a failed retry must not revoke,
+  -- and must not clamp. A durable refund marker still wins over it, and so does
+  -- an explicitly paused subscription. The fallback status 'none' stays
+  -- revoked-now, mirroring main's own status === 'active' gate.
+  v_revoked_at := CASE
+    WHEN NEW.paddle_revoked_at IS NOT NULL THEN NEW.paddle_revoked_at
+    WHEN NEW.paddle_status = 'paused' THEN now()
+    WHEN NEW.status = 'past_due' THEN NULL
+    WHEN NEW.status NOT IN ('active', 'cancelled') THEN now()
+    ELSE NULL END;
+
+  -- A missing period must never become a lifetime grant. Historical cancelled
+  -- rows without a period end need a provider lookup before they can migrate.
+  IF NEW.current_period_end IS NULL THEN
+    UPDATE public.user_entitlements
+      SET revoked_at = coalesce(v_revoked_at, revoked_at),
+          expires_at = CASE WHEN v_revoked_at IS NULL THEN expires_at
+                            ELSE least(expires_at, v_revoked_at) END
+    WHERE source = 'paddle' AND source_ref = NEW.provider_subscription_id AND learner_id = NEW.learner_id;
+    RETURN NEW;
+  END IF;
+
+  v_expires_at := CASE WHEN v_revoked_at IS NULL THEN NEW.current_period_end
+                       ELSE least(NEW.current_period_end, v_revoked_at) END;
+
+  INSERT INTO public.user_entitlements
+    (learner_id, source, source_ref, access_type, granted_courses, starts_at, expires_at, revoked_at)
+  VALUES (NEW.learner_id, 'paddle', NEW.provider_subscription_id, 'full', NULL,
+    NEW.created_at, v_expires_at, v_revoked_at)
+  ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO UPDATE SET
+    -- past_due keeps the learner's existing dates: neither extended nor cut
+    -- short by a dunning retry. A revoked grant is still clamped even then.
+    expires_at = CASE
+      WHEN v_revoked_at IS NOT NULL THEN least(user_entitlements.expires_at, v_revoked_at)
+      WHEN NEW.status = 'past_due' THEN user_entitlements.expires_at
+      ELSE EXCLUDED.expires_at END,
+    -- past_due leaves an existing revocation exactly as it found it: it can
+    -- neither create one nor clear one.
+    revoked_at = CASE
+      WHEN NEW.status = 'past_due' AND NEW.paddle_revoked_at IS NULL THEN user_entitlements.revoked_at
+      ELSE EXCLUDED.revoked_at END
+  WHERE user_entitlements.learner_id = EXCLUDED.learner_id;
+  -- Fail-soft, deliberately (job #837): this mirror is additive and fires on
+  -- every subscriptions write, including production's Paddle webhook on main.
+  IF NOT FOUND THEN
+    RAISE WARNING 'Paddle grant owner mismatch: % retained by its existing owner', NEW.provider_subscription_id;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -5937,6 +6150,133 @@ $$;
 
 
 --
+-- Name: record_lego_pairings_backfill(uuid, text, text[], integer[], text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.record_lego_pairings_backfill(
+  _learner_id uuid,
+  _course_code text,
+  _pairs text[],
+  _counts integer[],
+  _tag text,
+  _first_fired_at timestamptz,
+  _last_fired_at timestamptz
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF _pairs IS NULL OR array_length(_pairs, 1) IS NULL OR _tag IS NULL THEN
+    RETURN;
+  END IF;
+
+  WITH input AS (
+    SELECT
+      CASE WHEN _pairs[idx][1] < _pairs[idx][2] THEN _pairs[idx][1] ELSE _pairs[idx][2] END AS lego_a,
+      CASE WHEN _pairs[idx][1] < _pairs[idx][2] THEN _pairs[idx][2] ELSE _pairs[idx][1] END AS lego_b,
+      COALESCE(_counts[idx], 1) AS cnt
+    FROM generate_series(1, array_length(_pairs, 1)) AS g(idx)
+    WHERE _pairs[idx][1] IS NOT NULL
+      AND _pairs[idx][2] IS NOT NULL
+      AND _pairs[idx][1] <> _pairs[idx][2]
+  ),
+  agg AS (
+    SELECT lego_a, lego_b, SUM(cnt)::int AS cnt FROM input GROUP BY lego_a, lego_b
+  )
+  INSERT INTO learner_lego_pairings AS p
+    (learner_id, course_code, lego_a, lego_b, fire_count, first_fired_at, last_fired_at,
+     backfill_fire_count, backfill_tag, backfill_prev_first_fired_at)
+  SELECT _learner_id, _course_code, lego_a, lego_b, cnt,
+         COALESCE(_first_fired_at, now()), COALESCE(_last_fired_at, now()),
+         cnt, _tag, NULL
+  FROM agg
+  ON CONFLICT (learner_id, course_code, lego_a, lego_b) DO UPDATE
+    SET fire_count = p.fire_count
+                     - (CASE WHEN p.backfill_tag = _tag THEN p.backfill_fire_count ELSE 0 END)
+                     + EXCLUDED.backfill_fire_count,
+        backfill_fire_count = EXCLUDED.backfill_fire_count,
+        backfill_tag = _tag,
+        -- Remember the live first_fired_at the first time this tag touches the
+        -- row, so reversal restores it; a re-run must not overwrite that memory
+        -- with the value the previous run already pulled back.
+        backfill_prev_first_fired_at = CASE
+          WHEN p.backfill_tag = _tag THEN p.backfill_prev_first_fired_at
+          ELSE p.first_fired_at
+        END,
+        first_fired_at = LEAST(
+          CASE WHEN p.backfill_tag = _tag
+               THEN COALESCE(p.backfill_prev_first_fired_at, p.first_fired_at)
+               ELSE p.first_fired_at END,
+          EXCLUDED.first_fired_at),
+        last_fired_at = GREATEST(p.last_fired_at, EXCLUDED.last_fired_at);
+END;
+$$;
+
+
+--
+-- Name: refresh_paid_paddle_grant(text, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_paid_paddle_grant(p_subscription_id text, p_period_end timestamp with time zone, p_period_start timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE s public.subscriptions%ROWTYPE;
+BEGIN
+  SELECT * INTO s FROM public.subscriptions
+    WHERE provider = 'paddle' AND provider_subscription_id = p_subscription_id FOR UPDATE;
+  IF NOT FOUND THEN
+    IF p_period_end IS NULL THEN RAISE EXCEPTION 'Paid Paddle receipt has no period end'; END IF;
+    -- #879: coalesce(..., false) so a NULL p_period_start reads as NOT PROVEN
+    -- LATER than the revocation, keeps the marker, and applies the clamp.
+    UPDATE public.user_entitlements SET
+      revoked_at = CASE WHEN coalesce(p_period_start > revoked_at, false) THEN NULL ELSE revoked_at END,
+      expires_at = CASE WHEN revoked_at IS NOT NULL AND NOT coalesce(p_period_start > revoked_at, false)
+                        THEN least(greatest(expires_at, p_period_end), revoked_at)
+                        ELSE greatest(expires_at, p_period_end) END
+    WHERE source = 'paddle' AND source_ref = p_subscription_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Paid Paddle grant missing'; END IF;
+    RETURN;
+  END IF;
+  -- Explicit reversal: only a receipt PROVABLY for a later period clears the
+  -- durable marker. NULL reads as unproven and leaves it standing (#879).
+  IF s.paddle_revoked_at IS NOT NULL AND coalesce(p_period_start > s.paddle_revoked_at, false) THEN
+    UPDATE public.subscriptions SET paddle_revoked_at = NULL WHERE id = s.id AND paddle_revoked_at = s.paddle_revoked_at;
+    s.paddle_revoked_at := NULL;
+  END IF;
+  IF coalesce(p_period_end, s.current_period_end) IS NULL THEN
+    RAISE EXCEPTION 'Paid Paddle receipt has no period end';
+  END IF;
+  INSERT INTO public.user_entitlements
+    (learner_id,source,source_ref,access_type,starts_at,expires_at,revoked_at)
+  VALUES (s.learner_id,'paddle',p_subscription_id,'full',s.created_at,
+    CASE WHEN s.paddle_revoked_at IS NULL THEN coalesce(p_period_end,s.current_period_end)
+         ELSE least(coalesce(p_period_end,s.current_period_end), s.paddle_revoked_at) END,
+    s.paddle_revoked_at)
+  ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO UPDATE SET
+    -- #879 defect 1b: clamp against WHICHEVER marker is set — the grant row's
+    -- own revoked_at or the subscription's paddle_revoked_at — not just the
+    -- latter, and only reopen on a PROVABLY later period start.
+    expires_at = CASE
+      WHEN coalesce(p_period_start > coalesce(user_entitlements.revoked_at, s.paddle_revoked_at), false)
+        THEN greatest(user_entitlements.expires_at, EXCLUDED.expires_at)
+      WHEN coalesce(user_entitlements.revoked_at, s.paddle_revoked_at) IS NOT NULL
+        THEN least(greatest(user_entitlements.expires_at, EXCLUDED.expires_at),
+                   coalesce(user_entitlements.revoked_at, s.paddle_revoked_at))
+      ELSE greatest(user_entitlements.expires_at, EXCLUDED.expires_at) END,
+    -- and stamp the marker the clamp was taken from, so the row can never be
+    -- expiry-clamped-but-unrevoked or revoked-but-open.
+    revoked_at = CASE
+      WHEN coalesce(p_period_start > coalesce(user_entitlements.revoked_at, s.paddle_revoked_at), false) THEN NULL
+      ELSE coalesce(user_entitlements.revoked_at, s.paddle_revoked_at) END
+  WHERE user_entitlements.learner_id = EXCLUDED.learner_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Paddle grant owner mismatch'; END IF;
+END;
+$$;
+
+
+--
 -- Name: refuse_component_introduction(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6204,6 +6544,30 @@ BEGIN
     END LOOP;
   END IF;
 
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: stamp_individual_grant_source(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.stamp_individual_grant_source() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.source IS NULL THEN
+    NEW.source := CASE WHEN NEW.entitlement_code_id IS NOT NULL THEN 'code'
+                      WHEN NEW.email_access_grant_id IS NOT NULL THEN 'email_allowlist'
+                      ELSE 'gift' END;
+  END IF;
+  IF NEW.source_ref IS NULL AND NEW.source = 'code' AND NEW.entitlement_code_id IS NOT NULL THEN
+    NEW.source_ref := NEW.entitlement_code_id::text || ':' || NEW.learner_id::text;
+  ELSIF NEW.source_ref IS NULL AND NEW.source = 'email_allowlist' THEN
+    NEW.source_ref := NEW.email_access_grant_id::text || ':' || NEW.learner_id::text;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -6736,6 +7100,17 @@ BEGIN
     IF NOT FOUND THEN
       RETURN NEW;
     END IF;
+
+    -- A learner thread (job #821): the reply lives inside the origin message,
+    -- so make that message unread again rather than minting a second row.
+    IF t.learner_user_id IS NOT NULL THEN
+      UPDATE public.user_messages
+         SET read_at = NULL
+       WHERE id = t.origin_message_id
+         AND recipient_user_id = t.learner_user_id;
+      RETURN NEW;
+    END IF;
+
     IF t.language = 'cym' THEN
       v_title := 'Ateb ar sgwrs Gymorth eich ysgol';
       v_label := 'Agor Cymorth';
@@ -6790,6 +7165,40 @@ BEGIN
     RAISE WARNING 'user_messages_from_support_reply: % (reply % not fanned out)', SQLERRM, NEW.id;
   END;
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: write_additional_paddle_grant(uuid, text, timestamp with time zone, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.write_additional_paddle_grant(p_learner_id uuid, p_ref text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_status text) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF p_ref IS NULL OR p_expires_at IS NULL THEN RAISE EXCEPTION 'Incomplete Paddle grant'; END IF;
+  INSERT INTO public.user_entitlements
+    (learner_id,source,source_ref,access_type,starts_at,expires_at,revoked_at)
+  VALUES (p_learner_id,'paddle',p_ref,'full',coalesce(p_starts_at,now()),
+    CASE WHEN p_status = 'paused' THEN least(p_expires_at,now()) ELSE p_expires_at END,
+    -- p_status is Paddle's RAW vocabulary (paddle-webhook.ts:1212 passes
+    -- data.status straight through), hence 'canceled' with one L. #879:
+    -- past_due joins the non-revoking list — a failed retry is dunning, and
+    -- inserting revoked_at = now() beside a future p_expires_at produced a row
+    -- production and dev read differently.
+    CASE WHEN p_status IN ('active','trialing','canceled','paused','past_due') THEN NULL ELSE now() END)
+  ON CONFLICT (source, source_ref) WHERE source_ref IS NOT NULL DO UPDATE SET
+    expires_at = CASE
+      WHEN user_entitlements.revoked_at IS NOT NULL
+        THEN least(user_entitlements.expires_at, user_entitlements.revoked_at)
+      WHEN p_status = 'past_due' THEN user_entitlements.expires_at
+      ELSE EXCLUDED.expires_at END,
+    revoked_at = CASE WHEN p_status = 'past_due' THEN user_entitlements.revoked_at
+                      ELSE coalesce(user_entitlements.revoked_at,EXCLUDED.revoked_at) END
+  WHERE user_entitlements.learner_id = EXCLUDED.learner_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Paddle grant owner mismatch'; END IF;
 END;
 $$;
 
@@ -7052,6 +7461,40 @@ COMMENT ON COLUMN public.admin_impersonation_audit.target_user_id IS 'auth uid (
 --
 
 COMMENT ON COLUMN public.admin_impersonation_audit.target_role IS 'Persona role at the time of viewing: teacher | school_admin | govt_admin.';
+
+
+--
+-- Name: admin_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_messages (
+    id uuid NOT NULL,
+    sender_user_id text NOT NULL,
+    audience_kind text NOT NULL,
+    course_code text,
+    target_user_id text,
+    title text NOT NULL,
+    body text NOT NULL,
+    recipient_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    recipient_user_ids text[],
+    CONSTRAINT admin_messages_audience_kind_check CHECK ((audience_kind = ANY (ARRAY['one'::text, 'course'::text, 'all'::text])))
+);
+
+
+--
+-- Name: TABLE admin_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.admin_messages IS 'One row per admin-to-learner broadcast (job #821). The id is minted by the composer before preview, so a retried send is idempotent: user_messages rows carry dedupe_key admin_message:<id>:<recipient>. Service-role only.';
+
+
+--
+-- Name: COLUMN admin_messages.recipient_user_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_messages.recipient_user_ids IS 'The audience frozen at first send (auth uids). A retry reuses this list rather than resolving the audience again (job #847). Null on broadcasts sent before the column existed.';
 
 
 --
@@ -7542,7 +7985,10 @@ CREATE TABLE public.bug_reports (
     educational_role text,
     school_role text,
     school_id uuid,
-    group_id uuid
+    group_id uuid,
+    reply_message_id uuid,
+    replied_at timestamp with time zone,
+    replied_by text
 );
 
 
@@ -7579,6 +8025,27 @@ COMMENT ON COLUMN public.bug_reports.account_code IS 'The account code Settings 
 --
 
 COMMENT ON COLUMN public.bug_reports.reporter_email IS 'The signed-in email on the verified bearer at report time. Never from the client. Job #677.';
+
+
+--
+-- Name: COLUMN bug_reports.reply_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.reply_message_id IS 'The user_messages row the reply went out as, or null if nobody has replied. The words the learner reads live on that row, never here: bug_reports is still a postbox and the player never reads it.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_at IS 'When the reply was sent. Null means unanswered; the reply tool refuses to answer an answered report unless told to resend.';
+
+
+--
+-- Name: COLUMN bug_reports.replied_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bug_reports.replied_by IS 'Auth uid of whoever sent the reply — the sender_user_id on the admin_messages broadcast.';
 
 
 --
@@ -7863,7 +8330,8 @@ CREATE TABLE public.classes (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     last_lego_id text,
     class_learner_id uuid,
-    group_id uuid
+    group_id uuid,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -7886,6 +8354,13 @@ COMMENT ON COLUMN public.classes.teacher_user_id IS 'Lead-teacher pointer (denor
 --
 
 COMMENT ON COLUMN public.classes.group_id IS 'Direct affiliation to ANY group node (THE MODEL I7). Dual-written with school_id during expand phase; school_id remains authoritative for deployed prod readers until contract.';
+
+
+--
+-- Name: COLUMN classes.tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.classes.tags IS 'CONFIRMED tags only (job #22, 2026-09-16): {"year": "6", "department": "English"}. A year or department a teacher has confirmed in place on the insights page. Derived guesses (year from the class name, department from the course) are never stored here — absence means unconfirmed, and no comparison is drawn at that level. Written only by PATCH /api/classes/:id/tags.';
 
 
 --
@@ -8647,6 +9122,7 @@ CREATE TABLE public.course_audio (
     clip_id uuid,
     rerecord_wanted jsonb,
     word_timings jsonb,
+    recorded_at timestamp with time zone,
     CONSTRAINT course_audio_origin_check CHECK ((origin = ANY (ARRAY['tts'::text, 'human'::text]))),
     CONSTRAINT course_audio_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text, 'pod_fine_known'::text, 'pod_take_g'::text])))
 )
@@ -8749,6 +9225,13 @@ COMMENT ON COLUMN public.course_audio.rerecord_wanted IS 'Non-destructive "this 
 --
 
 COMMENT ON COLUMN public.course_audio.word_timings IS 'Per-word timings for the clip, seconds: {source, words[], starts[], ends[]} of equal length in playback order. Written at Cartesia pod mint (Tom, 2026-09-12); NULL for xAI/human/untimed clips. Served to the player as wordTimings.';
+
+
+--
+-- Name: COLUMN course_audio.recorded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio.recorded_at IS 'Client-supplied capture time of a human take (recording booth provenance.recordedAt), NOT the write time -- used to refuse a re-upload of an OLDER recording from clobbering a newer take already on this row. NULL for TTS clips and takes uploaded before this column (2026-09-16).';
 
 
 --
@@ -10703,6 +11186,31 @@ ALTER TABLE public.insight_discoveries ALTER COLUMN id ADD GENERATED ALWAYS AS I
 
 
 --
+-- Name: insights_lab_verdicts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.insights_lab_verdicts (
+    id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    made_at timestamp with time zone NOT NULL,
+    admin_user_id text NOT NULL,
+    rendering text NOT NULL,
+    verdict text NOT NULL,
+    note text,
+    entity_id text NOT NULL,
+    entity_label text,
+    compare_to text NOT NULL,
+    compare_label text,
+    metric text NOT NULL,
+    window_id text NOT NULL,
+    week_label text,
+    build text,
+    screen jsonb,
+    CONSTRAINT insights_lab_verdicts_verdict_check CHECK ((verdict = ANY (ARRAY['like'::text, 'unsure'::text, 'no'::text])))
+);
+
+
+--
 -- Name: invite_codes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11082,6 +11590,9 @@ CREATE TABLE public.learner_lego_pairings (
     fire_count integer DEFAULT 1 NOT NULL,
     first_fired_at timestamp with time zone DEFAULT now() NOT NULL,
     last_fired_at timestamp with time zone DEFAULT now() NOT NULL,
+    backfill_fire_count integer DEFAULT 0 NOT NULL,
+    backfill_tag text,
+    backfill_prev_first_fired_at timestamp with time zone,
     CONSTRAINT learner_lego_pairings_check CHECK ((lego_a < lego_b))
 );
 
@@ -11090,7 +11601,7 @@ CREATE TABLE public.learner_lego_pairings (
 -- Name: TABLE learner_lego_pairings; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firing counts for the v2 brain view timelapse. Forward-only — not backfilled from history.';
+COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firing counts for the v2 brain view timelapse. Live writes are forward-only; a tagged, reversible history replay is possible via record_lego_pairings_backfill (job #59).';
 
 
 --
@@ -11098,6 +11609,27 @@ COMMENT ON TABLE public.learner_lego_pairings IS 'Per-learner per-course co-firi
 --
 
 COMMENT ON COLUMN public.learner_lego_pairings.fire_count IS 'Total cycles in which both legos appeared together. Drives synapse thickness via log(fire_count + 1).';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_fire_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_fire_count IS 'How much of fire_count came from the run named in backfill_tag. Subtract it to reverse that run exactly.';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_tag; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_tag IS 'Name of the backfill run that contributed backfill_fire_count. NULL means every fire on this row was recorded live.';
+
+
+--
+-- Name: COLUMN learner_lego_pairings.backfill_prev_first_fired_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_pairings.backfill_prev_first_fired_at IS 'first_fired_at before the backfill moved it back to the real first firing. NULL when the backfill created the row.';
 
 
 --
@@ -11295,6 +11827,8 @@ CREATE TABLE public.subscriptions (
     signup_course_code text,
     scheduled_plan_name text,
     scheduled_plan_at timestamp with time zone,
+    paddle_revoked_at timestamp with time zone,
+    paddle_status text,
     CONSTRAINT subscriptions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'cancelled'::text, 'past_due'::text, 'none'::text])))
 );
 
@@ -12676,7 +13210,9 @@ CREATE TABLE public.support_threads (
     last_read_at timestamp with time zone,
     language text,
     standing_notes jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL))))
+    learner_user_id text,
+    origin_message_id uuid,
+    CONSTRAINT support_threads_one_owner CHECK ((((school_id IS NOT NULL) AND (group_id IS NULL) AND (learner_user_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NOT NULL) AND (learner_user_id IS NULL)) OR ((school_id IS NULL) AND (group_id IS NULL) AND (learner_user_id IS NOT NULL) AND (origin_message_id IS NOT NULL))))
 );
 
 
@@ -12685,6 +13221,20 @@ CREATE TABLE public.support_threads (
 --
 
 COMMENT ON TABLE public.support_threads IS 'One support thread per school or per org, never closed. No status, no priority: state lives on support_messages.';
+
+
+--
+-- Name: COLUMN support_threads.learner_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_threads.learner_user_id IS 'Third owner kind (job #821): a learner''s reply to an admin message. auth uid. One thread per (learner, origin_message_id).';
+
+
+--
+-- Name: COLUMN support_threads.origin_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_threads.origin_message_id IS 'The user_messages row (source admin_message) this learner thread answers. Set only with learner_user_id.';
 
 
 --
@@ -12706,8 +13256,32 @@ CREATE TABLE public.tester_feedback (
     priority text DEFAULT 'medium'::text,
     admin_notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    reply_message_id uuid,
+    replied_at timestamp with time zone,
+    replied_by text
 );
+
+
+--
+-- Name: COLUMN tester_feedback.reply_message_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.reply_message_id IS 'The user_messages row the reply went out as, or null if nobody has replied. Same link as bug_reports; the words the learner reads live on that row.';
+
+
+--
+-- Name: COLUMN tester_feedback.replied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.replied_at IS 'When the reply was sent. Null means unanswered, which is what sorts a row to the top of the admin Support inbox.';
+
+
+--
+-- Name: COLUMN tester_feedback.replied_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tester_feedback.replied_by IS 'Auth uid of whoever sent the reply.';
 
 
 --
@@ -13209,7 +13783,13 @@ CREATE TABLE public.user_entitlements (
     granted_courses text[],
     expires_at timestamp with time zone,
     redeemed_at timestamp with time zone DEFAULT now() NOT NULL,
-    email_access_grant_id uuid
+    email_access_grant_id uuid,
+    source text,
+    source_ref text,
+    starts_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    provider_verified_at timestamp with time zone,
+    CONSTRAINT user_entitlements_source_check CHECK ((source = ANY (ARRAY['paddle'::text, 'play'::text, 'apple'::text, 'invoice'::text, 'code'::text, 'gift'::text, 'admin'::text, 'email_allowlist'::text])))
 );
 
 
@@ -13229,7 +13809,7 @@ CREATE TABLE public.user_messages (
     dismissed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     dedupe_key text,
-    CONSTRAINT user_messages_source_check CHECK ((source = ANY (ARRAY['support_reply'::text, 'class_play_copied'::text])))
+    CONSTRAINT user_messages_source_check CHECK ((source = ANY (ARRAY['support_reply'::text, 'class_play_copied'::text, 'admin_message'::text])))
 );
 
 
@@ -13655,6 +14235,14 @@ ALTER TABLE ONLY public._canon_alive
 
 ALTER TABLE ONLY public.admin_impersonation_audit
     ADD CONSTRAINT admin_impersonation_audit_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admin_messages admin_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_messages
+    ADD CONSTRAINT admin_messages_pkey PRIMARY KEY (id);
 
 
 --
@@ -14486,6 +15074,14 @@ ALTER TABLE ONLY public.htw_copy_versions
 
 ALTER TABLE ONLY public.insight_discoveries
     ADD CONSTRAINT insight_discoveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: insights_lab_verdicts insights_lab_verdicts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insights_lab_verdicts
+    ADD CONSTRAINT insights_lab_verdicts_pkey PRIMARY KEY (id);
 
 
 --
@@ -17679,6 +18275,13 @@ CREATE UNIQUE INDEX support_threads_group_uniq ON public.support_threads USING b
 
 
 --
+-- Name: support_threads_learner_message_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX support_threads_learner_message_uniq ON public.support_threads USING btree (learner_user_id, origin_message_id) WHERE (learner_user_id IS NOT NULL);
+
+
+--
 -- Name: support_threads_school_uniq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -17700,10 +18303,31 @@ CREATE INDEX tutor_rebate_ledger_teacher_month ON public.tutor_rebate_ledger USI
 
 
 --
+-- Name: uq_class_progress_copy_audit_running_claim; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_class_progress_copy_audit_running_claim ON public.class_progress_copy_audit USING btree (source_learner_id, course_code) WHERE ((record ->> 'state'::text) = 'running'::text);
+
+
+--
+-- Name: INDEX uq_class_progress_copy_audit_running_claim; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.uq_class_progress_copy_audit_running_claim IS 'One running copy claim per teacher (source learner) and course. The apply inserts a {state: running} audit row before it plans; a concurrent second apply hits this index and answers 409 (job #811).';
+
+
+--
 -- Name: uq_user_entitlements_learner_grant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uq_user_entitlements_learner_grant ON public.user_entitlements USING btree (learner_id, email_access_grant_id) WHERE (email_access_grant_id IS NOT NULL);
+
+
+--
+-- Name: user_entitlements_source_ref_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX user_entitlements_source_ref_unique ON public.user_entitlements USING btree (source, source_ref) WHERE (source_ref IS NOT NULL);
 
 
 --
@@ -18008,6 +18632,13 @@ CREATE TRIGGER listening_pods_touch_updated_at BEFORE UPDATE ON public.listening
 
 
 --
+-- Name: subscriptions mirror_paddle_individual_grant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER mirror_paddle_individual_grant BEFORE INSERT OR UPDATE ON public.subscriptions FOR EACH ROW EXECUTE FUNCTION public.mirror_paddle_individual_grant();
+
+
+--
 -- Name: phase_prompts phase_prompts_updated_at_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18033,6 +18664,13 @@ CREATE TRIGGER schools_inherit_group_test_flags BEFORE INSERT OR UPDATE OF group
 --
 
 CREATE TRIGGER shared_audio_audit AFTER DELETE OR UPDATE ON public.shared_audio FOR EACH ROW EXECUTE FUNCTION public.audit_content_change();
+
+
+--
+-- Name: user_entitlements stamp_individual_grant_source; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER stamp_individual_grant_source BEFORE INSERT ON public.user_entitlements FOR EACH ROW EXECUTE FUNCTION public.stamp_individual_grant_source();
 
 
 --
@@ -18297,6 +18935,14 @@ ALTER TABLE ONLY public.audio_repair_candidates
 
 ALTER TABLE ONLY public.bug_reports
     ADD CONSTRAINT bug_reports_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE SET NULL;
+
+
+--
+-- Name: bug_reports bug_reports_reply_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bug_reports
+    ADD CONSTRAINT bug_reports_reply_message_id_fkey FOREIGN KEY (reply_message_id) REFERENCES public.user_messages(id) ON DELETE SET NULL;
 
 
 --
@@ -19100,6 +19746,14 @@ ALTER TABLE ONLY public.support_threads
 
 
 --
+-- Name: support_threads support_threads_origin_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_threads
+    ADD CONSTRAINT support_threads_origin_message_id_fkey FOREIGN KEY (origin_message_id) REFERENCES public.user_messages(id) ON DELETE CASCADE;
+
+
+--
 -- Name: support_threads support_threads_school_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19153,6 +19807,14 @@ ALTER TABLE ONLY public.teachers
 
 ALTER TABLE ONLY public.teachers
     ADD CONSTRAINT teachers_own_subscription_id_fkey FOREIGN KEY (own_subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tester_feedback tester_feedback_reply_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tester_feedback
+    ADD CONSTRAINT tester_feedback_reply_message_id_fkey FOREIGN KEY (reply_message_id) REFERENCES public.user_messages(id) ON DELETE SET NULL;
 
 
 --
@@ -19777,6 +20439,12 @@ CREATE POLICY "Users read own entitlements" ON public.user_entitlements FOR SELE
 --
 
 ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: admin_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_messages ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: algorithm_config; Type: ROW SECURITY; Schema: public; Owner: -
@@ -20424,6 +21092,12 @@ ALTER TABLE public.htw_copy_versions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.insight_discoveries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: insights_lab_verdicts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insights_lab_verdicts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: invite_codes; Type: ROW SECURITY; Schema: public; Owner: -
@@ -21716,6 +22390,14 @@ GRANT ALL ON FUNCTION public.analytics_trial_conversion() TO service_role;
 
 
 --
+-- Name: FUNCTION apply_play_grant(p_learner_id uuid, p_token text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_revoked_at timestamp with time zone, p_observed_at timestamp with time zone, p_event_id text, p_linked_token text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.apply_play_grant(p_learner_id uuid, p_token text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_revoked_at timestamp with time zone, p_observed_at timestamp with time zone, p_event_id text, p_linked_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.apply_play_grant(p_learner_id uuid, p_token text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_revoked_at timestamp with time zone, p_observed_at timestamp with time zone, p_event_id text, p_linked_token text) TO service_role;
+
+
+--
 -- Name: FUNCTION audio_bare_voice_id(p_voice_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -21828,6 +22510,14 @@ GRANT ALL ON FUNCTION public.audit_log_prune(retention_days integer) TO service_
 
 REVOKE ALL ON FUNCTION public.auto_entitle_popty_user() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.auto_entitle_popty_user() TO service_role;
+
+
+--
+-- Name: FUNCTION backfill_paddle_grants(p_rows jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.backfill_paddle_grants(p_rows jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.backfill_paddle_grants(p_rows jsonb) TO service_role;
 
 
 --
@@ -21945,6 +22635,16 @@ REVOKE ALL ON FUNCTION public.claim_learner(p_learner_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.claim_learner(p_learner_id uuid) TO anon;
 GRANT ALL ON FUNCTION public.claim_learner(p_learner_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.claim_learner(p_learner_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION class_first_play(p_class_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.class_first_play(p_class_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.class_first_play(p_class_ids uuid[]) TO anon;
+GRANT ALL ON FUNCTION public.class_first_play(p_class_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.class_first_play(p_class_ids uuid[]) TO service_role;
 
 
 --
@@ -22499,12 +23199,29 @@ GRANT ALL ON FUNCTION public.link_audio_to_content() TO service_role;
 
 
 --
+-- Name: FUNCTION live_session_count(p_user_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.live_session_count(p_user_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.live_session_count(p_user_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION log_pod_ratchet_reset(); Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON FUNCTION public.log_pod_ratchet_reset() TO anon;
 GRANT ALL ON FUNCTION public.log_pod_ratchet_reset() TO authenticated;
 GRANT ALL ON FUNCTION public.log_pod_ratchet_reset() TO service_role;
+
+
+--
+-- Name: FUNCTION mirror_paddle_individual_grant(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.mirror_paddle_individual_grant() TO anon;
+GRANT ALL ON FUNCTION public.mirror_paddle_individual_grant() TO authenticated;
+GRANT ALL ON FUNCTION public.mirror_paddle_individual_grant() TO service_role;
 
 
 --
@@ -22619,6 +23336,14 @@ GRANT ALL ON FUNCTION public.record_lego_pairings(_learner_id uuid, _course_code
 
 
 --
+-- Name: FUNCTION refresh_paid_paddle_grant(p_subscription_id text, p_period_end timestamp with time zone, p_period_start timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.refresh_paid_paddle_grant(p_subscription_id text, p_period_end timestamp with time zone, p_period_start timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_paid_paddle_grant(p_subscription_id text, p_period_end timestamp with time zone, p_period_start timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION refuse_component_introduction(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -22685,6 +23410,15 @@ GRANT ALL ON FUNCTION public.set_class_join_code() TO service_role;
 
 REVOKE ALL ON FUNCTION public.set_school_join_code() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_school_join_code() TO service_role;
+
+
+--
+-- Name: FUNCTION stamp_individual_grant_source(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.stamp_individual_grant_source() TO anon;
+GRANT ALL ON FUNCTION public.stamp_individual_grant_source() TO authenticated;
+GRANT ALL ON FUNCTION public.stamp_individual_grant_source() TO service_role;
 
 
 --
@@ -22889,6 +23623,14 @@ GRANT ALL ON FUNCTION public.user_messages_from_support_reply() TO service_role;
 
 
 --
+-- Name: FUNCTION write_additional_paddle_grant(p_learner_id uuid, p_ref text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_status text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.write_additional_paddle_grant(p_learner_id uuid, p_ref text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_status text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.write_additional_paddle_grant(p_learner_id uuid, p_ref text, p_starts_at timestamp with time zone, p_expires_at timestamp with time zone, p_status text) TO service_role;
+
+
+--
 -- Name: TABLE _audit_s3_touch; Type: ACL; Schema: public; Owner: -
 --
 
@@ -23019,6 +23761,13 @@ GRANT ALL ON TABLE public._fix_voice_map TO service_role;
 --
 
 GRANT ALL ON TABLE public.admin_impersonation_audit TO service_role;
+
+
+--
+-- Name: TABLE admin_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.admin_messages TO service_role;
 
 
 --
@@ -23923,6 +24672,13 @@ GRANT ALL ON TABLE public.human_clip_speakers TO service_role;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO anon;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO authenticated;
 GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO service_role;
+
+
+--
+-- Name: TABLE insights_lab_verdicts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.insights_lab_verdicts TO service_role;
 
 
 --

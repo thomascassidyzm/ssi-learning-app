@@ -202,6 +202,7 @@ function overlayClick(e: MouseEvent) {
                 <div class="action-row">
                   <!-- HANDBOOK Prove your mailbox reaches you
                        section: getting-people-in
+                       moment: something-wrong
                        roles: school_admin, teacher
                        place: dashboard
                        parts: mailbox-check-confirm

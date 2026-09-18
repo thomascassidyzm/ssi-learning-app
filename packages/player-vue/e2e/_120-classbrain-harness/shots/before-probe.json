@@ -1,0 +1,28 @@
+{
+  "truncated": {
+    "dots": 60,
+    "arcs": 160,
+    "cloth": 0,
+    "tiles": [
+      "sentence 194",
+      "252",
+      "712 phrases",
+      "300"
+    ],
+    "closeVisible": true,
+    "closed": true
+  },
+  "full": {
+    "dots": 300,
+    "arcs": 1685,
+    "cloth": 0,
+    "tiles": [
+      "sentence 194",
+      "252",
+      "712 phrases",
+      "300"
+    ],
+    "closeVisible": true,
+    "closed": true
+  }
+}

@@ -35,6 +35,7 @@ const initialWho = computed(() => (typeof route.query.who === 'string' ? route.q
       <span class="schools-kicker">Create invite</span>
       <!-- HANDBOOK The invites desk
            section: getting-people-in
+           moment: setting-up
            roles: admin
            place: admin-invites
            keywords: invites, desk, codes, admin, mint, org

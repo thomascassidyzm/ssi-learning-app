@@ -28,6 +28,7 @@ import {
   logAttempt,
   REDEEM_PER_IP_LIMIT,
 } from '../_utils/codeAttemptThrottle'
+import { classEnrolmentHeld, ENROLMENT_HELD_CODE, ENROLMENT_HELD_MESSAGE } from '../_utils/schoolProof'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -304,6 +305,17 @@ async function redeemInviteCode(
   // ssi_admin testing an invite link must never have their real account
   // captured. Refuse BEFORE claiming a use, so the test doesn't burn a
   // capped code either.
+  // TOM'S RULING 1 (job #195, 2026-09-18): an unproven school can build but
+  // not enrol. A pupil code on a class whose school came through the no-code
+  // door and has neither proved a mailbox nor been vouched for is refused
+  // here, BEFORE a use is claimed, with the line that says what unblocks it.
+  if (codeType === 'student' && inviteRow.grants_class_id) {
+    if (await classEnrolmentHeld(supabase, inviteRow.grants_class_id as string)) {
+      res.status(200).json({ success: false, error: ENROLMENT_HELD_MESSAGE, code: ENROLMENT_HELD_CODE })
+      return
+    }
+  }
+
   if (await isOperatorAccount(supabase, userId)) {
     res.status(200).json({ success: false, error: OPERATOR_CAPTURE_ERROR })
     return

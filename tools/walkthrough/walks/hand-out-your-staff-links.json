@@ -1,0 +1,29 @@
+{
+  "id": "hand-out-your-staff-links",
+  "title": "Hand out your staff links",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "setup"
+  },
+  "keywords": [
+    "invite",
+    "teacher",
+    "admin",
+    "link",
+    "setup",
+    "colleague"
+  ],
+  "steps": [
+    {
+      "anchor": "setup-staff-links",
+      "say": "Step two of first-time setup gives you two standing links: copy the **Teacher invite link** for anyone who will run classes, and the **Admin invite link** for anyone who needs to manage the school itself. Send either however you normally reach staff.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Anyone who has already joined is listed underneath, so you can see who's in as you go. A teacher doesn't need to speak the language — the app does the teaching.",
+      "checked": "02c2f91e.9a9d83d9"
+    }
+  ]
+}

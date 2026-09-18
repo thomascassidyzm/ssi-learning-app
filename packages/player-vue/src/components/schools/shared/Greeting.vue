@@ -80,4 +80,12 @@ const dateLabel = computed(() => {
 }
 
 .greeting-action { flex: none; }
+
+/* A phone has no room for a name and a verb on one line: at 390px the action
+   was clipped off the right edge rather than wrapping, so it could not be
+   tapped. It drops under the greeting instead. Job #999, found on staging. */
+@media (max-width: 560px) {
+  .greeting { flex-wrap: wrap; gap: 12px; }
+  .greeting-action { width: 100%; }
+}
 </style>

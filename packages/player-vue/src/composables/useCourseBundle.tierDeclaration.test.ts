@@ -73,7 +73,7 @@ describe('#685: the stored bundle declares its tier and heals when it disagrees'
   it('a token-less fetch stores a PROVISIONAL declaration, and an authorised one an authoritative full record', async () => {
     await poisonAnonymously(COURSE)
     const raw = await new Promise<Record<string, unknown>>((resolve) => {
-      const q = indexedDB.open('ssi-bundle-cache', 2)
+      const q = indexedDB.open('ssi-bundle-cache', 3)
       q.onsuccess = () => {
         const g = q.result.transaction('bundles', 'readonly').objectStore('bundles').get(COURSE)
         g.onsuccess = () => resolve(g.result as Record<string, unknown>)
@@ -93,7 +93,7 @@ describe('#685: the stored bundle declares its tier and heals when it disagrees'
     await mod2.getCourseBundle(COURSE)
     await settle()
     const raw2 = await new Promise<Record<string, unknown>>((resolve) => {
-      const q = indexedDB.open('ssi-bundle-cache', 2)
+      const q = indexedDB.open('ssi-bundle-cache', 3)
       q.onsuccess = () => {
         const g = q.result.transaction('bundles', 'readonly').objectStore('bundles').get(COURSE)
         g.onsuccess = () => resolve(g.result as Record<string, unknown>)

@@ -4,7 +4,8 @@
  *
  * Reads the hand-authored walks (tools/walkthrough/walks/*.json), runs the
  * drift gates in lib.mjs against the live Vue source, and emits the static
- * pack the player bundles. A broken anchor, a member walk pointing at an
+ * pack the player bundles, AND the eng.json mirror of every walk's prose that
+ * localiseWalk.ts reads through t(). A broken anchor, a member walk pointing at an
  * admin-only element, a click-advance step on a destructive verb — each
  * FAILS the compile. Zero runtime tokens; this CLI is the only refresh path.
  *
@@ -19,7 +20,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runGates, assemblePack, comparePack, indexAnchors } from './lib.mjs'
+import { runGates, assemblePack, comparePack, indexAnchors, gateClipCoverage, routeViewsFrom, gateWalkClaimers, entryRoutesFrom } from './lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, proseFingerprint,
   checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
@@ -35,7 +36,6 @@ const CHECK_ONLY = process.argv.includes('--check')
 // prose gates remain are advisory here and hard in --check, because a sentence
 // somebody forgot to rewrite must never be what stops a fix reaching learners
 // on a Monday morning.
-const BUILD = process.argv.includes('--build')
 // --reconfirm is the REPAIR TOOL for the freshness gate. A gate with no
 // one-step repair gets routed around, so this is one command: re-read the
 // sentence against the code, then stamp it. With an anchor id it re-pins one
@@ -229,6 +229,7 @@ if (RECONFIRM_WALKS) {
   process.exit(refused.length ? 1 : res.status ?? 1)
 }
 
+const routerSrc = readFileSync(join(ROOT, 'packages/player-vue/src/router/index.ts'), 'utf8')
 const { failures, warnings } = runGates({
   walks,
   entries,
@@ -241,14 +242,35 @@ const { failures, warnings } = runGates({
   handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
 })
 
+// Gate 13 — clip coverage "as we go" (job #854, 2026-09-15). Every capability
+// is clipped, obvious, or on the backlog; every routed page carries at least
+// one anchor or is declared. The registry is tools/walkthrough/coverage.json.
+failures.push(...gateClipCoverage({
+  entries,
+  walks,
+  // WALKTHROUGH_COVERAGE_JSON lets the build-path test hand the gate a registry
+  // with a gap and prove `--build` exits non-zero on it (job #860).
+  coverage: JSON.parse(readFileSync(process.env.WALKTHROUGH_COVERAGE_JSON || join(HERE, 'coverage.json'), 'utf8')),
+  routeViews: routeViewsFrom(routerSrc, vueFiles),
+}).failures)
+
+// Gate 14 — every walk's place has a claimer on the page the Handbook sends
+// the reader to (job #881, 2026-09-15). Show me defers the walk and navigates;
+// only a <HowThisWorks> / <WalkOffer> mount naming that place ever starts it.
+// Five schools routes mounted neither, so every Show me there landed silently.
+failures.push(...gateWalkClaimers({
+  walks,
+  handbookSrc: readFileSync(join(ROOT, 'packages/player-vue/src/walkthrough/handbook.ts'), 'utf8'),
+  routerSrc,
+  vueFiles,
+}).failures)
+
 for (const w of warnings) console.log(`  ⚠ ${w}`)
 failures.unshift(...parseErrors)
-if (failures.length && BUILD) {
-  console.error(`\n[walkthrough] HANDBOOK NOT VERIFIED — ${failures.length} gate failure${failures.length === 1 ? '' : 's'}, building anyway:`)
-  for (const f of failures) console.error(`  ⚠ ${f}`)
-  console.error('  These are advisory during a build. Run `node tools/walkthrough/compile.mjs --check` to see them fail properly.\n')
-  failures.length = 0
-}
+// A gate failure fails the BUILD too (job #860). Until then a deployment build
+// printed the failures and carried on, which made every gate below decoration
+// on the one path that matters: the pack the page serves. A control that looks
+// enforced and is not is the worst defect shape, so the exit is the same everywhere.
 if (failures.length) {
   console.error('\n[walkthrough] COMPILE FAILED — a walk would lie about the product:')
   for (const f of failures) console.error(`  ✗ ${f}`)
@@ -271,7 +293,59 @@ if (failures.length) {
   process.exit(1)
 }
 
-const pack = assemblePack(walks, entries)
+// --- the eng.json walkthrough mirror ------------------------------------
+// A walk's prose reaches a non-English learner only through
+// `walkthrough.<id>.*` in eng.json, which localiseWalk.ts reads with t(). That
+// mirror used to be written by hand in the same commit as the walk, and eight
+// walk-authoring jobs in a row forgot: on 2026-09-16 the pack carried 83 walks
+// and eng.json 39, so 44 walks spoke English over a Welsh dashboard and the
+// nightly went red with 50 failures (job #974). A rule enforced by memory is
+// not enforced, so the compiler that writes the pack now writes the mirror from
+// the same walks, in the same run, and --check fails on any drift.
+const ENG_PATH = join(ROOT, 'packages/player-vue/src/locales/eng.json')
+const PENDING_PATH = join(ROOT, 'packages/player-vue/src/i18n/pending-translation.json')
+const LOCALES_DIR = join(ROOT, 'packages/player-vue/src/locales')
+
+/** The mirror eng.json must carry, derived from the compiled walks. */
+function walkMirror(walks) {
+  const mirror = {}
+  for (const w of [...walks].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const entry = { title: w.title }
+    if (w.topic) entry.topic = w.topic
+    entry.steps = {}
+    w.steps.forEach((s, i) => {
+      const step = { say: s.say }
+      if (s.terminal) step.terminal = s.terminal
+      entry.steps[String(i)] = step
+    })
+    mirror[w.id] = entry
+  }
+  return mirror
+}
+
+/** Every dot-path the mirror mints, e.g. `walkthrough.ways-in.steps.0.say`. */
+function mirrorKeys(mirror) {
+  const keys = []
+  for (const [id, e] of Object.entries(mirror)) {
+    keys.push(`walkthrough.${id}.title`)
+    if (e.topic) keys.push(`walkthrough.${id}.topic`)
+    for (const [i, step] of Object.entries(e.steps)) {
+      keys.push(`walkthrough.${id}.steps.${i}.say`)
+      if (step.terminal) keys.push(`walkthrough.${id}.steps.${i}.terminal`)
+    }
+  }
+  return keys
+}
+
+function flattenLocale(obj, prefix = '') {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? flattenLocale(v, `${prefix}${k}.`)
+      : [`${prefix}${k}`],
+  )
+}
+
+const pack = assemblePack(walks, entries, entryRoutesFrom(routerSrc, vueFiles))
 const content = JSON.stringify(pack)
 const versioned = {
   version: createHash('sha256').update(content).digest('hex').slice(0, 12),
@@ -288,11 +362,28 @@ if (CHECK_ONLY) {
   let served = null
   try { served = JSON.parse(readFileSync(PACK_PATH, 'utf8')) } catch { served = null }
   const drift = comparePack(pack, served)
+  let engMirror = null
+  try { engMirror = JSON.parse(readFileSync(ENG_PATH, 'utf8')).walkthrough } catch { engMirror = null }
+  const wanted = walkMirror(pack.walks)
+  if (JSON.stringify(engMirror) !== JSON.stringify(wanted)) {
+    const have = new Set(Object.keys(engMirror ?? {}))
+    const want = Object.keys(wanted)
+    const absent = want.filter((id) => !have.has(id))
+    const orphan = [...have].filter((id) => !wanted[id])
+    drift.push(
+      'eng.json walkthrough mirror has drifted from the walks' +
+      (absent.length ? ` — not mirrored at all: ${absent.join(', ')}` : '') +
+      (orphan.length ? ` — mirrored but no longer a walk: ${orphan.join(', ')}` : '') +
+      (!absent.length && !orphan.length ? ' — the prose of a mirrored walk no longer matches' : ''),
+    )
+  }
   if (drift.length) {
-    console.error('\n[walkthrough] CHECK FAILED — the Handbook page is serving something the source does not say:')
+    console.error('\n[walkthrough] CHECK FAILED — what is served has drifted from the source:')
     for (const d of drift) console.error(`  ✗ ${d}`)
     console.error(
-      '\nThe page imports packages/player-vue/src/walkthrough/pack.json. Regenerate and commit it:\n' +
+      '\nThe page imports packages/player-vue/src/walkthrough/pack.json and reads its\n' +
+      'prose through the walkthrough mirror in packages/player-vue/src/locales/eng.json.\n' +
+      'One command regenerates both — run it and commit what changes:\n' +
       '    node tools/walkthrough/compile.mjs\n'
     )
     process.exit(1)
@@ -302,6 +393,27 @@ if (CHECK_ONLY) {
 }
 
 writeFileSync(PACK_PATH, JSON.stringify(versioned, null, 2) + '\n')
+
+// The mirror, and the translation debt it mints. eng.json is English source, so
+// it is regenerated outright; pending-translation.json is reconciled against the
+// other locales exactly as its own ratchet test does it — a walkthrough key any
+// locale lacks is enrolled, one every locale now carries is struck off.
+const engJson = JSON.parse(readFileSync(ENG_PATH, 'utf8'))
+engJson.walkthrough = walkMirror(versioned.walks)
+writeFileSync(ENG_PATH, JSON.stringify(engJson, null, 2) + '\n')
+
+const otherLocales = readdirSync(LOCALES_DIR)
+  .filter((f) => f.endsWith('.json') && f !== 'eng.json')
+  .map((f) => new Set(flattenLocale(JSON.parse(readFileSync(join(LOCALES_DIR, f), 'utf8')))))
+const minted = mirrorKeys(engJson.walkthrough)
+const owed = new Set(minted.filter((k) => otherLocales.some((l) => !l.has(k))))
+const pendingJson = JSON.parse(readFileSync(PENDING_PATH, 'utf8'))
+const kept = pendingJson.keys.filter((k) => !k.startsWith('walkthrough.') || owed.has(k))
+const added = [...owed].filter((k) => !pendingJson.keys.includes(k))
+const struck = pendingJson.keys.length - kept.length
+pendingJson.keys = [...kept, ...added]
+writeFileSync(PENDING_PATH, JSON.stringify(pendingJson, null, 2) + '\n')
+console.log(`[walkthrough] mirror ${Object.keys(engJson.walkthrough).length} walks → eng.json · pending-translation +${added.length} -${struck}`)
 
 const md = [
   '# Walkthrough pack — compiled render',
@@ -327,7 +439,7 @@ const handbookMd = [
   ...versioned.handbook.flatMap((e) => [
     `## ${e.title}`,
     '',
-    `Section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
+    `Moment: ${e.moment} · section: ${e.section} · roles: ${e.personas.join(', ')} · anchor: \`${e.anchor}\` · in \`${e.source}\`${e.walk ? ' · has a walk' : ''}`,
     '',
     `**What it's for.** ${e.what}`,
     '',

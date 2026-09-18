@@ -83,6 +83,7 @@ const children = computed<RailRef[]>(() => {
 <template>
   <!-- HANDBOOK Choosing who a question is asked about
        section: seeing-progress
+       moment: setting-up
        roles: admin
        place: intel
        keywords: scope, everyone, course, organisation, people, rail, where you are

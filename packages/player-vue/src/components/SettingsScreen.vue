@@ -3,6 +3,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
+import { clearDeviceCache, deviceStorageScope } from '../composables/classStorageScope'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -18,6 +19,8 @@ import { useOrgFreeAccess } from '../composables/useOrgFreeAccess'
 import { usePendingPurchase } from '../composables/usePendingPurchase'
 import { useFamilyModal } from '@/composables/useFamilyModal'
 import { useCheckout } from '../composables/useCheckout'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useFamilyManagement, type FamilyMember } from '@/composables/useFamilyManagement'
 import { paddleConfig } from '@/lib/paddle'
 // The ONE payment-route declaration (platform/paymentRoute). Every control in
@@ -240,9 +243,8 @@ const confirmRecover = async () => {
     // The device's cached position (localStorage) is checked BEFORE the
     // server cursor on resume — clear it so the reload below actually picks
     // up the recovered position instead of re-serving a stale local cache.
-    try {
-      localStorage.removeItem(`ssi_learning_position_${courseCode.value}`)
-    } catch { /* ignore — best-effort */ }
+    // Account-suffixed keys AND the legacy unsuffixed ones (job #811).
+    clearDeviceCache(courseCode.value, deviceStorageScope(null, auth?.learnerId?.value ?? null))
 
     // Same pagehide race as confirmReset below: Settings only pauses
     // playback, so a dormancy flush on the reload could re-save the
@@ -998,6 +1000,11 @@ async function copyIdentity(field: 'email' | 'supportId') {
 // had drifted from useUserRole's own role list (missing 'tutor' — a tutor
 // account never saw the Dashboards section at all).
 const { isSsiAdmin: isAdmin, isTester, hasSchoolRole, isGovtAdmin } = useUserRole()
+// The Handbook's Show-me for walks placed on this overlay (report a bug,
+// account identity) is claimed here — a deferred walk only starts on a page
+// that mounts WalkOffer or HowThisWorks at its place (job #882).
+const { platformRole, effectiveEducationalRole } = useUserRole()
+const walkPersona = computed(() => viewerPersona(platformRole.value, effectiveEducationalRole.value))
 const hasAdminRole = isAdmin
 
 // Org lane (2026-08-06): an organisation leader also carries
@@ -1298,7 +1305,13 @@ const handleVerifyAddEmail = async () => {
     const data = await res.json()
 
     if (!res.ok || !data.success) {
-      addEmailError.value = data.error || 'Verification failed'
+      // A genuine second account holds this address — one with its own
+      // progress. A bare refusal left Tom guessing (2026-09-14); say what the
+      // person can actually do. No merge exists yet, so the honest offer is
+      // to sign in to that account, or ask us to join the two.
+      addEmailError.value = data.code === 'email_on_other_account'
+        ? 'This email already has its own SSi account with progress on it. To use that one, sign out and sign in with it. If you would like the two joined together, contact us and we will do it for you.'
+        : (data.error || 'Verification failed')
       return
     }
 
@@ -1790,9 +1803,10 @@ const confirmReset = async () => {
     // server cursor on resume when it's fresher — clear it so a reset
     // can't be resurrected by a stale local key (same fix as
     // confirmRecover above; the two flows used to disagree here).
-    try {
-      localStorage.removeItem(`ssi_learning_position_${course}`)
-    } catch { /* ignore — best-effort */ }
+    // Account-suffixed keys AND the legacy unsuffixed ones (job #811). This
+    // also clears the belt cursor and session history, which
+    // resetProgress() below only rewrites under the legacy key.
+    clearDeviceCache(course, deviceStorageScope(null, auth?.learnerId?.value ?? null))
 
     // Suspend position writes until the reload below actually happens —
     // opening Settings only pauses playback, it doesn't unmount
@@ -2187,6 +2201,7 @@ const confirmReset = async () => {
 
         <!-- HANDBOOK Find out which email you are signed in with
              section: your-own-account
+             moment: something-wrong
              roles: teacher, school_admin, leader
              place: settings
              keywords: email, signed in, which address, support, identify, code
@@ -2535,20 +2550,25 @@ const confirmReset = async () => {
 
         <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
+          <WalkOffer :persona="walkPersona" place="player-settings" />
           <!-- Report a bug: the learner postbox. One way; the only reply is the
                automatic thank-you. Tom's ruling, 2026-09-12. -->
           <!-- HANDBOOK Report a bug from Settings
                section: your-own-account
+               moment: something-wrong
                roles: teacher, school_admin, leader
                place: settings
-               keywords: bug, report, problem, feedback, settings, tools
-               What it's for. Opening the report sheet when something in the app has gone wrong.
-               Where it is. **Settings**, under **Tools**, the **Report a bug** row.
+               parts: report-bug-sheet, report-bug-text, report-bug-send, report-bug-thanks
+               keywords: bug, report, problem, went wrong, feedback, broken, settings, tools, screenshot, sent
+               What it's for. Telling us when the app misbehaves, with the details of your course and device attached for you.
+               Where it is. **Settings**, under **Tools**, the **Report a bug** row, and the sheet it opens.
                How you do it.
-               1. Open **Settings**.
-               2. Tap **Report a bug**.
-               3. Describe what happened on the sheet that opens and tap **Send**.
-               Worth knowing. The row is there whether or not you are signed in. What you send goes to one place and nobody replies through the app.
+               1. Open **Settings** and tap **Report a bug**.
+               2. Write what happened in the **What happened?** box. **Send** stays off until you have written something, and the box holds 2,000 characters.
+               3. Add a screenshot if you have one.
+               4. Tap **Send**. It reads **Sending…** while it goes.
+               5. Read **Got it, thank you** where the form was. The sheet closes on its own a moment later, or tap the line to close it now.
+               Worth knowing. The row is there whether or not you are signed in. Tapping outside the sheet closes it without sending. That line is the whole reply: there is no ticket number and nobody replies through the app. If the screenshot cannot upload the note still goes without it, and if the note itself does not send the sheet says so and you can tap **Send** again.
                checked: 6dad6fe6.1df11bca
           -->
           <div class="setting-row clickable" data-walk="report-bug" @click="showBugReport = true">

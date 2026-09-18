@@ -39,6 +39,7 @@ import { readPendingIntent } from '@/checkout/pendingIntent'
 let session: any = null
 const verifyOtp = vi.fn()
 const client: any = {
+  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'learner-1' }, error: null }) }) }) }),
   auth: {
     getSession: async () => ({ data: { session } }),
     verifyOtp: (...a: any[]) => verifyOtp(...a),

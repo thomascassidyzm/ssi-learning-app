@@ -1,0 +1,42 @@
+{
+  "$about": "Clip coverage registry, read by tools/walkthrough/compile.mjs gate 13 (job #854, 2026-09-15). Every HANDBOOK capability is stepped by a walk, or listed here under capabilities.obvious with a sentence on why nobody needs showing, or under capabilities.missing as honest backlog. Every routed page carries an anchor or is listed under pages. The gate fails the build on anything in none of those, and on a line here whose subject has since gained a walk or an anchor — remove the line, the debt is paid. Never add a line to silence the gate for something that genuinely needs showing: that is what missing is for, with a note.",
+  "capabilities": {
+    "obvious": {
+      "insights-org-practising": "Job #32, 2026-09-16: \"Which classes practised this week\" now mounts only on the insights page of an organisation that runs no classes anywhere below it, where it is the whole page — one question, one sentence, nothing to find. Every school and group answers it with the card and the class list above, which the reading-insights walk steps on, so a step here would point at an element those personas never see.",
+      "mailbox-banner-confirm": "Job #188, 2026-09-18: a one-line strip across the top of every schools page with a single six-digit field and a Confirm button beside it, shown only while the leader's own address is unconfirmed. One field, one button, and the strip itself says what goes in the box, so a clip would show a person typing six digits into the only box on the line.",
+      "mailbox-banner-other-device": "Job #195, 2026-09-18: one line under the confirmation strip, shown only when the server counted a second live session at the moment the code landed, with Keep and Sign it out beside it. Nearly nobody ever sees it, and a clip would have to stage two signed-in devices to show a line whose whole content is its own two buttons.",
+      "school-vouch-button": "Job #195, 2026-09-18: one button on a card that appears on a school's admin page only while that school, set up without a code, has an unconfirmed email address and no vouch. The card says what it is for in two sentences and the button is the only thing on it; a clip would show a person tapping the one button after reading the two sentences."
+    },
+    "missing": {}
+  },
+  "pages": {
+    "obvious": {
+      "packages/player-vue/src/views/admin/AdminSupport.vue": "Staff-only. One list of reports, unanswered first; a row opens to the whole report and a reply box.",
+      "packages/player-vue/src/views/schools/HandbookView.vue": "The Handbook is the page that explains every other page; its lede and search are the whole of it.",
+      "packages/player-vue/src/views/schools/SupportView.vue": "One text box and one Send button: say what happened, send it.",
+      "packages/player-vue/src/views/RedeemCode.vue": "A single code field and one button; the page is the instruction.",
+      "packages/player-vue/src/views/JoinWithCode.vue": "A single code field and one button; the page is the instruction.",
+      "packages/player-vue/src/views/OrgEnrolment.vue": "One Continue button on an invite link; nothing to choose.",
+      "packages/player-vue/src/views/TryLinkGateway.vue": "A gateway that lands the visitor on the right page by itself; no controls.",
+      "packages/player-vue/src/views/EmbedDemoView.vue": "A read-only embedded demo of the player; nothing to operate.",
+      "packages/player-vue/src/views/BoardSnapshotView.vue": "A read-only board report; nothing to operate.",
+      "packages/player-vue/src/views/InstallGuide.vue": "The page is itself a step-by-step instruction sheet for installing the app.",
+      "packages/player-vue/src/views/methodology/MethodologyView.vue": "A reading page; nothing to operate.",
+      "packages/player-vue/src/views/methodology/EmpiricalBaselineView.vue": "A reading page of figures; nothing to operate.",
+      "packages/player-vue/src/views/admin/AdminMethodology.vue": "A reading page; nothing to operate.",
+      "packages/player-vue/src/views/admin/AdminReleaseNotes.vue": "A reading page of release notes; nothing to operate.",
+      "packages/player-vue/src/views/admin/AdminStatsView.vue": "Read-only tiles of numbers for SSi admins; nothing to operate.",
+      "packages/player-vue/src/views/onboarding/Onboarding.vue": "The onboarding flow is itself a guided walk with one choice per screen.",
+      "packages/player-vue/src/views/marketing/PartnerDoor.vue": "A marketing door with one call to action.",
+      "packages/player-vue/src/views/admin/AdminInsightsLabView.vue": "An admin-only decision instrument, not a schools capability: twelve drawings of one set of numbers and three tap buttons under each."
+    },
+    "missing": {
+      "packages/player-vue/src/views/me/InboxView.vue": "Learner inbox with reply to a support thread (job #821). No anchor, no clip. Named missing by Tom 2026-09-15.",
+      "packages/player-vue/src/views/admin/AdminMessages.vue": "Admin Messages composer and broadcast (job #821, #847). No anchor, no clip. Named missing by Tom 2026-09-15.",
+      "packages/player-vue/src/views/admin/AdminUsers.vue": "Admin Users list and the phone search (job #789). No anchor, no clip. Named missing by Tom 2026-09-15.",
+      "packages/player-vue/src/views/admin/AdminStructure.vue": "The SSi-admin org tree, the main admin surface. No anchor, no clip.",
+      "packages/player-vue/src/views/teach/TeachDashboard.vue": "The tutor teach dashboard. No anchor, no clip.",
+      "packages/player-vue/src/views/teach/WithTeacher.vue": "The with-teacher session page. No anchor, no clip."
+    }
+  }
+}

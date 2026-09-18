@@ -340,6 +340,52 @@ describe('useBeltProgress - Supabase sync', () => {
     expect(upsertCall.last_practiced_at).toBeDefined()
   })
 
+  // The class door (job #61 census → this job). The class's own enrollment row
+  // is unwritable from the browser under own-row RLS, so this upsert was
+  // refused in class mode — masked, because setLivePosition and
+  // updateEnrollmentActivity re-stamp the same column through the class
+  // endpoint, but still a write aimed at a door it cannot open.
+  it('syncToRemote routes through the class door and does NOT upsert directly', async () => {
+    mockSupabase.upsert.mockResolvedValue({ error: null })
+    const touchLastPracticed = vi.fn(async () => true)
+
+    const bp = useBeltProgress('test_sync_class', {
+      supabase: mockSupabase,
+      learnerId: 'class-learner-uuid',
+      classRoute: { touchLastPracticed },
+    })
+    bp.initializeSync()
+    bp.setLastLegoId('S0045L03')
+
+    await bp.syncToRemote(bp.highestBeltIndex.value)
+
+    // setLastLegoId's own promotion sync may already have gone through the
+    // same door — what matters is that it went through it at all.
+    expect(touchLastPracticed).toHaveBeenCalled()
+    expect(mockSupabase.upsert).not.toHaveBeenCalled()
+    expect(mockSupabase.update).not.toHaveBeenCalled()
+  })
+
+  it('WITHOUT a class route syncToRemote is unchanged (null route included)', async () => {
+    mockSupabase.upsert.mockResolvedValue({ error: null })
+
+    const bp = useBeltProgress('test_sync_no_class', {
+      supabase: mockSupabase,
+      learnerId: 'user-123',
+      classRoute: null,
+    })
+    bp.initializeSync()
+    bp.setLastLegoId('S0045L03')
+
+    await bp.syncToRemote(bp.highestBeltIndex.value)
+
+    const upsertCall = mockSupabase.upsert.mock.calls[0][0]
+    expect(upsertCall.learner_id).toBe('user-123')
+    expect(upsertCall.course_id).toBe('test_sync_no_class')
+    expect(upsertCall.last_practiced_at).toBeDefined()
+    expect(upsertCall.last_completed_lego_id).toBeUndefined()
+  })
+
   it('setLastLegoId triggers debounced remote sync', async () => {
     mockSupabase.upsert.mockResolvedValue({ error: null })
 

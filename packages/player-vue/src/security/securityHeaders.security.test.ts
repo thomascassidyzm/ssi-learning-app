@@ -161,14 +161,27 @@ describe('vercel.json — security response headers', () => {
   })
 
   it('still configures the two original route rules — audio CORS and version.json caching', () => {
+    // The four /assets, /fonts, /design, /icons rules joined on 2026-09-17
+    // (job #117) and carry a Cache-Control header and nothing else — they
+    // relax no security posture, and the global /(.*) rule above still
+    // applies to every one of those paths. Their contents are locked by
+    // platform/assetCacheHeaders.test.ts.
     const cfg = loadVercelConfig()
     expect((cfg.headers ?? []).map((r) => r.source)).toEqual([
       '/(.*)',
       '/_schools-mockups/(.*)',
       '/embed/(.*)',
       '/api/audio/(.*)',
+      '/assets/(.*)',
+      '/fonts/(.*)',
+      '/design/(.*)',
+      '/icons/(.*)',
       '/version.json',
     ])
+    for (const source of ['/assets/(.*)', '/fonts/(.*)', '/design/(.*)', '/icons/(.*)']) {
+      const rule = (cfg.headers ?? []).find((r) => r.source === source)
+      expect(rule?.headers.map((h) => h.key), `${source} may only set Cache-Control`).toEqual(['Cache-Control'])
+    }
   })
 
   it('the framed marketing demo is frameable by saysomethingin.com AND BY NOTHING ELSE', () => {

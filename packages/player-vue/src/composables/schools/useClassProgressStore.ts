@@ -56,6 +56,66 @@ interface MinimalProgressStore {
   bumpSpeakingOpportunities?: (
     learnerId: string, courseId: string, oppsDelta: number, secondsDelta: number, phrasesDelta: number,
   ) => Promise<boolean>
+  /**
+   * LEGO co-firing (`learner_lego_pairings`) for the CLASS account (job #52).
+   * Same shape and same reason as bumpSpeakingOpportunities: the base store
+   * has no such method — own accounts write it through the
+   * `record_lego_pairings` RPC in usePairingsTelemetry, which is SECURITY
+   * INVOKER against an own-row policy the class account can never satisfy
+   * (its user_id is the literal `class-learner:<classId>`, nobody's login),
+   * so every class flush was refused and only console.warned. Resolves `true`
+   * when the class route handled the write, `false` outside class mode so the
+   * caller falls through to the RPC.
+   */
+  recordLegoPairings?: (
+    learnerId: string, courseId: string, pairs: string[][], counts: number[],
+  ) => Promise<boolean>
+  /**
+   * Listening-pod persistence for the CLASS account. Same reason and same
+   * shape as the two above: `learner_pod_state` and the
+   * `course_enrollments.completed_pod_rounds`/`rounds_since_pod` ratchet are
+   * both written straight from the browser by usePodLapScheduler, both under
+   * own-row RLS, so every class write was refused and only console.warned —
+   * zero pod-state rows for any class ever, and every class enrollment stuck
+   * at a ratchet of 0 (verified live 2026-09-17).
+   *
+   * The READS are here too, which the earlier fixes did not need: RLS HIDES
+   * rows rather than erroring, so a class that wrote its ratchet through this
+   * door and read it back through the browser would still see nothing and
+   * restart from zero. Read and write must use the same door.
+   *
+   * Every method resolves `null`/`false` outside class mode, so the caller
+   * falls through to its own direct path untouched.
+   */
+  getPodRatchet?: () => Promise<{ rounds_since_pod: number | null; completed_pod_rounds: number | null } | null>
+  persistPodRatchet?: (completedPodRounds: number, roundsSincePod: number) => Promise<boolean>
+  resetPodRatchet?: () => Promise<boolean>
+  loadPodState?: () => Promise<Array<{ sentence_id: string; exposures: number }> | null>
+  upsertPodState?: (rows: Array<{ sentence_id: string; exposures: number }>) => Promise<boolean>
+  deletePodState?: () => Promise<boolean>
+  /** Instruction-exposure progress (`learner_meta_commentary_state`) — per
+   *  learner, not per course, hence no course argument. */
+  getMetaCommentaryState?: () => Promise<{ instruction_index: number | null; instructions_complete: boolean | null } | null>
+  saveMetaCommentaryState?: (instructionIndex: number, instructionsComplete: boolean) => Promise<boolean>
+  /** The belt sync's last_practiced_at touch (useBeltProgress.syncToRemote). */
+  touchLastPracticed?: () => Promise<boolean>
+  /**
+   * The class LESSON record (`class_sessions`) — a SECOND SOURCE for a class's
+   * practice minutes. Job #65: all 637 rows in that table belong to demo/test
+   * schools, `sessions` has none for a class learner either, and the browser
+   * code that was supposed to write it was simply never reached on the real
+   * play-as-class path (verified live on staging 2026-09-17 — a real teacher
+   * playing a real class issues GETs to class_sessions and not one POST). So a
+   * class's minutes came from player_events alone, with nothing to reconcile
+   * against. Routed here rather than repaired in the browser so it runs from a
+   * call site that cannot be missed and does not depend on the own-row insert
+   * policy a covering co-teacher would be at the mercy of. `teacher_user_id`
+   * comes from the verified token server-side, never from the client.
+   */
+  startClassSession?: (startLegoId: string) => Promise<{ id: string } | null>
+  endClassSession?: (
+    sessionId: string, endLegoId: string | null, cyclesCompleted: number, durationSeconds: number,
+  ) => Promise<boolean>
 }
 
 export interface ClassContextForProgress {
@@ -133,6 +193,62 @@ export function createClassAwareProgressStore(
     async bumpSpeakingOpportunities(_learnerId, _courseId, oppsDelta, secondsDelta, phrasesDelta) {
       if (!inClass()) return false
       await call('bumpSpeakingOpportunities', [oppsDelta, secondsDelta, phrasesDelta])
+      return true
+    },
+    async recordLegoPairings(_learnerId, _courseId, pairs, counts) {
+      if (!inClass()) return false
+      await call('recordLegoPairings', [pairs, counts])
+      return true
+    },
+    async getPodRatchet() {
+      if (!inClass()) return null
+      return call('getPodRatchet', [])
+    },
+    async persistPodRatchet(completedPodRounds, roundsSincePod) {
+      if (!inClass()) return false
+      await call('persistPodRatchet', [completedPodRounds, roundsSincePod])
+      return true
+    },
+    async resetPodRatchet() {
+      if (!inClass()) return false
+      await call('resetPodRatchet', [])
+      return true
+    },
+    async loadPodState() {
+      if (!inClass()) return null
+      return call('loadPodState', [])
+    },
+    async upsertPodState(rows) {
+      if (!inClass()) return false
+      await call('upsertPodState', [rows])
+      return true
+    },
+    async deletePodState() {
+      if (!inClass()) return false
+      await call('deletePodState', [])
+      return true
+    },
+    async getMetaCommentaryState() {
+      if (!inClass()) return null
+      return call('getMetaCommentaryState', [])
+    },
+    async saveMetaCommentaryState(instructionIndex, instructionsComplete) {
+      if (!inClass()) return false
+      await call('saveMetaCommentaryState', [instructionIndex, instructionsComplete])
+      return true
+    },
+    async touchLastPracticed() {
+      if (!inClass()) return false
+      await call('touchLastPracticed', [])
+      return true
+    },
+    async startClassSession(startLegoId) {
+      if (!inClass()) return null
+      return call('startClassSession', [startLegoId])
+    },
+    async endClassSession(sessionId, endLegoId, cyclesCompleted, durationSeconds) {
+      if (!inClass()) return false
+      await call('endClassSession', [sessionId, endLegoId, cyclesCompleted, durationSeconds])
       return true
     },
     async updateCurrentCycle(learnerId, courseId, cycleIndex) {

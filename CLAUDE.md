@@ -91,6 +91,14 @@ is `['data-walk', 'data-intel']`, and every scan — the Handbook parser, the an
 freshness stamps — takes it. A third namespace is that one line. An anchored element in a namespace
 whose surface has not landed on `dev` yet warns rather than failing the tree.
 
+**Every capability is clipped, obvious, or on the backlog — and every routed page carries an anchor.**
+Gate 13 (job #854) reads `tools/walkthrough/coverage.json`: a HANDBOOK capability no walk steps on
+must be declared there under `capabilities.obvious` with one sentence on why nobody needs showing,
+or under `capabilities.missing` as honest backlog; a view the router imports with no anchor on it or
+on anything it imports must be under `pages.obvious` or `pages.missing`. Author the walk instead
+wherever you can. A registry line whose subject has since gained a walk or an anchor fails the check:
+delete the line, the debt is paid.
+
 New capability? Put a `data-walk="<kebab-id>"` on the element and write the comment above it. No
 parentheses in the prose, British English, mechanism only — the voice is set by
 `tools/explainer/rulings/*.md`.

@@ -70,7 +70,11 @@ export interface OrgIntelPayload {
     stages: { id: string; sentence: number | null; label: OrgIntelPosition | null; classes: number }[]
   }
   classes: OrgIntelClassRow[]
+  /** Empty unless the practising question was asked for — absence, not zero. */
   people: OrgIntelPersonRow[]
+  peopleIncluded?: boolean
+  /** The course every figure was narrowed to, echoed back by the server. */
+  courseCode?: string | null
 }
 
 export class OrgIntelError extends Error {
@@ -85,8 +89,21 @@ export function isOrgIntelPayload(v: unknown): v is OrgIntelPayload {
   return !!p && typeof p === 'object' && !!p.practising && !!p.quiet && !!p.journey && Array.isArray(p.classes)
 }
 
-export async function fetchOrgIntel(nodeId: string, token: string | null): Promise<OrgIntelPayload> {
-  const resp = await fetch(`/api/org/intel?nodeId=${encodeURIComponent(nodeId)}`, {
+/**
+ * `opts.courseCode` — the course the Insights card above is reading, so the
+ * panel under it answers about the same classes. `opts.questions` — the
+ * questions actually rendered; anything left out is never even read, which is
+ * how the Insights page avoids assembling a pupil list it would not draw.
+ */
+export async function fetchOrgIntel(
+  nodeId: string,
+  token: string | null,
+  opts: { courseCode?: string | null; questions?: string[] } = {},
+): Promise<OrgIntelPayload> {
+  const params = new URLSearchParams({ nodeId })
+  if (opts.courseCode) params.set('courseCode', opts.courseCode)
+  if (opts.questions?.length) params.set('questions', opts.questions.join(','))
+  const resp = await fetch(`/api/org/intel?${params.toString()}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   const body = await resp.json().catch(() => ({}))

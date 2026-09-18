@@ -1,0 +1,71 @@
+{
+  "id": "your-class-against-the-average",
+  "title": "Your class against the average",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "analytics"
+  },
+  "keywords": [
+    "analytics",
+    "insights",
+    "week",
+    "compare",
+    "average",
+    "class",
+    "phrases",
+    "minutes"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-insights-class",
+      "say": "**Your classes** picks which of your classes you are reading. If you teach only one, this picker stays out of the way and the page is already about that class.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "dd4fbd49.0a9a0e2d"
+    },
+    {
+      "anchor": "insights-window",
+      "say": "**All time** is where the page opens — your class's totals since the day it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday. The card is already on screen; this is the one thing you switch.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "40c97618.ee93fe92"
+    },
+    {
+      "anchor": "insights-compare",
+      "say": "**Compare to** decides whose average sits beside your class, and it appears once you pick a week — the totals stand on their own. It opens on the smallest group your class is part of that holds more than one — a year once you have confirmed it, else the school — and walks up from there.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0d9945c9.29142e30"
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "Three numbers with the average beside each: time playing as a class, time students put in on their own, those two added together, and the new phrases reached this week. No score, no rank — you do the comparing. The thin line under the total is the last twelve weeks, and the line under the card is the class's totals since it started.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "7d832afa.3c22b489"
+    },
+    {
+      "anchor": "insights-all-time",
+      "say": "On a week, the last line of the card is the class's totals since the day it first pressed play: how long it has practised and how many phrases it has reached. On **All time** the card is already saying exactly that, so the line is not repeated. Totals only — nothing here is compared with anyone.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "51cdde17.3d971e78"
+    },
+    {
+      "anchor": "insights-class-tags",
+      "say": "Under the card, the year and department this class belongs to, guessed from its name and its course. A dotted underline is a guess; tap **confirm** if it is right or **change** to fix it. Once confirmed, **Compare to** can offer the year's own average.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A class with nothing comparable yet still sees its own week and its totals; only the second column is missing, and the card says why.",
+      "checked": "a7045400.e90862a9"
+    }
+  ]
+}

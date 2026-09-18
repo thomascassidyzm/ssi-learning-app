@@ -8,22 +8,27 @@ import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import MailboxCheckPrompt from '@/components/schools/MailboxCheckPrompt.vue'
 import { useMailboxPrompt } from '@/composables/useMailboxPrompt'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
+import Greeting from '@/components/schools/shared/Greeting.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { formatPracticeMinutes, secondsToMinutes } from '@/composables/schools/practiceMinutes'
-import { fetchClassPractice7d, ClassPracticeFetchError, type ClassAccountProgress } from '@/composables/schools/classPractice7d'
+import { fetchClassPractice7d, ClassPracticeFetchError, type ClassAccountProgress, type CallerOwnPractice } from '@/composables/schools/classPractice7d'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName, useI18n } from '@/composables/useI18n'
 import { deriveBelt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import { missionsEnabled, startMission, useMission } from '@/missions/useMission'
 
 import { yearGroupBreakdown, practisedWithin, parseYearGroup, type YearGroupTile } from './yearGroup'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import LensTabs from '@/components/admin/LensTabs.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 // A class IS one learner account (Tom's ruling, 2026-09-11, job #265), so
 // there is no per-pupil sort: name, time in app, how far the class has got,
 // or the phrases it practised this week — the last one is the school
@@ -37,7 +42,8 @@ const { t } = useI18n()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
-const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
+const { currentUser: selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(selectedUser.value?.platform_role ?? null, selectedUser.value?.educational_role ?? null))
 const { classes: classesData, isLoading: classesLoading, error: classesError, classesLoaded, fetchClasses, createClass, getClassReport } = useClassesData()
 const { canPlayAsClass, playAsClassReadOnly, launchClassSession, playError } = usePlayAsClass()
 // Under View As the button is shown disabled, never hidden (job #683).
@@ -150,6 +156,12 @@ const practice7dSeconds = ref<Record<string, number>>({})
 // shows that account's journey, belt, activity and minutes — never a
 // per-pupil count, which on a shared-screen class is always 0 and lies.
 const classAccounts = ref<Record<string, ClassAccountProgress>>({})
+// The PUPILS' own accounts per class, and the caller's own account this week.
+// Both arrived on this page with the dashboard fold (Tom's ruling,
+// 2026-09-16): the teaching totals above the table keep the two figures
+// apart and never add them together.
+const pupilsOwnSeconds = ref<Record<string, number>>({})
+const callerOwn = ref<CallerOwnPractice | null>(null)
 const practiceLoaded = ref(false)
 // Set when the practice fetch FAILS: the banner says so, with the status and
 // the server's own words, and offers Retry. Never dots that read like data
@@ -169,6 +181,8 @@ async function loadPractice7d() {
     // and is never added to this (Tom, 2026-09-14, job #662).
     practice7dSeconds.value = data.classPlayByClass
     classAccounts.value = data.classAccountByClass
+    pupilsOwnSeconds.value = data.practiceByClass
+    callerOwn.value = data.callerOwn
     practiceLoaded.value = true
     practiceError.value = null
   } catch (err) {
@@ -238,6 +252,109 @@ const enrichedClasses = computed(() => {
       // that is basically it (Tom's ruling, 2026-09-13, job #494).
     }
   })
+})
+
+// ─── THE DASHBOARD, FOLDED IN (Tom's ruling, 2026-09-16: "Dashboard and My
+// Classes become one page called My Classes — the Welcome back, <name> line
+// and the this-week summary sit above the classes table"). Everything from
+// here to the end of pupilsOwnLine came off DashboardView.vue, whose teacher
+// half was a second copy of this page's class list. A teacher now lands
+// here; DashboardView keeps only the legacy leader shapes. ───
+
+// Guided missions (dev/staging-gated prototype): quiet ghost affordance next
+// to the teacher greeting while no mission is running.
+const { status: missionStatus } = useMission()
+const showMissionAffordance = computed(
+  () => missionsEnabled() && !isAdminView && isTeacher.value && missionStatus.value === 'idle',
+)
+function handleTryMission() {
+  startMission('find-struggling-student', router)
+}
+
+// The greeting is the TEACHER's head only. A school leader reading this page
+// as Classes, and an admin reading it under /admin/schools/:id, keep the
+// plain page head they have always had.
+const showGreeting = computed(() => isTeacher.value && !isSchoolAdmin.value)
+
+const firstName = computed(() => {
+  const name = selectedUser.value?.display_name || ''
+  // Link-auth accounts carry a machine placeholder ("link-<uuid>") until the
+  // person sets a real name — never greet anyone with it.
+  if (/^link-[0-9a-f]{8}/i.test(name)) return ''
+  return name.split(/\s+/).filter(Boolean)[0] || ''
+})
+
+const greetingName = computed(() =>
+  firstName.value
+    ? t('schools.dashboard.welcomeBackName', 'Welcome back, {name}.').replace('{name}', firstName.value)
+    : t('schools.dashboard.welcomeBack', 'Welcome back.'))
+
+const todayLabel = computed(() => {
+  const parts = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  }).split(' ')
+  if (parts.length >= 3) return `${parts[0]} · ${parts[1]} ${parts[2]}`
+  return parts.join(' ')
+})
+
+function lastPlayedLabel(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+// Totals across the teacher's classes, this week: the class accounts' own
+// play, and, kept apart and never added to it, what the pupils did on their
+// OWN accounts. Both are always shown; a zero is said in words (Tom's ruling,
+// 2026-09-14, job #662: "there wont be a lot of this at the moment"). These
+// total EVERY class the teacher has, never the filtered table.
+const teacherStats = computed(() => {
+  const rows = enrichedClasses.value
+  return {
+    classes: rows.length,
+    minutes: rows.reduce((sum, c) => sum + c.minutesWk, 0),
+    phrases: rows.reduce((sum, c) => sum + c.phrases7d, 0),
+    students: classesData.value.reduce((sum, c) => sum + (c.student_count || 0), 0),
+    studentsOwnMinutes: rows.reduce((sum, c) => sum + secondsToMinutes(pupilsOwnSeconds.value[c.id] ?? 0), 0),
+  }
+})
+
+// The pupils' own-accounts line, always present once the payload has landed.
+const pupilsOwnLine = computed(() => {
+  if (!practiceLoaded.value) return ''
+  const s = teacherStats.value
+  if (s.studentsOwnMinutes <= 0) {
+    return t('schools.dashboard.pupilsOwnAccountsNone', 'Nothing on pupils’ own accounts this week. That is usual for a class taught from the front.')
+  }
+  return t('schools.dashboard.studentsOwnAccountsLine', '{n} pupils on their own accounts · {minutes} on those accounts this week')
+    .replace('{n}', String(s.students)).replace('{minutes}', formatPracticeMinutes(s.studentsOwnMinutes))
+})
+
+// The warning under the classes (Tom, 2026-09-14 13:07Z, job #662): any
+// practice on her own account this week means she has been playing as herself.
+const ownPracticeLine = computed(() => {
+  const own = callerOwn.value
+  if (!own || own.inAppMinutes7d <= 0) return ''
+  const when = own.lastPlayedDay ? lastPlayedLabel(`${own.lastPlayedDay}T12:00:00Z`) : ''
+  const base = when
+    ? t('schools.dashboard.ownPracticeWhen', 'You practised {minutes} on your own account this week, last on {day}.')
+        .replace('{minutes}', formatPracticeMinutes(own.inAppMinutes7d)).replace('{day}', when)
+    : t('schools.dashboard.ownPractice', 'You practised {minutes} on your own account this week.')
+        .replace('{minutes}', formatPracticeMinutes(own.inAppMinutes7d))
+  return `${base} ${t('schools.dashboard.ownPracticeNote', 'That counts for you, not for a class. Use Play as class so a lesson counts for the class.')}`
+})
+
+const greetingLines = computed(() => {
+  const n = enrichedClasses.value.length
+  if (!n) return t('schools.dashboard.noClassesYetCreateOne', 'No classes yet — create one to get your students playing.')
+  const base = n === 1
+    ? t('schools.dashboard.oneClassOnTheGoPlain', 'One class on the go.')
+    : t('schools.dashboard.classesOnTheGoPlain', '{n} classes on the go.').replace('{n}', String(n))
+  if (!practiceLoaded.value) return base
+  return t('schools.dashboard.onTheGoMinutesWeek', '{base} {minutes} in the app this week.')
+    .replace('{base}', base)
+    .replace('{minutes}', formatPracticeMinutes(teacherStats.value.minutes))
 })
 
 const sortOptions = computed<{ value: SortKey; label: string }[]>(() => [
@@ -338,7 +455,8 @@ registerRefresh(loadDashboard, { immediate: false })
 
 onMounted(async () => {
   await refresh()
-  // Deep-linked from the dashboard's "Create class" CTA → open the form straight away.
+  // ?create=1 on this page opens the form straight away — the deep link the
+  // retired dashboard CTA used, kept for any link already in the wild.
   if (!isAdminView && router.currentRoute.value.query.create) openCreateModal()
 })
 
@@ -429,6 +547,17 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
   router.push({ path: schoolsLink('class-detail', { classId: cls.id }) })
 }
 
+// The row's Overview | Insights pair (Tom, 2026-09-17): same LensTabs the
+// class page header wears, so the control is learned once. Overview is the
+// same class-detail path openClass uses; Insights mirrors NodeHomeView's
+// insightsLink — a plain teacher's node-insights endpoint isn't a leader's,
+// so they get the teacher-scoped analytics tool for this class instead.
+function classInsightsPath(cls: { id: string }): string {
+  if (route.path.startsWith('/admin/')) return `/admin/classes/${cls.id}/insights`
+  if (isTeacher.value && !isSchoolAdmin.value && !isGovtAdmin.value) return `/schools/analytics?class=${encodeURIComponent(cls.id)}`
+  return `/org/${cls.id}/insights`
+}
+
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
 async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id: string | null }) {
@@ -480,17 +609,40 @@ function exportCsv() {
     <!-- A password is the one way back in that needs no inbox. -->
     <SchoolsPasswordPrompt />
 
+    <!-- THE TEACHER'S HEAD (Tom's ruling, 2026-09-16): the Welcome back line,
+         the week's summary and today's date sit above the classes table. This
+         WAS the schools dashboard, whose teacher half repeated the table
+         below it. A leader reading this page as Classes keeps the plain head. -->
+    <Greeting
+      v-if="showGreeting"
+      :name="greetingName"
+      :lines="greetingLines"
+      :date="todayLabel"
+    >
+      <template #action>
+        <!-- "Guided look", never "mission" — mission framing is deprecated
+             in user-facing copy (founder ruling, 2026-07-30). -->
+        <button v-if="showMissionAffordance" type="button" class="btn-ghost" @click="handleTryMission">
+          {{ t('schools.dashboard.takeAGuidedLook', 'Take a guided look') }}
+        </button>
+      </template>
+    </Greeting>
+
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
+        <WalkOffer :persona="explainerPersona" place="classes" />
         <p class="page-subtitle schools-subtle">
-          <router-link :to="{ query: { ...route.query, sort: 'hours' } }" class="subtitle-link">{{ headlineSubtitle }}</router-link>
+          <!-- The greeting above already names the classes and the minutes, so
+               a teacher gets the sentence once, not twice. -->
+          <router-link v-if="!showGreeting" :to="{ query: { ...route.query, sort: 'hours' } }" class="subtitle-link">{{ headlineSubtitle }}</router-link>
           <UpdatedStamp />
         </p>
       </div>
       <div class="page-head-actions">
         <!-- HANDBOOK Export your class list
              section: running-classes
+             moment: setting-up
              roles: school_admin, teacher
              place: classes
              keywords: export, csv, download, report, classes
@@ -512,6 +664,7 @@ function exportCsv() {
         </button>
         <!-- HANDBOOK Make a class
              section: running-classes
+             moment: setting-up
              roles: school_admin, teacher
              place: classes
              keywords: class, create, new, make, start
@@ -555,6 +708,7 @@ function exportCsv() {
 
     <!-- HANDBOOK The classes by year group
          section: running-classes
+         moment: setting-up
          roles: school_admin, teacher
          place: classes
          keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
@@ -589,6 +743,7 @@ function exportCsv() {
     <!-- Filters -->
     <!-- HANDBOOK Find a class in a long list
          section: running-classes
+         moment: setting-up
          roles: school_admin, teacher
          place: classes
          keywords: filter, sort, search, course, classes
@@ -632,6 +787,7 @@ function exportCsv() {
     <div v-if="filtered.length > 0" class="schools-card table-card">
       <!-- HANDBOOK Read your class list
            section: running-classes
+           moment: setting-up
            roles: school_admin, teacher
            place: classes
            keywords: classes, list, overview, belt, minutes, time in app
@@ -671,6 +827,7 @@ function exportCsv() {
             <th>{{ t('schools.teacherDashboard.tableHeaderTimeInApp', 'Played as class, this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderPhrases', 'Phrases practised this week') }}</th>
             <th>{{ t('schools.teacherDashboard.tableHeaderActivity', 'Activity') }}</th>
+            <th></th>
             <th>{{ t('schools.teacherDashboard.tableHeaderShare', 'Share') }}</th>
             <th></th>
           </tr>
@@ -678,6 +835,7 @@ function exportCsv() {
         <tbody>
           <!-- HANDBOOK Open a class
                section: running-classes
+               moment: every-lesson
                roles: school_admin, teacher
                place: classes
                keywords: class, open, detail, roster, view
@@ -695,7 +853,7 @@ function exportCsv() {
                Worth knowing. The row is a button in its own right, so a keyboard
                works too. The buttons at the right of the row do their own jobs and
                do not open the class.
-               checked: a021ba99.b9c5c0f1
+               checked: e0a83e2e.b9c5c0f1
           -->
           <tr
             v-for="cls in rowsShown.shown"
@@ -738,9 +896,19 @@ function exportCsv() {
               <template v-else>{{ cls.phrases7d }}</template>
             </td>
             <td :data-label="t('schools.teacherDashboard.tableHeaderActivity', 'Activity')"><Sparkline v-if="cls.started" :data="cls.activity" :width="80" :height="20" /><span v-else class="schools-subtle">—</span></td>
+            <td class="cell-lens">
+              <LensTabs
+                class="row-lens"
+                :overview-path="schoolsLink('class-detail', { classId: cls.id })"
+                :insights-path="classInsightsPath(cls)"
+                current="overview"
+                @click.stop
+              />
+            </td>
             <td class="cell-share">
               <!-- HANDBOOK Copy a class link without opening the class
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin, teacher
                    place: classes
                    keywords: copy, link, share, join, classes
@@ -765,6 +933,7 @@ function exportCsv() {
             <td class="cell-action">
               <!-- HANDBOOK Start a class session from the list
                    section: running-classes
+                   moment: every-lesson
                    roles: school_admin, teacher
                    place: classes
                    keywords: play, session, class, start, lesson
@@ -848,6 +1017,74 @@ function exportCsv() {
       </button>
     </div>
 
+    <!-- The teacher's own lines, under the classes they are about (Tom's
+         ruling, 2026-09-16, the dashboard fold). Teacher only: a leader
+         reading this page as Classes has the school's own figures elsewhere. -->
+    <template v-if="showGreeting">
+      <!-- HANDBOOK Practice on your own account
+           section: seeing-progress
+           moment: something-wrong
+           roles: teacher
+           place: classes
+           keywords: own account, library, play as class, minutes, mistake, my practice
+           What it's for. Telling you when practice this week landed on your own
+           sign-in rather than on a class. Pressing play on a course from your
+           Library counts for you; only Play as class counts for the class. The
+           line names your own minutes and when you last played, so a lesson that
+           went to the wrong place is found rather than lost.
+           Where it is. Under your classes on **My Classes**, only in a week when
+           your own account has practised.
+           How you do it.
+           1. Read the line.
+           2. Next lesson, tap **Play as class** on the class instead of playing
+              from the Library.
+           3. To move this week's lesson onto the class, open the class and use
+              **Ran a lesson signed in as yourself?** on its tools page.
+           Worth knowing. The line never appears when your own account is quiet,
+           so its absence means nothing went astray.
+           checked: 41da3ae4.42101614
+      -->
+      <p v-if="ownPracticeLine" class="own-practice-line" data-walk="dash-own-practice">{{ ownPracticeLine }}</p>
+
+      <!-- Stats, demoted: one quiet line under the classes (founder ruling
+           2026-07-30 — classes lead, numbers follow). -->
+      <!-- HANDBOOK Your own teaching numbers
+           section: seeing-progress
+           moment: every-lesson
+           roles: teacher
+           place: classes
+           keywords: numbers, totals, classes, minutes, phrases, students, own accounts
+           parts: dash-teacher-own-accounts
+           What it's for. One quiet line totalling your classes this week: how many
+           classes, the minutes they spent in the app with a lesson running, and the
+           phrases they practised. All of it is the classes' own play from the front.
+           A second line, always there, is the minutes your pupils spent on their
+           own accounts this week, kept apart from the first and never added to it.
+           When no pupil has practised on their own account it says so in words,
+           because that is usual for a class taught from the front and not a fault.
+           Where it is. **My Classes**, underneath the table of your classes.
+           How you do it.
+           1. Open **My Classes** and scroll past the table.
+           2. **Classes** is how many you teach.
+           3. **In the app this week** is time with a lesson running, pauses included.
+           4. **Phrases practised** is how many phrases your classes were prompted with
+              this week.
+           Worth knowing. The line only appears once you have at least one class, and
+           it totals every class you teach, whatever the table is filtered to.
+           checked: 51f5f9ca.6fff0368
+      -->
+      <div v-if="enrichedClasses.length" class="teacher-stat-line schools-subtle" data-walk="dash-teacher-stats">
+        <span><strong class="arsenal stat-line-value">{{ teacherStats.classes }}</strong> {{ teacherStats.classes === 1 ? t('schools.dashboard.classSingular', 'class') : t('schools.dashboard.classesWord', 'classes') }}</span>
+        <span class="dot-sep">·</span>
+        <span><strong class="arsenal stat-line-value">{{ practiceLoaded ? formatPracticeMinutes(teacherStats.minutes) : '—' }}</strong> {{ t('schools.dashboard.inTheAppThisWeek', 'in the app this week') }}</span>
+        <span class="dot-sep">·</span>
+        <span><strong class="arsenal stat-line-value">{{ practiceLoaded ? teacherStats.phrases : '—' }}</strong> {{ t('schools.dashboard.phrasesPractised', 'phrases practised') }}</span>
+      </div>
+      <div v-if="enrichedClasses.length && pupilsOwnLine" class="teacher-stat-line teacher-stat-line-own schools-subtle" data-walk="dash-teacher-own-accounts">
+        <span>{{ pupilsOwnLine }}</span>
+      </div>
+    </template>
+
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="createClassError" class="error-toast" @click="createClassError = null">
@@ -882,6 +1119,26 @@ function exportCsv() {
 </template>
 
 <style scoped>
+/* The teacher's own lines under the classes, folded in from the dashboard
+   (Tom's ruling, 2026-09-16). */
+.own-practice-line { margin: 12px 0 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); }
+.teacher-stat-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.teacher-stat-line-own { margin-top: 4px; }
+.stat-line-value {
+  font-size: 17px;
+  color: var(--schools-fg);
+  font-weight: 400;
+}
+.dot-sep { color: var(--schools-fg-3); opacity: 0.6; }
+
 .dashboard {
   padding: 22px 28px 32px;
   max-width: 1320px;
@@ -1031,6 +1288,17 @@ function exportCsv() {
   color: var(--schools-red-deep);
 }
 
+.cell-lens {
+  white-space: nowrap;
+}
+
+/* The same Overview | Insights pair as the class page header, small — the
+   row already opens Overview on a click anywhere, this just says so. */
+.row-lens :deep(.lens-tab) {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+
 .cell-share {
   white-space: nowrap;
 }
@@ -1125,6 +1393,7 @@ function exportCsv() {
   .table-card .ssi-table tbody td.cell-class { grid-column: 1; grid-row: 1; display: block; }
   .table-card .ssi-table tbody td.is-sorted { grid-column: 2; grid-row: 1; flex-direction: column; align-items: flex-end; gap: 0; font-size: 1.25rem; font-weight: 600; color: var(--schools-fg); }
   .table-card .ssi-table tbody td.is-sorted::before { font-size: 11px; font-weight: 400; }
+  .table-card .ssi-table tbody td.cell-lens { justify-content: flex-start; padding-top: 6px; }
   .table-card .ssi-table tbody td.cell-share,
   .table-card .ssi-table tbody td.cell-action { grid-column: auto; justify-content: flex-start; padding-top: 4px; }
 }

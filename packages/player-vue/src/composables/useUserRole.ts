@@ -49,6 +49,17 @@ export function roleLabel(role: ViewAsPersona['role']): string {
 const platformRole = ref<string | null>(null)
 const educationalRole = ref<string | null>(null)
 const isInitialized = ref(false)
+// TRUE only when the role in memory came from a live source — a DB row
+// (setAuthoritative) or a caller that genuinely knows one half (initialize).
+// FALSE while the role is only what localStorage remembered from a previous
+// visit. The distinction matters because that cache carries no identity and
+// no timestamp: a device that once held a learner role keeps saying "learner"
+// until the DB answer lands, and a gate that reads it as an ANSWER bounces a
+// real ssi_admin off a deep link milliseconds before their real role arrives
+// (job #34: staging, phone, /admin/insights-lab, reproduced). A gate may use
+// a cached role to let someone THROUGH optimistically; it must never use one
+// to DENY.
+const isRoleAuthoritative = ref(false)
 
 // View-as overlay: when an ssi_admin steps into a role/persona, this holds it.
 // The REAL platformRole stays 'ssi_admin' throughout (isSsiAdmin below is the
@@ -149,6 +160,7 @@ function writeRoleCache(platform: string | null, educational: string | null): vo
   platformRole.value = platform
   educationalRole.value = educational
   isInitialized.value = true
+  isRoleAuthoritative.value = true
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ platformRole: platform, educationalRole: educational }))
@@ -189,6 +201,8 @@ function restoreFromCache(): void {
       platformRole.value = parsed.platformRole ?? null
       educationalRole.value = parsed.educationalRole ?? null
       isInitialized.value = true
+      // Deliberately NOT authoritative — see isRoleAuthoritative above.
+      isRoleAuthoritative.value = false
     }
   } catch {
     // malformed or unavailable
@@ -235,6 +249,7 @@ function clear(): void {
   platformRole.value = null
   educationalRole.value = null
   isInitialized.value = false
+  isRoleAuthoritative.value = false
   stopViewing()
   try {
     localStorage.removeItem(STORAGE_KEY)
@@ -249,6 +264,7 @@ export function useUserRole() {
     platformRole,
     educationalRole,
     isInitialized,
+    isRoleAuthoritative,
     viewingAs,
     isViewingAs,
     effectiveEducationalRole,

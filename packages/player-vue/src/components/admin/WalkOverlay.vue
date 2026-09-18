@@ -8,7 +8,7 @@
 // pointer-events:none except the card itself).
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { useWalkthrough, ANCHOR_TIMEOUT_MS, effectiveAdvance } from '@/walkthrough/useWalkthrough'
+import { useWalkthrough, ANCHOR_TIMEOUT_MS, effectiveAdvance, anchorSelector } from '@/walkthrough/useWalkthrough'
 import { placeCard, isAnchorUsable, PAD } from '@/walkthrough/overlayPlacement'
 import WalkCard from '@/components/admin/WalkCard.vue'
 
@@ -80,7 +80,7 @@ function resolveAnchor(): void {
   // An element that exists but occupies no space (v-show off, hidden
   // ancestor) is NOT a usable anchor — binding it would ring 0,0.
   const find = () => {
-    const el = document.querySelector<HTMLElement>(`[data-walk="${step.anchor}"]`)
+    const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
     return el && isAnchorUsable(el.getBoundingClientRect()) ? el : null
   }
   const now = find()

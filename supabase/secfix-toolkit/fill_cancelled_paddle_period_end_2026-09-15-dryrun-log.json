@@ -1,0 +1,134 @@
+[
+ {
+  "subscription_id": "sub_01ksxqr3rc9enp09db1p2pmsc3",
+  "sub_row": "25feb051-4d8b-4c84-b364-56eabb57331d",
+  "learner_id": "9e851da3-342c-4334-ada1-5ddd81950a6f",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-07T00:43:08.422Z",
+  "source": "last completed transaction txn_01ksxqpp16ctgag6aytndxabdm billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-07T00:43:08.422Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ksxysnj4abeamf904sny1rnd",
+  "sub_row": "ab8c47ad-6e6a-4276-93d8-a9e37fc58383",
+  "learner_id": "3f5aad01-d993-4524-9d32-5a87dc3e33b4",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-07T02:46:19.455Z",
+  "source": "last completed transaction txn_01ksxyrfzrs1fwzqha7ycw9qhg billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-07T02:46:19.455Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ksxz8q5bhs0fjnjrergg90xp",
+  "sub_row": "2f3692d4-dff8-46e2-bd4b-c6a937796ccf",
+  "learner_id": "e4acb9a1-5901-443f-8cbe-92e3302f7abd",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-07T02:54:32.615Z",
+  "source": "last completed transaction txn_01ksxz78fx0gyakzcjpa9w3n2y billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-07T02:54:32.615Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ksycm8y3x4k13e2rrbaxswdq",
+  "sub_row": "b5ae2e8e-7c92-40b0-b9e4-42ef77b5be20",
+  "learner_id": "bb8e92d0-5216-4650-87f2-010a5d483fd0",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-07T06:48:02.708Z",
+  "source": "last completed transaction txn_01ksycj11kdbcgmtsrmact4mw2 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-07T06:48:02.708Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ksydp2yjadn25tkb4j7pm3tq",
+  "sub_row": "e3cf7fee-4105-4b1c-a21e-289af7c9718d",
+  "learner_id": "d56efbc1-b0f0-46a3-8a8b-bb3e7e6a25a2",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-07T07:06:30.733Z",
+  "source": "last completed transaction txn_01ksydn7wfb2mfwes5cxfc3zk0 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-07T07:06:30.733Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01kt4cw13db4ngmak8ps1rjn1p",
+  "sub_row": "bc621024-2e71-48ed-ad13-8235f2eea8ae",
+  "learner_id": "4c674043-d9a5-4ed6-8a26-ca12242e757a",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-09T14:47:43.465Z",
+  "source": "last completed transaction txn_01kt4cv70s46wxrafm5pvznam2 billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-09T14:47:43.465Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01kt4n3qjqb0q7ed94c93z8wy6",
+  "sub_row": "ec3c0103-fc6e-4308-8f5c-dc57451fb37b",
+  "learner_id": "34cca351-e0bf-4b0a-8815-8fe51bac8610",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-09T17:11:44.466Z",
+  "source": "last completed transaction txn_01kt4n1vs05k385mkgjqnwwcwa billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-09T17:11:44.466Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01kt4ravc4f7342vy6gpn742a6",
+  "sub_row": "32b70b31-e211-4eb2-905d-50429f00fe51",
+  "learner_id": "6e9f3d7a-607d-4115-8bd4-0b197f7d86a3",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-09T18:08:03.455Z",
+  "source": "last completed transaction txn_01kt4r7hjhbw7rmb1nxkvpbqmx billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-09T18:08:03.455Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ktkejgwrs31j45g2ydcfgztz",
+  "sub_row": "389de249-527b-44bb-8c4d-154d3eae3372",
+  "learner_id": "7dc207e2-9861-4366-b639-f2d617fbf261",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-15T11:06:05.588Z",
+  "source": "last completed transaction txn_01ktkehgzfkcg9mz1ekap6tsre billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-15T11:06:05.588Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01ktvg6mhm2tmexsc5zg59gk74",
+  "sub_row": "c616cb2a-e9b7-412e-a2ec-954811b88404",
+  "learner_id": "c78ee623-38d2-4786-90a5-401e190ceffc",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-06-18T14:08:28.718Z",
+  "source": "last completed transaction txn_01ktvg0t8q6w17e1rb1qw9nybq billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-06-18T14:08:28.718Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01kvx8a6dbetnqzbzwxqwg3xka",
+  "sub_row": "bc038ab8-da51-4b43-9d00-8bb511359324",
+  "learner_id": "be652f81-a95a-4f78-91fa-3162b49e2609",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-07-24T16:44:47.011903Z",
+  "source": "last completed transaction txn_01kvx88gnwew1m7wf2f5qpr5hx billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-07-24T16:44:47.011Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ },
+ {
+  "subscription_id": "sub_01kwrr1y331cpy59tmkqw3hkrp",
+  "sub_row": "4930482f-2be5-4f4c-82ac-17d192e683b2",
+  "learner_id": "1578df92-a8f1-4fec-b5ed-0fa192065188",
+  "before_current_period_end": null,
+  "after_current_period_end": "2026-08-05T08:59:23.156109Z",
+  "source": "last completed transaction txn_01kwrqzd9acgvh0e0rqe8h8tnd billing_period.ends_at (Paddle current_billing_period is null on a canceled subscription)",
+  "grant_expires_at": "2026-08-05T08:59:23.156Z",
+  "grant_revoked_at": null,
+  "grant_opens_access": false
+ }
+]

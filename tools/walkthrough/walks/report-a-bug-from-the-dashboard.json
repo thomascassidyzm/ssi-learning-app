@@ -1,0 +1,58 @@
+{
+  "id": "report-a-bug-from-the-dashboard",
+  "title": "Report a bug from the dashboard",
+  "personas": [
+    "teacher",
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "bug",
+    "report",
+    "problem",
+    "went wrong",
+    "suggestion",
+    "feedback",
+    "broken",
+    "dashboard",
+    "menu"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-user-menu-trigger",
+      "say": "Tap your name at the top right to open the account menu.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "3e2f51f4.7280b14d"
+    },
+    {
+      "anchor": "schools-report-bug",
+      "say": "**Report a bug** sits in that menu — tap it to open the window without leaving the dashboard. The page you are on, and your school, are attached for you.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "9b124624.d55773a0"
+    },
+    {
+      "anchor": "schools-report-bug-happened",
+      "say": "Write what you saw, or what you would like to see, in **What happened?**. Add what you expected underneath if that helps — that part is optional.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ff80a822.0c5fa19d"
+    },
+    {
+      "anchor": "schools-report-bug-send",
+      "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note goes, with your screenshot too if you added one.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "A **Got it, thank you** toast appears at the top of the page and that is the whole reply — nobody answers through the app. Questions about the dashboard itself go to Support instead.",
+      "checked": "58168a2c.708fd411"
+    }
+  ]
+}

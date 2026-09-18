@@ -12,6 +12,11 @@
  *     copy: the undo would not be clean, and the answer says so.
  *   open_support — nothing to run server-side; the client navigates. Answered
  *     200 without stamping, so the message stays a plain pointer.
+ *   acknowledge — "Understood", and nothing else. Stamps action_taken_at and
+ *     answers 200. It exists because read_at only says the message was opened,
+ *     and a note that asks a teacher to change how they start a lesson wants
+ *     an answer rather than an impression. A second tap is the same 409 every
+ *     other kind gets, which is right: the acknowledgement is given once.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -58,6 +63,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (!row.action) { res.status(400).json({ error: 'This message has no action' }); return }
     if (row.action_taken_at) { res.status(409).json({ error: 'This action has already been taken', message: toView(row) }); return }
 
+    if (row.action.kind === 'acknowledge') {
+      await stampTaken(caller.svc, row)
+      const after = await ownUserMessage(caller.svc, caller.userId, id)
+      res.status(200).json({ message: toView(after ?? row), outcome: { kind: 'acknowledge' } })
+      return
+    }
     if (row.action.kind === 'open_support') {
       res.status(200).json({ message: toView(row), outcome: { kind: 'open_support' } })
       return

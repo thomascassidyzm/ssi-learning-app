@@ -2,7 +2,7 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Superseded in part (2026-04-29) — see banner below
-# Last updated: 2026-09-12 (LISTENING MODE THIRD SLOT — method-pod beside Pod 1, servedPod rule 6, job #354)
+# Last updated: 2026-09-17 (PLAY-AS-CLASS pod persistence routed through /api/school/class-progress — see the ratchet-migration block below; previously 2026-09-12: LISTENING MODE THIRD SLOT — method-pod beside Pod 1, servedPod rule 6, job #354))
 # Source: Aran Jones methodology insights, 2025-12-03
 
 # =============================================================================
@@ -478,6 +478,18 @@
 # lap debuts the following exchange (read-time mapping, podCohortRoundFor).
 # ?pod=1 / ?podview=1 previews compose whole cohorts (previews feel like
 # actual dialogue); ?podview Next/Prev steps cohort-by-cohort (exchanges).
+# PLAY-AS-CLASS (2026-09-17): the ratchet, the work debt and learner_pod_state
+# all belong to the CLASS's own learner id, which own-row RLS makes unreadable
+# and unwritable from the browser — so every class write was refused and only
+# console.warned (live: 2,160 pod-state rows for individuals, ZERO for any
+# class ever; all 199 class enrollments at completed_pod_rounds = 0 against
+# individuals reaching 327), and the cohort ladder restarted from cohort 1 at
+# stage 1 every single session. usePodLapScheduler now takes a `classRoute`:
+# in class mode getPodRatchet / persistPodRatchet / resetPodRatchet /
+# loadPodState / upsertPodState / deletePodState all go through
+# /api/school/class-progress, which resolves the class learner id server-side.
+# The READS go through it too — RLS hides rows rather than erroring, so a
+# write-only fix would still read back null and restart at zero.
 #
 # UPDATE (2026-08-07, Tom — T-13 cold-start window; supersedes the A-52
 # floor-only rule of the same day): THE FIRST LAP IS ONE FULL EXCHANGE.

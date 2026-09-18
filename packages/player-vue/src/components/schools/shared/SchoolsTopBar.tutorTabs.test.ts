@@ -30,7 +30,7 @@ describe('SchoolsTopBar — tutor tab set', () => {
     }
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const labels = wrapper.findAll('.tabs a, .tabs router-link').map((l) => l.text())
-    expect(labels).toEqual(['Dashboard', 'Students', 'Insights'])
+    expect(labels).toEqual(['My Classes', 'Students', 'Insights'])
   })
 
   it('a groupless tutor (educational_role tutor, no school_id) gets an Upgrade tab', async () => {
@@ -42,12 +42,15 @@ describe('SchoolsTopBar — tutor tab set', () => {
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const links = wrapper.findAll('.tabs a')
     const labels = links.map((l) => l.text())
-    expect(labels).toEqual(['Dashboard', 'Students', 'Insights', 'Upgrade'])
+    expect(labels).toEqual(['My Classes', 'Students', 'Insights', 'Upgrade'])
     const upgrade = links.find((l) => l.text() === 'Upgrade')
     expect(upgrade?.attributes('href')).toBe('/schools/upgrade')
   })
 
-  it('a groupless tutor gets no Classes/Teachers tabs (those belong to the admin bucket, not the derived-teacher shell)', async () => {
+  // My Classes joined the teacher shell on 2026-09-16 (founder ruling), so a
+  // tutor gets it too — their classes live on the same page. The admin-bucket
+  // tab this test still guards against is Teachers.
+  it('a groupless tutor gets My Classes but no Teachers tab (Teachers belongs to the admin bucket, not the derived-teacher shell)', async () => {
     role.initialize(null, 'tutor')
     ;(ctx.currentUser as any).value = {
       user_id: 'tutor-2', learner_id: 'l3', display_name: 'Tutor', educational_role: 'tutor',
@@ -55,7 +58,7 @@ describe('SchoolsTopBar — tutor tab set', () => {
     }
     const wrapper = mount(SchoolsTopBar, { global: { plugins: [router], provide: { auth: null } } })
     const labels = wrapper.findAll('.tabs a').map((l) => l.text())
-    expect(labels).not.toContain('Classes')
+    expect(labels).toContain('My Classes')
     expect(labels).not.toContain('Teachers')
   })
 })

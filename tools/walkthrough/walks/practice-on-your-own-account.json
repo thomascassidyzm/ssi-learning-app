@@ -1,0 +1,30 @@
+{
+  "id": "practice-on-your-own-account",
+  "title": "Practice on your own account",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "own account",
+    "library",
+    "play as class",
+    "minutes",
+    "mistake",
+    "my practice",
+    "wrong place"
+  ],
+  "steps": [
+    {
+      "anchor": "dash-own-practice",
+      "say": "This line appears under your classes on My Classes, only in a week when your own account has practised. Pressing play on a course from your Library counts for you; only **Play as class** counts for the class. It names your own minutes and when you last played, so a lesson that went to the wrong place is found rather than lost. When it is not here, nothing went astray.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "To move this week's lesson onto the class, open the class and use **Ran a lesson signed in as yourself?** on its tools page.",
+      "checked": "abfe39c4.108737bc"
+    }
+  ]
+}

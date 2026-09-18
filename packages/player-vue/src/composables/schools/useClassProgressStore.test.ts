@@ -161,3 +161,74 @@ describe('createClassAwareProgressStore — bumpSpeakingOpportunities (job #778)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+// Job #52: LEGO co-firing rides the same route, for the same reason — the
+// `record_lego_pairings` RPC is SECURITY INVOKER against own-row RLS, so the
+// class's own learner id is refused and every class flush was lost.
+describe('createClassAwareProgressStore — recordLegoPairings (job #52)', () => {
+  it('in class mode posts the pairs to the class route and reports them handled', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('staff-tok')))
+    const handled = await store.recordLegoPairings!('class-learner-id', 'course-1', [['S0001L01', 'S0002L01']], [3])
+    expect(handled).toBe(true)
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
+    expect(body).toEqual({ classId: 'class-1', method: 'recordLegoPairings', args: [[['S0001L01', 'S0002L01']], [3]] })
+  })
+
+  it('outside class mode reports NOT handled and touches nothing — the caller keeps its own RPC', async () => {
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref(null), ref(makeSupabase('tok')))
+    const handled = await store.recordLegoPairings!('learner-1', 'course-1', [['S0001L01', 'S0002L01']], [1])
+    expect(handled).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Pod state, the pod ratchet, instruction exposure and the belt touch (job #61
+ * census → this job). Each was a direct browser write under own-row RLS, so
+ * each was refused for a class and only console.warned. The READS are routed
+ * too: RLS hides rows rather than erroring, so writing through this door and
+ * reading through the browser would still restart a class from zero.
+ */
+describe('createClassAwareProgressStore — pod state, pod ratchet, commentary, belt touch', () => {
+  const cases: Array<[string, (s: any) => Promise<unknown>, unknown[]]> = [
+    ['getPodRatchet', (s) => s.getPodRatchet(), []],
+    ['persistPodRatchet', (s) => s.persistPodRatchet(9, 2), [9, 2]],
+    ['resetPodRatchet', (s) => s.resetPodRatchet(), []],
+    ['loadPodState', (s) => s.loadPodState(), []],
+    ['upsertPodState', (s) => s.upsertPodState([{ sentence_id: 'p:s0', exposures: 2 }]), [[{ sentence_id: 'p:s0', exposures: 2 }]]],
+    ['deletePodState', (s) => s.deletePodState(), []],
+    ['getMetaCommentaryState', (s) => s.getMetaCommentaryState(), []],
+    ['saveMetaCommentaryState', (s) => s.saveMetaCommentaryState(4, true), [4, true]],
+    ['touchLastPracticed', (s) => s.touchLastPracticed(), []],
+    ['startClassSession', (s) => s.startClassSession('S0012L03'), ['S0012L03']],
+    ['endClassSession', (s) => s.endClassSession('cs-1', 'S0004L01', 26, 1830), ['cs-1', 'S0004L01', 26, 1830]],
+  ]
+
+  it('in class mode posts each one to the class route with no learner id in the body', async () => {
+    for (const [method, invoke, args] of cases) {
+      fetchMock.mockClear()
+      const store = createClassAwareProgressStore(
+        ref(makeBaseStore()), ref({ id: 'class-1' }), ref(makeSupabase('staff-tok')),
+      ) as any
+      await invoke(store)
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body)
+      expect(body, method).toEqual({ classId: 'class-1', method, args })
+    }
+  })
+
+  it('outside class mode every one is a no-op — null for reads, false for writes, no fetch', async () => {
+    const store = createClassAwareProgressStore(
+      ref(makeBaseStore()), ref(null), ref(makeSupabase('tok')),
+    ) as any
+    for (const [method, invoke] of cases) {
+      const result = await invoke(store)
+      const expected = method.startsWith('get') || method.startsWith('load') || method === 'startClassSession'
+        ? null
+        : false
+      expect(result, method).toBe(expected)
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

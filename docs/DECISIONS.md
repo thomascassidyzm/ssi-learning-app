@@ -1,3 +1,483 @@
+## 2026-09-18 — The school door needs no code: set up, land, confirm the mailbox later (job #188)
+
+Tom's diagnosis, verbatim: "The account IS created. That is the whole point. The account is created
+instantly. But the teacher does not know it because they are being asked for the code still." Job
+#186's production read confirmed it: a Hwb head's auth row was created the instant she first asked
+for a code and sat unconfirmed for eight days, because `Onboarding.vue` only reached
+`POST /api/onboarding/provision` from inside `verify()`, after `verifyOtp`. The account never waited
+on the mail; the school did.
+
+**Decision.** The school door mints the session server-side and provisions the school before any
+mail is read. `POST /api/auth/setup-mint` does exactly what `api/auth/possession-redeem.ts` has done
+for invited teachers since July: `createUser` with no mail, `generateLink`, `verifyOtp` on the
+`token_hash`, hand the session back. Better: a head lands in her dashboard in one tap and a late,
+doubled or eaten code costs her nothing. Simpler: no new verification system — the six digits still
+go out through `send-code`, and the banner proves them through the existing `api/email/verify.ts`,
+the existing `onboarded_via:'possession'` reading of "unproven", and the existing unclaimed-mint
+contest rule. Cheaper: one route, one banner, no schema change, no dashboard config we cannot read.
+
+**"Anyone can claim the domain" is closed in two places, and this is the sentence.** An unproven
+founding admin claims no email domain — `provision.ts` defers the claim and `api/email/verify.ts`
+writes it the moment the mailbox is proved — and a stranger's mint on a typed address is stamped
+contestable, so the real owner's own sign-in by mail evicts it. A stranger gets a school called
+"My school" that vouches for nobody.
+
+**Rails kept.** A CONFIRMED account is never minted a session at the door: `existing:true`, and the
+code is the sign-in, worded "You already have an account here" rather than as a wall. An untouched
+shell — code requested, never typed — IS adopted, because refusing it protects nothing on a door
+where a fresh account can be created for any address, and it strands exactly the Hwb teachers this
+is for. Disposable domains refused; per-address and per-network throttles on the mint.
+
+**Taste defaults taken, each one Tom's to overrule:** school track only, tutor and org doors keep
+the code at the door; the banner is a standing closable strip for the setup-door account only,
+invited teachers keep the once-per-moment card; "Later" closes it for the browsing session, never
+durably, since the proof is still owed; the courtesy code is not awaited into the door's outcome.
+The GoTrue code lifetime is hosted-dashboard config this repo cannot read, and after this change it
+no longer gates anything.
+
+**Addendum, 10:15 the same day, Tom's design point.** Job #189 read the production rows: nobody is
+stuck at provisioning; what people hit is RETURN sign-in, because they got in once by a code, never
+set a password, and every return drops them onto the code path and the Resend trap. Three things
+changed with it. The password prompt is the default first step on entry: `SchoolsPasswordPrompt`
+moved from the teacher dashboard into `SchoolsContainer`, above every schools page, and opens its
+form itself the first time a passwordless account lands; "Not now" stays durable, closing the form
+leaves the card. The /schools sign-in leads with the password, with "No password yet? Email me a
+code instead" as the fallback, and a failed password names the likely cause. Supersession is named:
+`auth/codeSupersession.ts` carries the one sentence under every Resend, a sixty-second cooldown
+after any send, and the failed-verify copy that says only the newest code works, used by the
+schools sign-in, the signup door, the sign-in modal and the mailbox banner. Sixty seconds is a
+taste default.
+
+**Retired for the school door:** the "Send my code" step as a gate. Nothing about
+`school_identity_claims`, the domain-claim mechanism or the join links changed.
+
+## 2026-09-18 — A broken diary read is an error, never zero practice (job #180)
+
+Job #170 made class minutes come from the diary alone for any class with a class
+account, and dropped the legacy RPC rows that used to sit beside them. Cross-family
+verification (Astra, job #179) found the consequence: every read in
+`api/_utils/diarySessionRows.ts` discarded its PostgREST `error`, and
+`loadScopedSessionRows` swallowed a rejection into `[]`, so a `player_events`
+timeout returned success with a real school's minutes missing — and nothing left
+to mask it. Now each read throws `DiaryReadError`, `loadScopedSessionRows` returns
+it in the `{ data, error }` shape the call sites already handle, and both
+rate-compare routes answer 500. Two calls in `api/groups/[id]/rate-compare.ts`
+that only logged were promoted to 500 for the same reason: the all-time totals
+would otherwise be computed off twelve weeks for a two-year-old class, and the
+course census decides `hasData`, so its failure printed "No practice recorded in
+this class yet." over a school that had practised. Pupil-account paths are
+unchanged, and an empty-but-healthy diary is still a success. Regressions: the
+util-level tests and the endpoint test both failed on the pre-fix code (200 with
+a smaller total) and pass after; six scoped api suites pass (141 tests);
+`typecheck:api` carries the same three pre-existing `bundle.ts` errors as before.
+
+KNOWN FOLLOW-UP, deliberately out of scope here: the grant-check/deletion race in
+`api/email/verify.ts` — the entitlement/subscription count and the delete are
+separate reads, so a grant written between them can still be lost.
+
+## 2026-09-18 — Count class-account practice from the diary once (job #170)
+
+The restarted lesson recorder invalidated Insights' assumption that class_sessions
+and player_events described disjoint history. For classes with class_learner_id,
+use only diary session rows, matching Overview's source even in an empty window.
+Keep the class_sessions records for lesson identity and reconciliation. Classes
+without a class account retain legacy/demo RPC rows: they cannot supply class-account
+diary events. Account lookup errors refuse the read rather than combine sources.
+The isolated endpoint regression adds a 154-second lesson record beside 40 seconds
+of diary practice: it failed at 3.2 minutes before and passes at 0.7 afterwards,
+compared against Overview's own inAppTimeTotals helper. Overview rounds up to whole
+minutes; Insights retains its existing one-decimal representation. The four scoped
+email, diary, rate-compare and home suites pass (135 tests).
+
+## 2026-09-18 — Preserve access when linking another account's email (job #170)
+
+An activity-free learner can still own paid, gifted or code access. Refuse absorption
+when user_entitlements or subscriptions contains any row, including historical rows;
+only a successful zero-count read permits the existing empty-stub flow. Errors and
+missing counts fail closed. Refusal is reversible; transferring grants is outside this
+commission. No real account or OTP was used. The isolated parameterised regression
+returned 200 before the fix and 409 afterwards, with neither delete called; all 13
+email tests pass. The guard retains the existing handler's separate read/delete flow.
+
+## 2026-09-18 — The drained seed review was shipping one clip in four (job #149)
+
+mintonman's SECOND Basque report describes an exercise where only the Basque is spoken with English
+displayed, the four-state phase strip is missing altogether, and the Basque words begin to deal out
+card by card before the app moves to the next exercise. Job #644 had seen the first version of this
+report and called it by design — the drained seed sandwich, no framing clip, flagged for a product
+call. **That judgement was wrong, and the second report is what shows it.** The behaviour was not the
+design; it was the design with three quarters of it thrown away.
+
+**What the design is.** At spaced-rep offset >= 144 a review stops being a use-phrase and becomes the
+whole parent sentence, played as a four-clip comprehensible-input sandwich: target, then known, then
+target, then target (Tom + Aran, 2026-07-14). No mic pause, no production ask — the learner listens.
+
+**What shipped.** All four slots carry the same sentence on both the known and target sides, because
+all four ARE the same sentence. `generateLearningScript`'s consecutive-duplicate pass — which exempts
+intros, debuts, listening cups, pods and bookends, but had never heard of the sandwich — dropped
+slots 2, 3 and 4 outright, and the only English clip with them. The A-64 consecutive-prompt cap
+downstream would have re-interleaved anything that survived. So the whole review reached the learner
+as ONE Basque clip, English on screen, and then the next exercise. In thirty days of telemetry there
+are 311 seed-review plays across ten courses and not one is the English clip.
+
+**It is not a content gap.** Every one of eus_for_eng's 668 seeds carries its known clip. The player
+was discarding it. (Basque does have 178 audio-less LEGOs, from #644 — a real content gap, and a
+different one from this.)
+
+**The ruling applied.** The A-64 law is about the same PROMPT repeating. The sandwich has no prompt:
+it asks for nothing, times nothing, and repeats on purpose. It therefore sits outside the law exactly
+as a listening cup and a pod play already do. Its slots are exempt from the duplicate pass and each
+carries its own identity through the cap, so all four survive, contiguous and in `t-k-t-t` order.
+
+**The tiles.** Each slot also gains a 1.6 s linger. A sandwich slot has no voice2 clip, so VOICE_2
+ended in the frame it began — and VOICE_2 is where `LegoAssembly` starts dealing the target tiles at
+250 ms plus 150 ms each. The words began to appear and were snatched away, which is the second half
+of what mintonman describes.
+
+**What stays.** The missing four-state phase strip is correct and deliberate: `showPhaseStrip`
+requires a non-zero pause, and this cycle has no mic stage, so a four-state bar would be a lie about
+what the learner is being asked to do. It read as a glitch because the cycle had been stripped to a
+single silent-looking play. With all four clips back — Basque, English, Basque, Basque, each holding
+its text — it reads as the listening review it is. If it still reads oddly to learners, framing it is
+a product call for Tom, not a code one.
+
+## 2026-09-17 — A cycle id names the phrase it plays (job #128)
+
+#126 found the Course journey card all but empty on the deepest real learner — 10 arcs and "5
+phrases practised" against 616 chunks met — and left the fix to the player. This is that fix, plus
+the frontier the card was reading from the wrong end of the diary.
+
+**What the walk writes.** The `/cycles` and bundle paths already stamp the phrase's own name into
+the cycle id: `S0069L03_use_03_review_9`, where `use_03` is exactly what
+`course_practice_phrases.id` carries as `…:S0069L03U03`. The legacy whole-course walk did not — it
+stamped `S0312L03_build_11827`, in which the trailing number is a GLOBAL script counter of one to
+five digits and nothing at all about the phrase. `generateLearningScript` now mints every
+phrase-backed cycle through one helper, `phraseCycleId`, which reads the role and index off the
+phrase row's own id and lays them down in the shape the bundle path already uses — builds,
+consolidation uses, spaced review and both INF PLAY streams. The drained-SEED sandwich keeps its
+`_seed_rep` id, because it replays the whole parent sentence and there is no phrase for it to name;
+the brain now calls that a kind of its own rather than an unresolved blank.
+
+**All three minters, one rule.** The walk was not the only place a cycle id said nothing. The JIT
+`/cycles` endpoint stamped `S0008L01_build_1`, where the number is the SLOT the phrase filled in
+that round — it names nothing, and matched the brain's two-digit read by accident once it reached
+ten. And the bundle path stamped a phraseId COUNTED per role, which is wrong wherever a phrase row
+has since been deleted: 549 of deu_for_eng's 1,816 build/use rows sit past a gap, so a counted index
+names a phrase the class never heard. The rule is now the same in all three: the id carries the
+phrase ROW's own id, never a count. `get_course_cycles_window` projects `p.id` for it (migration
+`20260917_course_cycles_window_phrase_id.sql`, applied live 2026-09-17 — additive, read-only, and
+replaced from the LIVE definition because `supabase/schema.sql`'s copy of this function does not
+match what runs). `_utils/phraseCycleName.ts` is the one translation, `phraseCycleId` its twin in
+the player's walk.
+
+**What the brain reads.** `phraseIdFromCycleId` anchors the index: it must be followed by `_` or by
+the end of the id. Unanchored, a bare counter matched on its first two digits and named a phrase the
+class had never heard — the card's arcs and cloth were drawn from the wrong sentence, and its counts
+lied. Anchored, an unindexed id resolves to NOTHING. `/api/classes/:id/brain` now calls that one
+parser rather than carrying its own copy of the regex.
+
+**OLD ROWS STAY OLD.** This changes what the player WRITES, so every cycle already in
+`player_events` keeps its counter-only id and will now resolve to null rather than to a wrong
+phrase. The card's phrase counts on historical data go DOWN, honestly, and fill in from the first
+play on the new build.
+
+**The frontier.** `readDiary` caps at 12 pages of 1,000 and read ASCENDING, so a class with more
+rows than that lost its newest day rather than its oldest — the deepest real class carries 30,482
+rows, so the card was drawn from its first fortnight. It reads newest-first and hands the rows back
+in time order: the cap now costs the past, never the frontier.
+
+Nothing about the card's replay or pod behaviour changes, and the `audio_play` write shape is
+otherwise untouched.
+
+## 2026-09-17 — The course journey axis anchors on first light, not on chunk 1 (job #126)
+
+#120's fold was only ever drawn against a class #120 synthesised, because no real CLASS is more
+than about forty chunks in. Drawn against a REAL learner instead — 7434474c on cym_n_for_eng, 616
+chunks met, reach 633, 67 sittings, 8,230 counted cycles — the fold itself holds: 635 dots, the
+frontier legible, the whole stretch on one phone screen, and the unfolded expand walks it with real
+Welsh labels.
+
+**Two things the synthetic class could not show.**
+
+**The axis wasted its width on a mid-course start.** Tom, same day: "Some classes might have done
+some of this last year… It's possible anyway that they don't all start from LEGO #1". The fold
+compresses by AGE, not by whether a chunk was ever met, and the server always started the axis at
+chunk 0 — so a class resuming at chunk 150 and playing 24 chunks this term spent 71% of the drawn
+line on untouched grey. `chooseAxis` in `api/_utils/classBrain.ts` now begins the axis three chunks
+before the class's first lit chunk and ends three past its frontier, with MAX_AXIS still the
+ceiling. A class that started at the beginning is unchanged. Proved on the real learner's own diary
+cut to a mid-course start: 177 chunks of axis with 150 never met, down to 30 chunks all but three of
+them the class's own.
+
+**Phrase identity does not survive the diary, so the arcs and the cloth are nearly empty on real
+data.** The player logs `cycleId` as `S0120L01_build_2042`, where the trailing number is a GLOBAL
+script counter of one to five digits; `phraseIdFromCycleId` reads exactly two digits of it, so it
+names the right phrase only by accident. On the real learner: 5 phrases resolved out of 8,230
+cycles, 10 arcs where the synthetic class had thousands, and `spaced_rep` cycles — about a third of
+all plays estate-wide — never resolve at all. The card therefore reads "PRACTISED 5 phrases" against
+610 met. NOT fixed here: the fix is player-side, logging the phrase id on the event rather than
+guessing it back out of a cycle id, and that is a change to what is written, not to what is drawn.
+
+## 2026-09-17 — The course journey folds rather than forgets (job #120)
+
+Tom's ruling: "I think log-fold plus cloth sounds perfect". A class three hundred chunks into a
+course had no honest drawing. The server kept the card readable by sending only the last sixty
+chunks, which bought legibility by throwing away the read the card exists for — how far into the
+course the class has got — and with the whole axis sent, the linear mapping put every dot 1.7 units
+apart and the arcs collapsed into one blue smear.
+
+**The axis folds.** The frontier keeps the spacing a sixty-chunk course gets; course-order distance
+compresses logarithmically going back, so chunk 3 and chunk 290 both stand on one screen. The fold
+constant is not hand-tuned: it is SOLVED per axis length, by bisection, as the lambda that makes the
+newest gap exactly the gap a sixty-chunk axis would give it. So the curve follows the class rather
+than a number somebody picked, an axis of sixty or fewer is drawn dead straight because nothing
+needs folding, and there is no threshold to re-tune when a course gets longer.
+
+**The old ink turns to cloth.** Where the fold has squeezed chunks closer than a dot is wide, an arc
+between two of them cannot be a legible line, so those arcs become a density field — a woven band
+whose height follows both how far the old recombination reaches over each column and how hard the
+class has worked it. An arc with one end still at the legible frontier is ALWAYS a line however old
+its other end is, and so is the pair the replay is drawing at that instant: the course reaching back
+for material from months ago is the point of the picture, and a replay with no moving ink is not a
+replay.
+
+**The expand keeps the truth.** The card shows the lens; the full-screen overlay keeps the unfolded
+line at a fixed pitch, as wide as it needs to be and scrolled sideways, with room for its labels.
+
+**Not built, deliberately.** The spiral, offered in the same conversation, was refused by Tom in
+favour of this. No force-directed graph: it would throw away the one-dimensional course-order axis
+that makes the card readable in half a second.
+
+**Where the numbers are.** `packages/player-vue/src/components/schools/shared/classBrainFold.ts`
+holds the maths and `classBrainFigure.ts` turns it into ink; both are pure and tested without a
+browser. `api/classes/[id]/brain.ts` sends the whole reached stretch — its MAX_AXIS is now a 2,000
+sanity ceiling on the response, not a lens.
+
+## 2026-09-17 — Three more ways a name reached Insights, and one dead endpoint (job #32, the capture)
+
+**What the live capture found that the local gate could not.** With all the unit suites green and
+the three Insights endpoints clean by their own tests, running the real page against the real
+deployment as the Pune leader found three further defects in a row.
+
+**`/api/org/vad` was answering 500 to everybody.** The handler imported `summariseVad` from
+`packages/player-vue`, whose package.json declares `"type": "module"` while the repo root and
+`packages/core` do not; the serverless function loaded that file under the wrong module system and
+died with FUNCTION_INVOCATION_FAILED on every request — the new aggregate read and the admin
+board's old named read alike. Typecheck, the unit suites and the local build were all green on it.
+The summary moved to `packages/core/src/audio/vadSummary.ts`, the shared home a dozen routes
+already import from, with player-vue re-exporting it so there is still one analysis behind two
+doors, and `api/_utils/apiImportBoundary.test.ts` now fails on any api file importing runnable code
+from player-vue.
+
+**The roster prefetch, and then the school-totals read.** `SchoolsContainer` hoists the dashboard's
+fetches to route entry; one of them, `/api/school/roster`, carries every teacher and pupil by name.
+It was gated off the Insights routes — and the capture then showed 82 names still arriving, because
+the one prefetch left running, the school's own totals, fetches the SAME endpoint and reads only
+`.school` from it. So the second fix is at the boundary rather than in the route: `?part=school`
+answers one `school_summary` row and runs no class, staff or pupil query at all, and the in-flight
+coalescer keys on the part as well as the token.
+
+**The lesson worth keeping.** Every one of these was invisible to the suites and visible in the
+first minute of a signed-in capture. A privacy ruling is verified by reading what the page
+RECEIVED, not by reading what it renders or what the endpoint tests assert in isolation.
+
+## 2026-09-16 — Insights receives no pupil, and no panel answers a different question from the card (job #32, fixing up #22)
+
+**What the cold cross-family check found, and what held.** All four claims held against the live
+code and against staging as the Pune leader. The voice panel's endpoint delivered 86 learner names
+and 537 learner-keyed metric rows to a leader's browser; so, unreported, did the org-questions
+endpoint, with 90 named pupils. The expanded panels read a rolling seven days across every course
+while the card read one Monday week and one course. The why? text said "the mean of every class"
+above a denominator of three schools. "Classes, furthest first" dates from 2026-09-10, six days
+before the rebuild, and appears nowhere in the rebuild's brief.
+
+**The privacy fix is at the boundary, not in the template.** Tom's ruling of 16:31Z is that nothing
+in Insights names a pupil; a row that is hidden after it arrives is still a row that arrived. So
+the Insights page calls `GET /api/org/vad?aggregate=1`, which answers with the summary alone — the
+same `summariseVad` the admin board's client runs, so there is one analysis behind two doors — and
+`GET /api/org/intel?questions=journey`, which never reads the people ledger at all. The admin board
+keeps its named read. Both are pinned by tests that assert no name and no learner id appears
+anywhere in the serialised body, seen red on the pre-fix handlers.
+
+**Two of the three org questions were the page asked twice.** Practising duplicated the card and
+Quiet duplicated the class list, both measured off a four-week diary read rather than the card's
+week rows — which is exactly why the panel could say no practice in fourteen days under a card
+showing recorded minutes: the demo school's practice lives in seeded `class_sessions` rows that
+`rate-compare` unions in and `classPractice` does not. Reconciling two measurement pipelines would
+have left two definitions of a week; removing the duplicate leaves one. The journey question
+remains, narrowed to the card's course, and an organisation with no classes still gets the people
+question, because there is no card there to disagree with.
+
+**No ordering by progress.** The furthest-first table is the league table the rank pills were cut
+for. The funnel answers where classes stop without ranking anybody, and the page's own class list
+is ordered quietest first, which is care rather than competition.
+
+## 2026-09-16 — Both held fixes re-land, and the ceiling only ratchets down by hand (job #998)
+
+**Tom's ruling (11:59Z).** GO on both fixes held on 2026-09-14 for a diagnosis first: the player
+fix (job #644) and the linked-emails fix (job #646), re-merged through dev with the three
+single-row ceiling repairs the diagnosis names, and promoted to staging. Not to main: main ships
+on the weekly release.
+
+**How they re-landed.** By reverting the two hold reverts, not by re-merging the branches — the
+seed-gap half of #644 had already come back on its own through jobs #793 and #804, so bundle.ts
+and computePauseDuration.ts keep dev's chunked lookup and only the rest of the fix returns.
+
+**What the re-land found.** `LearningPlayer` asks for `t('player.audioSilentRun')`, but the
+original commit filed the string under `pronunciation` in eng.json and cym.json. The tap-to-retry
+banner — the whole visible half of "a silent run stops the player" — would have rendered its key,
+and the locale-parity gate was red on 21 locales against an enrolment naming `player.*`. A string
+is only shipped when the section the code names is the section it sits in.
+
+**The ceiling repair, and why it needed a transaction.** Three enrollments carry a ceiling at the
+course's final LEGO with the cursor 50+ seeds behind and zero belt skips — nba4191 `lit_for_eng`,
+knightghost1 `hrv_for_eng`, silverjfangio `hye_for_eng`. `course_enrollments_ratchet_highest_round`
+is monotonic by design and honours only an explicit reset to NULL, so an ordinary UPDATE that
+lowers the ceiling is silently discarded — it returns no error and changes nothing. Each row was
+repaired in one transaction: NULL the two ceiling columns, then name the cursor values so the
+trigger lifts the ceiling to exactly where the learner is. Before-state asserted per row, result
+read back per row, logged in `tools/job998-ceiling-repair-applied-log.json`; the script is
+`tools/job998-ceiling-repair.mjs`.
+
+## 2026-09-16 — The comparison average is self-inclusive and structural: every class in scope counts, active or not (job #979)
+
+**Tom's ruling (10:05Z).** "The averages need to be logical to a teacher, not technically correct,
+and a set member should ALWAYS be included in the average, not excluded — else the school average
+changes when a school leader looks at each class against it."
+
+**What the code said before.** Both rate-compare engines built their cohort from peers with
+activity in the selected window and then excluded the entity from its own average. Two consequences
+a teacher reads as a bug: the school average moved as the leader stepped from class to class,
+because each viewer's own class was the one taken out; and the denominator grew with the window, so
+all-time could read a lower average than 30 days. Chepstow showed it plainly — 9.3 over 29 classes
+at 30 days, 8.8 over 32 all-time.
+
+**What it says now.** The cohort is every class or school in the compare-to scope running this
+course, whether or not it practised, the entity included. That set is fixed for a given
+school + course whoever is looking and whichever window is applied. A dormant member counts with
+its true value, 0 for a sum measure, so a sum measure can only rise or hold as the window widens.
+The percentile ranks the entity inside that same self-inclusive set, and the floor now gates on
+whether peers EXIST rather than on whether they practised, so a quiet fortnight no longer blanks
+the card. It applies to every measure the page offers and to the dashed comparison series.
+
+**Three places it had to change, not one.** `api/groups/[id]/rate-compare.ts` — structural
+membership, self-inclusive average and percentile, and a server-rendered caption naming the
+denominator; landed first, with two defects found on the way: a widened compare ladder reused
+prefetched session rows that no longer covered its cohort, silently valuing an out-of-scope peer at
+0, and the "Nth of M" chip added one for the entity that a self-inclusive distribution already
+counted. `api/_utils/rateCompare.ts` — `aggregateWindowPace` averaged a multi-class entity over
+whichever of its classes practised, so a school's own rate moved for reasons unrelated to how fast
+it was going; and `periodTrendForClass` returned an empty array for a dormant class, which
+`meanTrend` then dropped, so the dashed comparison line was drawn over a smaller cohort than the
+headline figure beside it. `api/school/rate-compare.ts` — switched in lockstep. That route has no
+client consumer today, the insights page reads the groups route, but two live definitions of
+"average" is exactly the drift that produces the next bug.
+
+**Proof.** The old expectations were flipped deliberately rather than worked around: three in
+`api/_utils/rateCompare.test.ts`, nine in `api/school/rate-compare.test.ts`. New tests assert a sum
+measure's all-time average >= 30-day >= 7-day; that the average is identical requested from two
+different classes in the same school; and that the dashed series is a mean over the same cohort as
+the headline figure — that last one reads 4.5 against the pre-fix code and 3 against the post-fix
+code.
+
+## 2026-09-15 — The clamp, not the timestamp: what actually closes a refund on production (job #857)
+
+Supersedes the #851 entry below. That entry stays as written; it is the record of a fix that was
+believed and was not true.
+
+**What #851 believed.** That stamping `user_entitlements.revoked_at` on main's refund signature shut
+the hole, and that the signature was exclusive because every webhook upsert writes `plan_id`,
+`plan_name`, `current_period_end` and `provider_customer_id`, so requiring all four unchanged from
+OLD could not miss a refund and could not catch anything else.
+
+**What the cross-verify showed, and I re-confirmed against the code.** Production's resolver,
+`main:api/_utils/resolveEntitlements.ts`, selects `id, access_type, granted_courses, expires_at,
+redeemed_at, entitlement_code_id` and filters on `expires_at` ALONE. It never reads `revoked_at` and
+never selects it — that column arrived with dev's resolver, after `ea0683f` was cut. So #851 closed
+staging and left production open to `current_period_end`: a refunded annual kept a year of access.
+The canary run reproduces the divergence in one pair of lines — after the refund, **dev sees CLOSED,
+main sees OPEN to 2027**. The four-column argument fails too: the held-plan branch of main's
+`subscription.updated` handler (`paddle-webhook.ts:512-525`) omits both plan fields, and comparing
+OLD with NEW tells you which values CHANGED, never which columns a statement WROTE.
+
+**What this fix does.** One invariant, applied to all three writers of a Paddle grant: *while a grant
+is revoked, its `expires_at` is clamped to the revocation instant.* The mirror trigger becomes BEFORE
+ROW so it can stamp `subscriptions.paddle_revoked_at` on the row itself — a column main never writes,
+so once set it survives every later main write, including the reverse adjustment's `status='active'`.
+The two ledger RPCs carried the same reopening hole (`refresh_paid_paddle_grant`'s
+`greatest(expires_at, period_end)` and `write_additional_paddle_grant`'s unconditional
+`expires_at = EXCLUDED.expires_at` preserved `revoked_at` while pushing expiry back out, which
+production honours) and are clamped the same way. Staging is the only live Paddle webhook
+destination, so those RPCs write to this same shared database and the hole was reachable.
+
+**The signature, re-derived honestly.** Gate on state, not provenance: `status='cancelled' AND
+cancel_at_period_end IS TRUE`, no OLD, no TG_OP, no column-set guessing. It is NOT exclusive to the
+refund writer — a paused subscription carrying a scheduled change maps to the same pair under main's
+`SUB_STATUS_MAP`. That is accepted rather than argued away, because the justification is consequence,
+not authorship: `main:api/_utils/courseAccess.ts` grants the subscription path only on
+`status === 'active'`, so in the cancelled-and-pending state main by itself grants nothing, and
+mirroring it closed can only ever restore main's own pre-ledger behaviour. It is unreachable on
+`status='active'`, so it cannot cut off a live payer — the two live subscribers with a scheduled
+cancellation are `status='active'` and untouched. A period-end cancellation arrives with
+`cancel_at_period_end=false` and keeps paid access to `current_period_end`, proven live.
+
+**Better × simpler × cheaper.** *Better* — it is verified by what production ANSWERS, not by what the
+database stores: `GET https://saysomethingin.app/api/admin/effective-access` shows a synthetic
+subscriber OPEN, then CLOSED the moment main's exact refund UPDATE lands, then still CLOSED through
+both replay shapes. *Simpler* — the four-column test, the `TG_OP` check and the OLD comparison all
+delete; what remains is one state predicate and one `least()`, and one sentence describes the whole
+system. *Cheaper* — one migration against the shared database, no code change, no build, no deploy,
+no Tom decision; and it becomes inert rather than conflicting once main carries dev's writer.
+
+**The consequence, stated plainly.** A refund REVERSED on production stays closed. Main's reverse
+write is byte-indistinguishable from an ordinary replay, so nothing automatic may clear the marker.
+Reversal is explicit only: dev's writer clearing `paddle_revoked_at`, the later-billing-period rule
+in `refresh_paid_paddle_grant`, or an operator. Fail-closed on money is the taste-safe default and is
+chosen deliberately.
+
+**Proof.** `supabase/secfix-toolkit/canary_857_revocation_clamps_expiry.cjs` — RED 10/13 against the
+#851 definition, GREEN 13/13 with this one, every write rolled back, the 19 live grants compared row
+by row. `supabase/secfix-toolkit/verify_857_production_access.cjs` — the acceptance test, against the
+deployed production API at build `ea0683f`, synthetic rows created and deleted, none surviving.
+Transcript: https://watson-1.tail4968cb.ts.net/d/9f458e78
+
+## 2026-09-15 — A Paddle refund closes the grant at the trigger, not with a main deploy (job #851)
+
+**The hole.** Production runs `main` at `ea0683f`, cut before the grants ledger. Its refund and
+chargeback writer sets only `status='cancelled', cancel_at_period_end=true, updated_at` on
+`subscriptions`; it cannot set `paddle_revoked_at`. The #837 mirror trigger read that as an ordinary
+cancellation and left the mirrored grant OPEN until `current_period_end`, which `main`'s resolver
+then honours. Confirmed on live rows: replaying that exact UPDATE on a real annual subscriber inside
+a rolled-back transaction left the grant open to 2027-09-14. A refunded learner would have kept a
+year of paid access. No live row is currently in that state.
+
+**The choice.** Option (a) of the brief: teach the trigger `main`'s refund signature. **Better** — it
+closes the hole for production today, and it names the intent at the source, so the ledger's own
+`revoked_at` carries the truth rather than an expiry fudge. **Simpler** — one `CREATE OR REPLACE` of
+a function that already exists, no new object, no code change, no deploy, and it becomes dead weight
+rather than a conflict once `main` catches up with dev's writer, which sets `paddle_revoked_at`
+explicitly and takes the earlier branch. **Cheaper** — a migration against a database all three
+environments already share beats a production hotfix that would need Tom's decision, a Vercel build
+and a soak; and it costs nothing at runtime, being four extra column comparisons inside a trigger
+that already fires on the same write.
+
+**Why the signature is safe.** The refund write is the only one that sets `status='cancelled'` with
+`cancel_at_period_end=true` in one statement, and it writes nothing else, so `plan_id`, `plan_name`,
+`current_period_end` and `provider_customer_id` are all unchanged from OLD; every webhook upsert
+writes those four. Requiring them unchanged therefore cannot miss a refund and excludes an ordinary
+`subscription.updated`/`canceled` write. A period-end cancellation arrives as cancelled with
+`cancel_at_period_end=false` and a null period end — all twelve live cancelled rows look exactly like
+that — and keeps #837's access to the paid period end. The reverse adjustment writes
+`status='active'` and re-opens the grant through the existing CASE. The clamp can only fire on a row
+whose status is not `active`, which had no access at all on `main` before #837, so it cannot cut a
+live payer off. Nothing in the path raises: fail-soft is preserved, because the trigger runs inside
+production's webhook transaction.
+
+**Proof.** `supabase/secfix-toolkit/canary_851_refund_revokes_grant.cjs`, one rolled-back
+transaction: RED against the live trigger, GREEN with `20260915d_paddle_refund_revokes_grant.sql`
+applied in-transaction, asserting in the same run that a period-end cancellation, a renewal, a
+reversed refund and the seven live active subscribers are all untouched.
+
 ## 2026-09-15 — The rate-compare privacy floor is by cohort kind, not by role: classes compare from one peer (job #799)
 
 **Tom's ruling (11:35Z).** "The comparison limit to 5 was for INDIVIDUAL users, to not be identified
@@ -3607,3 +4087,547 @@ says "verified".
 
 **Better × Simpler × Cheaper.** Better: the gap the sentence earns, on every course. Simpler: same
 lookup, paged. Cheaper: seven small indexed queries in parallel instead of one refused one.
+
+- 2026-09-15, #812: additive individual grants ledger on `user_entitlements`, retaining `subscriptions` as Paddle detail and family cover. Source values include admin and email_allowlist. Implementation: `supabase/migrations/20260915_individual_grants_ledger.sql`. Landed by job #837: merged to `dev`, promoted to `staging`, migration applied to the shared database and 7 Paddle grants backfilled. `main` untouched.
+
+- 2026-09-15, #812: transactional Paddle mirror plus service-role Play receipt RPC; verified source windows own individual access, family behaviour retained. Code references include learner ids for reusable codes. Implementation and access gaps: `docs/grants-ledger-build-812.md`; live read-only backfill: `docs/grants-ledger-paddle-dry-run-2026-09-15.md`.
+
+- 2026-09-15, #837: the Paddle mirror trigger is FAIL-SOFT on grant owner mismatch. It fires AFTER
+INSERT OR UPDATE on `subscriptions`, so it fires on production's Paddle webhook writes from `main`
+too; as written it raised when another learner already held the grant for the same
+`provider_subscription_id`, which would have failed the webhook's own write and so a real
+subscriber's renewal. Live reading before the apply: 19 subscriptions, all Paddle, no null
+`provider_subscription_id`, no subscription id under more than one learner — so the raise was not
+reachable on today's data, but an ordinary insert reaches it the moment a subscription id is
+re-pointed at another learner (account merge, support reassignment, linked-email stub). It now warns
+and leaves the existing owner's grant untouched. The service-role RPCs keep raising loudly: their
+callers decide. Proof: `supabase/secfix-toolkit/canary_812_mirror_failsoft.cjs`, rollback-only
+against the shared database, red before and green after.
+
+**Better × Simpler × Cheaper.** Better: an additive ledger can never cost a real renewal. Simpler:
+one branch of one trigger, no new surface. Cheaper: no webhook retry storms, no support recovery.
+
+### 2026-09-15 — Bundle cache: blocked upgrade falls back to the network (job #853)
+
+The #838 version bump (2→3) could not complete while an older tab held a v2 connection, and the
+new tab's open request hung forever, so the bundle never loaded. Now every connection registers
+`onversionchange` and closes itself, and an opener that is `onblocked` gives up on the cache after
+1.5s and resolves null, which every caller already treats as "no cache": the bundle is fetched from
+the network and the learner plays. The upgrade lands on its own when the old tab goes. Proof:
+`useCourseBundle.dbVersionBump.test.ts` (#853 case), red on the pre-fix code by timing out, green
+on the fix; and a two-tab headless probe on staging `c9191a7` with a v2 connection held open.
+
+**Better × Simpler × Cheaper.** Better: loading never hangs on release day. Simpler: two handlers
+on the one open path, no new state or surface. Cheaper: one network fetch in the rare blocked
+case, no migration code, no reload prompt.
+- 2026-09-15, #854: CLIPS ARE GATED "AS WE GO". Tom: "the handbook is STILL just a bunch of prose
+in most cases … we should be building the clips for everything else as we go along." The wiring
+of clips into the Handbook (#302, #627) was already live; the gap was coverage: 15 of 122
+capabilities had a walk, 107 did not. Gate 13 in `tools/walkthrough/lib.mjs` reads
+`tools/walkthrough/coverage.json` and fails `compile.mjs --check` on any HANDBOOK capability no
+walk steps on that is not declared obvious with a sentence or on the missing backlog, and on any
+routed page under `views/` with no anchor on it or on what it imports. A registry line whose
+subject has since gained a walk or an anchor fails too. Enrolled today: 107 capabilities on the
+backlog under 105 keys, two keys each covering two entries, 16 pages obvious, 6 pages missing. The support drafter (command-surface
+`tools/support/handbook.cjs`, `moves.cjs`) now points on a walked entry even without prose steps
+and tells the admin to tap Show me. Closed Handbook rows with a clip carry a Show-me chip.
+Inventory: https://watson-1.tail4968cb.ts.net/d/1f70d46b
+
+**Better × Simpler × Cheaper.** Better: a new page or capability cannot ship silently unclipped;
+the debt is a list, not a feeling. Simpler: one more gate in the compiler that already exists, one
+JSON registry, no new system. Cheaper: the gate runs inside the existing `--check` and vitest run.
+
+## 2026-09-15 — Gate 13 tightened: a named walk must step the anchor, and a build failure is a build failure (job #860)
+
+A cold verifier found gate 13 read as enforced and was not, twice. `gateClipCoverage` accepted a
+capability as clipped when its block merely NAMED a walk, without that walk stepping the anchor,
+and the stale-debt checks only looked at stepped anchors, so a named walk beside a backlog line
+passed. And `compile.mjs --build`, the path Vercel runs, printed gate failures as advisory and
+built anyway. Both closed: a `walk:` line whose walk does not exist or never steps the anchor
+fails; clipped-ness is decided by stepping alone, so a stale backlog line is always caught; and
+gate failures exit 1 on every path including the build. `routeViewsFrom` now reads double-quoted
+imports too. `WALKTHROUGH_COVERAGE_JSON` exists only so a test can hand `--build` a registry with a
+gap and watch it exit non-zero. Inventory corrected above: 15 clipped, 107 unclipped under 105
+backlog keys. Live tree was audited first: all 11 named walks step their anchors, so nothing broke.
+
+**Better × Simpler × Cheaper.** Better: the control is now what it claims to be. Simpler: fewer
+lines, the advisory branch is gone. Cheaper: a broken Handbook stops a deploy instead of costing a
+morning of trust later.
+
+## 2026-09-15 — Paddle grant ledger: past_due is dunning, and an unknown period start never reopens (job #879)
+
+Astra's cold-verify of #857 found two defects in the three Paddle grant writers. Both are fixed by
+`supabase/migrations/20260915f_paddle_ledger_rpc_null_period_and_past_due.sql`, applied live.
+
+**The past_due ruling.** #857's own comment promised "past_due keeps the learner's existing dates
+(dunning is not revocation)" and its code did the opposite in three places: the trigger revoked and
+clamped expiry to now on any status outside active/cancelled, and `write_additional_paddle_grant`
+INSERTed `revoked_at = now()` beside a future `expires_at`, a row production and dev read
+differently. The intent was right, so the CODE moved, not the comment. Paid dates are kept through
+Paddle's dunning retries; revocation happens on refund or chargeback, through #857's durable
+`paddle_revoked_at` marker, or on final cancellation, never on a failed payment retry. A payer in
+dunning keeps access.
+
+**The NULL-period rule.** An unknown comparison never decides to reopen. `NOT (p_period_start >
+revoked_at)` evaluated to NULL when the caller passed no period start, which both live callers do,
+so the CASE fell to its ELSE and pushed a revoked grant's expiry a year out while `revoked_at`
+stayed set — production access for a refunded learner, since production reads `expires_at` alone.
+Every such comparison is now `coalesce(<comparison>, false)`: a NULL period start means NOT PROVEN
+LATER than the revocation, so the clamp applies and the marker is kept. The reversal path is
+unchanged — a receipt that genuinely carries a later period start still reopens. The same pass made
+the clamp read whichever revocation marker is set, `coalesce(user_entitlements.revoked_at,
+s.paddle_revoked_at)`, rather than the subscription's alone.
+
+The fallback status `none` is deliberately left revoked-now: main's resolver grants the subscription
+path only on `status === 'active'`, so closing it mirrors main rather than overriding it.
+
+**Better × Simpler × Cheaper.** Better: a refunded learner cannot regain a year of paid access on an
+ordinary receipt, and a live payer in dunning is not cut off mid-retry. Simpler: one rule for
+three-valued logic stated once and applied to every comparison, and a row that can no longer be
+revoked-but-open. Cheaper: three function bodies replaced, no schema change, no application code,
+and `canary_879_ledger_rpcs.cjs` now exercises both RPCs read-only under `--pre` so the next
+verifier needs no synthetic write to check the ledger.
+## 2026-09-15 — Intel walks: the overlay resolves both anchor namespaces, and a question page keeps its own anchor (job #869)
+
+The first walks on the intelligence surface found three things standing between a `data-intel`
+anchor and a playing clip. The overlay looked up a step's anchor with `[data-walk=…]` only, so
+every intel step would have timed out unanchored; no Show-me surface was mounted on any question
+page, so nothing could start a walk there; and each page's own `data-intel="question-pulse"` on
+the `<QuestionPage>` tag fell through onto the root and REPLACED the layout's
+`data-intel="question-page"`, so the layout capability had no element in the DOM. All three
+closed in the smallest way: `anchorSelector()` in useWalkthrough.ts mirrors `ANCHOR_ATTRS` and the
+overlay queries it; `QuestionPage` turns `inheritAttrs` off and lands the page's attrs on the main
+column, keeping its own anchor on the root; and one `WalkOffer` in the layout offers admin walks
+at place `intel` with the question's slug as the kind, or `not-yet` for an unbuilt question, so a
+walk about the not-built card is only offered where that card is. The walk on the minutes page
+steps `evidence` rather than `insights-rate-widget` so it does not pay another capability's debt
+by accident. The not-yet capability's "quieter grey" line was rewritten: the bar has no such
+styling in the code.
+
+**Better × Simpler × Cheaper.** Better: three intel capabilities and the layout are clipped by
+walks that bind to real elements. Simpler: one selector helper instead of a second overlay, one
+offer mount for all ten pages instead of ten. Cheaper: two proof tests, no new surface, no new gate.
+
+## 2026-09-16 — Class Insights is told in school weeks (job #989)
+
+**Ruling (Tom).** "Today / 7 days / 30 days is the wrong primitive for schools who work in
+week-units." And: "We definitely need both the total in-app time and a measure of how much
+progress they're making. But easy, and simple to grok." And: "Play-as-class time = X, individual
+students time = Y, total effective learning time = X + Y." Comparison is the class's numbers beside
+the school's SAME numbers, never a computed ratio.
+
+**Better.** A school plans and reviews in weeks; a rolling seven days straddles two weeks of
+teaching and cannot be talked about in a staff meeting. Three plain numbers beside three plain
+numbers let a head of department see the gap themselves, where a single percentage decides for them
+and decides wrongly whenever the denominator is small.
+
+**Simpler.** Four windows become two and the measure dropdown disappears, because under a week
+there is nothing left to pick: a per-week rate over a one-week window is the count itself, and
+minutes is one of the three numbers already. The card replaces the picker.
+
+**Cheaper.** No new table, no new signal, no new endpoint — the week numbers come off the rows the
+rate engine already reads. Pupils' own minutes ride the same diary read as the class account, one
+extra tag on each row, and only when a week window asks for them.
+
+**Decisions taken inside the ruling.**
+- The default window is one constant: last week on a Monday or a Tuesday, this week from Wednesday.
+  A week one lesson old says nothing.
+- Monday is found in the school's own IANA zone, not a fixed offset. A fixed offset moves both
+  DST weekends by an hour.
+- New phrases is the CURSOR ADVANCE inside the week, not a count of what was played, so a week
+  spent consolidating reads zero new phrases and a healthy pile of minutes — the true shape of that
+  week. It is read off the class account's journey; a pupil racing ahead on their own account does
+  not move the class's cursor.
+- Y is capped: past 400 classes the pupils' diary is not read and the card says so, rather than
+  reporting zero individual practice as if it were a fact.
+- The cohort is job #979b's fixed, self-inclusive set, unchanged.
+
+**Gap.** Y is unexercised against live data: Ysgol Cas-gwent, the only school with real volume,
+has no student class tags at all — it plays entirely from the front, so Y is a true 0 there. The
+X/Y split is covered by unit tests only until a school with pupil accounts practises.
+
+### 2026-09-16 — the cohort refinement, and where the week boundary comes from (job #989)
+
+Two rulings landed on top of the week card the same day.
+
+**The cohort is STARTED classes, evaluated PER WEEK.** Every class on the course in the
+compare-to subtree whose first session is on or before the end of the week being drawn, the
+viewed class included. A class set up and never played is in no denominator anywhere — 67 of
+the 127 active classes on cym_s_for_eng have never played a session, and counting them read a
+school as less than half as busy as it is. Chepstow's course cohort went 34 → 33 on the live
+data. A STARTED class that was quiet counts at its true value, 0 for a sum: dormancy is a fact
+about the week, never grounds for exclusion. Evaluating per week is what stops history moving —
+a class that first played in week 8 is absent from weeks 1-7, so a class starting today cannot
+rewrite last month's bars. The set is viewer-independent and only ever grows.
+
+**This overrides the never-started half of job #979b's structural cohort.** Everything else of
+#979b stands: the denominator does not move with the window, and the viewed class sits inside
+its own average. Job #982's "a dormant member contributes zeros, it does not drop out" also
+stands — its test fixture was a never-played class, changed here to a started-then-silent one,
+which is the case the rule was always about.
+
+**One function, three callers.** `cohortFor(candidates, firstPlay, weekEnd)` in
+`api/_utils/rateCompare.ts` is the only definition; the card calls it once, the weekly bars call
+it once per bucket, and the school series is built from per-member calls. A second definition
+would let a bar and the number above it disagree. Its one input is `class_first_play(uuid[])`
+(migration `20260916a`): a correlated `min()` over the diary and `class_sessions`, an index-only
+scan — 50ms for all 188 active classes, against 10.7 SECONDS for the GROUP BY form.
+
+**Absence is not zero.** A cohort that existed and did not play is a bar of zero height. A week
+before anyone had started is `null`: no bar, no number, and the dashed line breaks rather than
+ruling a school average across weeks when no school was playing. `connectNulls` is off.
+
+**The week boundary is Postgres's, read in Europe/London.** Both existing week-bucketing objects
+— `weekly_leaderboard` and `analytics_retention_days_active` — call `date_trunc('week', …)` under
+the session TimeZone, and that TimeZone is **UTC** (verified live). Under BST a UTC Monday starts
+an hour late, so play between Monday 00:00 and 01:00 London files into the PREVIOUS week — a week
+out, not an hour. The Monday rule is kept and the zone fixed.
+`api/_utils/schoolWeek.postgresParity.test.ts` pins seven instants to the output of the real
+query, run live and pasted in, and asserts exactly which rows London and UTC disagree on.
+
+### 2026-09-16 — the cohort counts the right unit, and the bars stop moving (job #989 fix-up)
+
+A cross-family cold verify of the entry above found five things wrong with the code that
+serves it. All five are the same failure in different clothes: one screen telling a teacher
+two different things.
+
+**Above a class the cohort is SCHOOLS, and now the mean and the caption both say so.** The
+week card flattened its members into a list of class ids, so a school leader read an average
+over CLASSES under a caption that counted the same list as "120 schools" — and mean-of-schools
+is not mean-of-classes the moment schools differ in size. The cohort is a list of UNITS now:
+classes under a class, schools above one, which is the peers-like-me rule this endpoint has
+always used for its headline. One list feeds the mean, the twelve bars and the caption.
+
+**History no longer moves when you change the week you are standing in.** The candidate set
+was filtered to classes started by the end of the SELECTED window before the twelve buckets
+were built, so with "last week" showing, a class that first played this week vanished from the
+newest bar and reappeared when you picked "this week". The bars are built from the structural
+set, and each bucket does its own per-week exclusion through `cohortFor` — which is the only
+place that rule belongs. The card's own three numbers are unchanged.
+
+**A viewed class joins the DENOMINATOR only once it has started, like every peer.** The
+headline's percentile cohort included it unconditionally while the card's did not. It is
+always shown its own numbers; it is simply not one of the classes the average divides by until
+it has played. That is what keeps "the same average whoever looks at it" true, which was the
+whole of Tom's ruling.
+
+**Monday midnight.** `cohortFor` read `first <= weekEndMs` while every minute sum reads
+`t < endMs`. A class whose first play landed on the stroke of Monday 00:00 London joined the
+CLOSING week's denominator and contributed nothing to it, quietly pulling that week's average
+down. Exclusive now, with a fixture at the exact instant.
+
+**A failed read is not an absence of play.** `loadClassFirstPlay` swallowed an RPC error and
+returned null, which dropped those classes from every denominator on the page and still
+rendered an average nobody could tell was wrong. It throws `ClassFirstPlayError` now and the
+endpoint answers 500 saying which fact it could not read.
+
+**Bookkeeping correction.** The commit message for the entry above reports the re-snapshot of
+`supabase/schema.sql` as "indexes 310→310". That is wrong: it was **343→344** — the one new
+index is `class_first_play`'s — plus two triggers. Tables 144→144, views 27→27 and functions
+154→161 stand. Commit messages are immutable, so the correction lives here.
+
+**The "63 classes" sighting, chased and closed.** Job #983 saw a Chepstow class land on
+"Global average · all courses · 63 classes" instead of its school's 33. It does not reproduce:
+on staging `e94bbc53b` all three classes probed default to the school node, `cohortSize` 33,
+caption "Ysgol Cas-gwent Chepstow School average · 33 classes". Asked explicitly, that class
+returns 60 for `global` and **63 for `global_all_courses`** — so the sighting was the compare
+ladder having fallen through every rung. The ladder only widens when the started-member count
+is below the floor of 1, which 33 started classes cannot do for a real reason — but could for a
+fake one: pre-fix, a failed `class_first_play` read returned null for every class, `onlyStarted`
+emptied every member, the count hit zero, and the ladder walked to all-courses and rendered it
+as the answer. That is the fifth defect above, now a 500. The floor logic itself is correct and
+was not touched. The build #983 saw is gone, so this names the mechanism rather than claiming a
+diagnosis nobody witnessed.
+
+**Open.** The two SQL objects above are still UTC-anchored. Nothing on the insights page reads
+them, so nothing there is wrong — but `weekly_leaderboard`'s "this week" and the retention
+buckets are an hour out for half the year, and they are somebody's next job, not this one's.
+
+### 2026-09-16 — the teacher's insight IS the class card, and the leader's page is that card once per class (job #22)
+
+Tom judged the populated pack of the previous shape "clumsy" and settled five rulings through
+RBF. This entry is the build of those rulings on the #989 week card, not a rewrite of it.
+
+**What was clumsy, and what replaced it.** The answer arrived after a row of pickers and a
+paragraph of prose; the class's numbers and the school's were two stacked cards; rank pills
+("100th percentile", "1st of 3") sat on both pages; the leader's page ran seventeen phone
+screens deep, ending on eighty pupils sorted by minutes. Now: one card, the first thing on the
+page, with the cohort's figure BESIDE each of the three numbers in one three-column grid on
+every width; a thin twelve-week temperature line under the total, the class over a fainter
+cohort, no axes and no legend; exactly one toggle, This week / Last week; exactly one compare-to
+picker; no course picker for a class, no measure picker anywhere in week mode, no definitional
+paragraph (the why? chip on the card carries it, and stays); no rank of any kind on either page.
+
+**Better × Simpler × Cheaper.** Better: a teacher reads the answer on the first screen and does
+the comparing herself, which is what two columns of plain numbers are for. Simpler: the engine
+lost two pickers and a paragraph in week mode; the card lost echarts (the line is one SVG
+element); the leader's page lost its first-screen sprawl and gained one list. Cheaper: the
+per-class rows ride the round trip the card already makes, off the same session rows and the
+same Monday-anchored bounds, so the list costs no second read and cannot disagree with the card
+above it; the structure of the tree is read once at its root and filtered per rung, so walking
+the compare ladder costs no extra structural reads and session rows are read once, for the
+entity and the rung that won.
+
+**The compare ladder walks every rung.** Year, department, school, then every ancestor to the
+root, then the two globals, in that order; the DEFAULT stops at the first rung holding more than
+one started class — "the smallest container that holds more than one class" (Tom). The old
+ladder skipped every intermediate ancestor and leapt to global. The floor, the started rule and
+the self-inclusive average from the #989 fix-up are unchanged.
+
+**Tags are stored only when confirmed.** `classes.tags` (jsonb, additive, live and
+re-snapshotted) holds a confirmed year and department and nothing else. The derived guess —
+year from the class name, department from the course — is computed on every read and never
+written, so it can never look confirmed. A rung is offered only when the viewed class's tag is
+confirmed AND a confirmed sibling shares it on the course; otherwise it is absence. That is the
+job #978 failure closed at the root: a misread "8A" cannot move a cohort, because a guess is
+never a cohort. The smallest durable storage was chosen over a new table; the one writer is
+`PATCH /api/classes/:id/tags`, gated on visible scope and refusing View As.
+
+**All time is totals only.** For a class, a line under the card: since first play, time
+practised and phrases reached, with no comparison figure and no cohort column. It is read off
+the same session rows as the week when the class is younger than twelve weeks, else one read
+back to its first play. Placement was the brief's taste-safe default, taken.
+
+**No comparable cohort is no longer no page.** The class's own week and its totals stand with
+the reason named beside them and the cohort column absent — before this, the whole card was
+withheld, which contradicted the ruling that all-time sits on its own.
+
+**The leader's page.** The card, then every class on the course, quietest first: started
+classes by time since last play, oldest first, with "not in the last 12 weeks" as the gap for a
+started class with nothing in the rows read; never-started classes in one quiet line at the
+end, because they have not gone quiet, they have not begun. The org questions, the voice panel
+and the people list all moved behind a tap. The people list is now "who has not practised this
+week", by name, never by minutes; the ranked people table is hidden on this page.
+
+**Closed on the way.** Main and staging opened on different default filter states because
+#989's week windows had reached staging but not main; once this promotion carries the same
+code to both, the default is the same everywhere.
+
+**Open.** The Handbook walks that step on the org questions point at elements inside a closed
+`<details>`; the compile is static and passes, but the walkthrough player's behaviour on a
+hidden step has not been checked. Bucket [3] of the rescope and the eng_for_mar class at
+Sunrise, which sits outside the school's default course and so outside its list, are noted, not
+solved: a school running two courses keeps a small course picker for exactly that reason.
+
+**Tightened the same afternoon (Tom, 16:31Z): no per-pupil display anywhere in Insights.**
+Pupils having their own accounts is optional and everything is fine as-class, so the
+"who has not practised" list went the way of the ranked one, the named people table left the
+org questions, and the voice panel's named learner rows are hidden on this page. Per-pupil
+practice is RECORDED, never PUBLISHED: the session rows stay in the DB for later analysis, the
+students-on-their-own minutes still add into the class card as a class total, and the "17 of
+39 people practised" sentence keeps its count. Nothing in Insights names a pupil.
+
+## 2026-09-17 — The replaying brain on real class data: Chepstow 10C (job #50)
+
+**Decision.** One static page, `packages/player-vue/public/docs/specimens/replaying-brain/index.html`,
+served by staging at `/docs/specimens/replaying-brain/`. Chunks on one line in course order, arcs
+between chunks said inside the same played phrase, thickness by repeat count, a play button and a
+cycle-by-cycle scrubber with sitting jumps, the practised-phrase list in course order, and a stats
+strip, all computed in the browser at the scrubber position. Builder in
+`docs/specimens/replaying-brain/` with the class-level data snapshot committed beside it.
+
+**Why 10C.** Chepstow is the only real school with class play. Its 33 classes have 901 heard
+cycles between them, almost all a single sitting on 8 September; 10C has the most cycles across
+more than one sitting: 47 cycles, 3 sittings, 3 to 14 September.
+
+**Finding: the co-fire table is empty for every class, and why.** `learner_lego_pairings` has zero
+rows for every class entity in every school. Class play runs under the class entity learner whose
+`user_id` is `class-learner:<class_id>`; `record_lego_pairings` is not SECURITY DEFINER, so the
+table's own-row INSERT policy refuses the write and the client only console.warns. Pupil accounts
+are not touched by class play. The page therefore rebuilds co-firing the way the app does, from
+the played phrase's decomposition, cycle by cycle from `player_events` audio_play rows with their
+real timestamps. No arc is drawn from unplayed course structure. Fixing the pipe is a separate
+job: the same resolve-the-class-learner path sessions already use, or a definer RPC with an
+explicit class-teacher check.
+
+**Not done.** Weekly stepping, because the record spans eleven days. Pupil accounts, by design.
+
+## 2026-09-17 — The Overview leads with all-time totals, the week kept beneath (job #127)
+
+**Decision.** `/org/:classId` and `/org/:schoolId` — `NodeHomeView.vue` — now lead with totals:
+**Phrases practised in total**, **Classes that have practised**, **Minutes in the app in total**,
+and on a class **Minutes played as class in total**. The week is not gone: it is the sentence under
+the stats row and the line under the Class practice card, and the phrase list stays this week's.
+Tom, 2026-09-17: this-week "gives too much lumpiness to classes that might not do any Welsh from
+Monday to Wednesday, then do quite a lot on Thursday and Friday", and a total is "more intuitive for
+teachers and admins"; and "the weeks are good units", which is why they stayed.
+
+**This is not the all-time figure job #673 removed.** That one summed `school_summary` and
+`class_student_progress` off the sessions ledger, which a class account cannot write, so it was a
+second truth. These totals are the SAME rule as the week beside them — the in-app minute
+(`api/_utils/inAppTime.ts`, play to stop) and the target2 phrase off the diary — read once, with the
+window opened from seven days to all of it. `loadClassPractice(…, windowDays: null)` counts the last
+seven days of the same rows into `phrasesRecent`; `inAppTimeTotals` takes the week off the same spans
+split by UTC day. One minute definition, one phrase definition, one read.
+
+**Probed before building, live against production, read-only.** The all-time read is scoped to
+learner ids, which is the shape that stays cheap — it is the population-wide packed read that times
+out past 30 days (job #634), and nothing here uses it.
+
+| scope | learner ids | play rows all time | all-time read | week read |
+|---|---|---|---|---|
+| ZZ Test — Year 7 Welsh | 3 | 261 | — | all of them are inside the week |
+| Ysgol Gyfun Tredegar (51 classes) | 61 | 98 | 75 ms | 75 ms |
+| St Alban's RC (13 classes) | 16 | 2,289 | 341 ms | 206 ms |
+| Ysgol Cas-gwent Chepstow (34 classes) | 73 | 4,727 | **712 ms** | 85 ms |
+
+Phrase rows all time at the largest school: 1,315, read in 257 ms. So all-time is servable at class
+AND school scope today, and no roll-up is needed. For scale: the whole estate's diary is 813,452
+play rows, so a school's share is a small fraction of it.
+
+**The ceiling, stated honestly.** The read pages 1,000 rows at a time, capped at 50 pages — 50,000
+rows — and it is ordered oldest-first, so a truncation would drop the NEWEST phrases. The largest
+real school is at 4,727 rows after five months. The day a school approaches the cap, the answer is a
+materialised per-learner-per-day roll-up on the same rule, not a bigger cap and not a second query.
+
+**Not touched.** The Insights lens's `DEFAULT_WINDOW = '30d'` (`api/groups/[id]/rate-compare.ts`),
+which already offers All time in its own selector; the Course journey card; the year-group tiles and
+the tree's class rows, which stay on the week and say so.
+
+## 2026-09-17 — Schools Insights offers All time, and opens on it (job #127)
+
+**What was actually there, before anything was changed.** Schools Insights and ORG Insights are the
+SAME surface — `views/admin/NodeInsightsView.vue` over `insight/NodeRateEngine.vue` over
+`/api/groups/:id/rate-compare` — and both offered exactly two windows, **This week** and **Last
+week**, defaulting by the Monday/Tuesday rule. Verified live on staging as the real Chepstow leader:
+`options.windows` came back `[this_week, last_week]` at school scope and at class scope alike. The
+**Today / 7d / 30d / All time** set is NOT on any real org page: it lives only in
+`insight/data/demoRates.ts`, the seeded fixture behind the demo-only Rate compare board at
+`/admin/stats`. Job #989 took those windows off this endpoint on 2026-09-16, which is why the
+job brief's note about `DEFAULT_WINDOW = '30d'` was stale.
+
+**Decision.** `all_time` is a third window, listed first, and it is the DEFAULT; the two school weeks
+stay exactly as they were, selectable by name. Tom, 2026-09-17: "it must ALSO offer All time, and All
+time is the DEFAULT."
+
+**All time stays TOTALS**, per his ruling of 2026-09-16, which this does not disturb: "'All time'
+returns as a TOTAL, never an average." So under it the card has no second column, the bars carry no
+average line, the Compare-to picker is absent rather than inert, and the response says `totalsOnly`
+rather than borrowing `insufficientData` — which would have made the page say "not enough data to
+compare fairly yet" about a window that is not trying to compare. The numbers are the same functions
+over a wider range: `weekNumbersForClassIds` takes `[0, now)` exactly as it takes a week's bounds.
+
+**Cost, measured live against production, read-only.** All time is CHEAPER than a week here, because
+it draws no comparison and therefore reads the entity's own classes rather than the whole cohort:
+
+| read | all time | a week |
+|---|---|---|
+| `analytics_class_sessions_scoped`, Chepstow's 34 classes | 83 ms at 1,500 days | 77 ms at 7 days |
+| the same, Tredegar's 51 classes | 66 ms | 74 ms |
+| diary rows, every learner id of the largest real school | 4,727 rows in 712 ms | 262 rows in 85 ms |
+| the endpoint on staging, ZZ Test school | 1,141 ms at `?days=1500` | 1,217 ms at `?days=7` |
+
+`class_sessions` has had no writer since 2026-08-19, which is why the legacy RPC is flat whatever
+depth it is asked for. There is no heavy-query gap to report: the all-time default landed everywhere
+it was asked for, at class and at school level.
+
+**Not touched.** The Monday/Tuesday `defaultWeekWindow` rule stays in `_utils/schoolWeek.ts` with its
+tests; it simply no longer decides what the page opens on. `?days=` stays the only rolling path.
+
+## 2026-09-18 — the bundle path carried one LEGO id per cycle, so no pairs were ever written (job #158)
+
+**What was broken.** `generateScript` in `@ssi/core` — the generator every
+BUNDLE course plays from — copied a phrase's `displayTiling` onto the cycle but
+never its `decomposition`. Downstream is faithful: `bundleToBackendCycles`
+forwards `decomposition` when it is there, `backendCyclesToRounds` derives
+`componentLegoIds` from it, `LearningPlayer` expands those ids and
+`usePairingsTelemetry.buildPairs()` pairs them. With the decomposition missing,
+every cycle carried exactly one id, `buildPairs()` of one id is `[]`, the tally
+stayed empty and `flush()` returned before any request. Nothing errored, and
+the on-screen tiles still rendered — `LegoAssembly` reads `displayTiling` — so
+it looked right the whole time.
+
+**Who it hit, and since when.** Every learner on the fifteen
+`BUNDLE_BOOTSTRAP_COURSES` since the bundle cutover: both Welsh class entities
+AND real production individuals on `cym_s_for_eng`, measured against
+`player_events` + `learner_lego_pairings` from 2026-09-17 11:00Z. Learners on
+non-bundle courses (cat/ell/hrv, still on the legacy walk) wrote pairs
+normally, which is why this read as class-specific and sent job #52 after the
+class route. The class route was fine and was never reached — the class brain,
+Course-journey arcs and cloth simply starved on every bundle course.
+
+**The fix.** `decomposition` joins `BaseCycleOpts` and is spread in `baseCycle`
+exactly as `displayTiling` is (only when non-empty), passed from both
+phrase-cycle builders — the main build/use one and the INF PLAY one. Nothing
+downstream changed. Regression tests at both levels: core asserts a phrase with
+a decomposition yields a cycle carrying it verbatim and one without yields
+none; player-vue asserts a `bundleFullScript` round's phrase cycles come out
+with `componentLegoIds` equal to the non-ghost lego ids. Both were red on the
+pre-fix generator and green after.
+
+**Kept.** The job #155 diagnostic `console.warn` instrumentation in
+`usePairingsTelemetry` is reverted; the probe that found this lives on as
+`packages/player-vue/e2e/class-cofire-flush-probe.mjs` — the standing
+end-to-end check that cycle → componentLegoIds → tally → flush → RPC → rows is
+alive on a deployed build.
+
+## 2026-09-18 — the all-time totals rename carried into the explainer pack and the staging probe
+
+The nightly came back red on `dev` and `staging` for one cause: `e6552f1ff` ("Overview leads with
+all-time totals", Tom 2026-09-17) renamed three leader-home stat words — "Phrases practised this
+week" → "in total", "Minutes in the app this week" → "in total", "Classes practising this week" →
+"Classes that have practised" — and neither the compiled explainer pack nor the job #306 staging
+probe was carried with it.
+
+The code is right and both checks were reading the old wording, so both were re-pointed at the new:
+`tools/explainer/compile.mjs` recompiled (pack `120ffdbbb87a` → `697b02eac132`, stat words only),
+and `_306-top-three-probe.mjs` now asserts "Phrases practised in total". The probe's real ruling —
+the headline never says "spoken" (job #306) — is untouched and still asserted. Verified against
+deployed staging: 13/13, the headline read "PHRASES PRACTISED IN TOTAL".
+
+**Addendum, same night, job #160.** The recompile above fixes the truth manifest, which is derived;
+it cannot fix the hand-written rulings, which are not. The leader ruling still told a leader to
+watch "**Minutes in the app this week**" — a card that no longer says that — so `rulings/leader.md`
+now names the live label and the pack was recompiled with it (`697b02eac132` → `f03bcb4b9d98`). The
+lesson for the next rename: the drift gate compares the pack against the SURFACES, so stale prose
+inside a ruling passes it silently. Grep `tools/explainer/rulings/` for the old words whenever a
+stat word changes. The year-group tiles are still weekly and their handbook comments stay as they
+are.
+
+## 2026-09-18 — Increment 1 of the schools-access design re-landed with Tom's three security rulings (job #195)
+
+Tom read the design document of job #188 and said "Ok. Yes. This sounds good. Let's build the case
+for a single push to main." That supersedes his 10:18 "design first, nothing built until he decides":
+the three reverts that ruling caused on `dev` and `staging` are undone here, and increment 1 — the
+no-code school door, the mailbox banner, password first on return, the Resend cooldown and the
+superseded-code copy — is back on `dev` exactly as it was proven live on staging that morning.
+
+What is new is the security position, which Tom settled in a discussion he opened with "Not sure
+about the security argument. Let's discuss." Three rulings, verbatim where he spoke:
+
+**Ruling 1 — an unproven school can build but not enrol.** "No pupil join codes, no class codes,
+nothing a child can use, until the mailbox is proven or an admin vouches. Then an attacker's stolen
+school is an empty room and the eight days cost nothing." Tom: "Ok for 1." Built as
+`api/_utils/schoolProof.ts`, one predicate asked by every route a pupil code passes through
+(`code/redeem`, `code/validate`, `auth/possession-redeem`, `teacher/by-code`), gated on the
+USABILITY of the code and failing closed when the founder cannot be read. Proof is the school's own
+address confirmed from the banner, OR a different address confirmed from the banner's "Use a
+different address" — the Hwb case, where the school address eats our mail — OR an admin's vouch.
+The teacher's own class page says the same line the server says to a pupil. The vouch is
+`api/school/vouch.ts`: a platform admin, a leader above the school, or a proven co-admin, from the
+admin read-view of the school; never the founder herself.
+
+**Ruling 2 — proof never ends sessions.** Tom rejected the wipe twice: "I don't like the idea of
+wiping previous sessions... what if a teacher doesn't want their own sessions wiped just because
+they have now proved their account?" and, on the narrower "proof keeps the proving session, ends the
+rest": "still think we're catering for the very rare attacks at the expense of the very common
+users." So `api/email/verify.ts` signs nothing out at proof and nothing built before proof is lost.
+Proof also retires the door's unclaimed-mint marker on the primary address, so the teacher's own
+next device is never shown the contest card whose "not me" is the one wipe that still exists.
+
+**Ruling 3 — the multi-session line, shown not killed, default keep.** "At proof, if there's exactly
+one live session, which is nearly everyone, nothing happens and nothing is shown. Only if there's
+more than one does the proving device see one line, 'also signed in on a laptop, keep it?',
+defaulting to keep." Built as a service-role-only `live_session_count(uuid)` read by verify.ts, an
+`other_sessions` count on its answer, one line in the banner with Keep first, and
+`api/auth/end-other-sessions.ts` behind the other button, which runs on nothing but a tap.
+
+One sentence for the record: unproven schools can build but not enrol, proof never ends sessions,
+and a second session at proof time is shown, not killed.
+
+Taste defaults taken where the conversation left a gap, each cheap for Tom to overrule: "an admin
+vouches" is the card on the admin read-view described above; proving a different address from the
+banner counts as proof for enrolment; "live" for the session count means not expired and touched
+within thirty days, so a dead GoTrue row cannot show the line to a teacher with one device; the
+second-device line lives in the founder's banner only, not in Settings' own verify row; the class
+list's short code on the teacher home is not masked — the server refuses it and the pupil reads why.

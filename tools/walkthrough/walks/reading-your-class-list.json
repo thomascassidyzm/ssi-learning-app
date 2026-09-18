@@ -1,0 +1,54 @@
+{
+  "id": "reading-your-class-list",
+  "title": "Reading your class list",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "classes"
+  },
+  "keywords": [
+    "classes",
+    "list",
+    "table",
+    "year group",
+    "filter",
+    "open"
+  ],
+  "steps": [
+    {
+      "anchor": "classes-table",
+      "say": "One row per class. Belt, how far through the course, minutes played as class this week and the shape of those days — all the class account's own, never a pupil's.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "db40d1f3.c507ee12"
+    },
+    {
+      "anchor": "classes-filters",
+      "say": "**Course** narrows the list to one language. **Sort by** puts it in the order that answers your question — name, journey, or phrases practised.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "1ba55172.b56b57f5"
+    },
+    {
+      "anchor": "classes-year-groups",
+      "say": "Tiles by year, read off the class name — **7B** and **Year 9 French** both count. Tap a tile and the table narrows to that year.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "5560cc4c.53bc4a03"
+    },
+    {
+      "anchor": "classes-row",
+      "say": "Anywhere on a row opens that class. The buttons at the right end do their own jobs and do not open it.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's reading the list — the row itself opens a class. This tour opened nothing.",
+      "checked": "60d62b4b.14cd23e2"
+    }
+  ]
+}

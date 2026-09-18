@@ -7,8 +7,17 @@
  *                          by class count — that seeded "opens on a course
  *                          with no learners here"), preferring one whose
  *                          default compare cohort clears the k-floor
- *   &compare_to=<groupId|global|global_all_courses>   optional — defaults to
- *                          the nearest ancestor (the parent's average)
+ *   &compare_to=<tag:year|tag:department|groupId|global|global_all_courses>
+ *                          optional — the DEFAULT walks the rungs in order
+ *                          (year, department, school, every ancestor, then
+ *                          the globals) and stops at the first that holds
+ *                          more than one started class: the smallest
+ *                          container the class is part of (Tom, 2026-09-16)
+ *   &window=this_week|last_week   the school week (job #989); the response
+ *                          also carries `allTime` totals for a class (no
+ *                          comparison figure), `week.classes` for a node (one
+ *                          row per class, quietest first) and `tags` (year /
+ *                          department: derived, confirmed or absent)
  *   &days=90              optional window
  *
  * `:id` resolves exactly like /api/groups/:id/home: a group node, a school id
@@ -35,8 +44,8 @@
  *
  * PRIVACY FLOOR is by COHORT KIND, not by role (Tom's ruling 2026-09-15, see
  * _utils/rateCompare.ts cohortFloor): every cohort here is made of ENTITIES —
- * classes or schools — so the floor is cohortFloor('entities') = 1 active
- * peer for every caller, teacher included. The 5-floor belongs to cohorts of
+ * classes or schools — so the floor is cohortFloor('entities') = 1 peer for
+ * every caller, teacher included. The 5-floor belongs to cohorts of
  * individual learners (me/insights) and never applied to classes by intent.
  *
  * Cohort member unit: peers-like-me — classes when the entity is a class,
@@ -44,6 +53,19 @@
  * spread is the meaningful, k-clearable unit above class level; sibling-group
  * cohorts are structurally too sparse). Classes attached directly to groups
  * with no school are counted in ENTITY values but not as cohort members.
+ *
+ * COHORT MEMBERSHIP IS STRUCTURAL, NOT ACTIVITY-GATED (Tom's ruling
+ * 2026-09-16): "the averages need to be logical to a teacher, not
+ * technically correct, and a set member should ALWAYS be included in the
+ * average, not excluded — else the school average changes when a school
+ * leader looks at each class against it." So the cohort is every class/
+ * school in the compare-to scope on this course — active or not, entity
+ * included — a fixed set for a given school+course whoever is looking and
+ * whichever window is applied. An inactive member counts with its true
+ * value (0 for a sum measure); a sum measure can therefore only rise or
+ * hold as the window widens, never fall, and the percentile ranks the
+ * entity within that same self-inclusive cohort. The floor and the compare
+ * ladder gate on membership COUNT alone (no session data needed for that).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -54,7 +76,9 @@ import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { loadScopedSessionRows } from '../../_utils/diarySessionRows'
+import { loadClassFirstPlay, ClassFirstPlayError } from '../../_utils/classFirstPlay'
 import { applyCors } from '../../_utils/cors'
+import { classTagsView, confirmedTag, tagRungLabel, type TagKind } from '../../_utils/classTags'
 import {
   aggregateWindowPace,
   distributionStats,
@@ -62,39 +86,80 @@ import {
   meanTrend,
   computeMeasureForClassIds,
   cohortFloor,
+  weekNumbersForClassIds,
+  rangeMinutesByActor,
+  meanWeekNumbers,
+  weeklyMinutesBars,
+  weeklyPhrasesBars,
+  meanBars,
+  cohortFor,
   type ScopedSessionRow,
   type MeasureId,
 } from '../../_utils/rateCompare'
+import {
+  DEFAULT_TIME_ZONE,
+  fetchDaysForWeeks,
+  weekBuckets,
+  weekLabel,
+  weekRange,
+  type WeekWindowId,
+} from '../../_utils/schoolWeek'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const MAX_COHORT_IDS = 2000
+/**
+ * Y — the pupils' own minutes — costs one diary read per pupil account, so it
+ * is resolved only while the class set is small enough to be a real cohort.
+ * Past this the response says so (`pupilMinutesCapped`) rather than quietly
+ * reporting 0 minutes of individual practice, which would read as a fact.
+ */
+const PUPIL_CLASS_CAP = 400
 
-// ─── Windows (archive/docs-retired-2026-08-24/the-lens/windows-measures-REPORT.md contract; labels
-// re-ruled 2026-07-19: ROLLING day-unit windows anchored to now — Today /
-// Last 7 days / Last 30 days / All time. No calendar definitions ("this
-// week" / "this term" were ambiguous). ───
+// ─── Windows: ALL TIME, and THE SCHOOL WEEK (Tom, 2026-09-16 — "today /
+// 7 days / 30 days is the wrong primitive for schools who work in week-units"
+// — and 2026-09-17, which widened the Overview's ruling to here: "it must
+// ALSO offer All time, and All time is the DEFAULT"). Exactly three: All time
+// (first play to now), This week (Monday 00:00 local to now) and Last week
+// (the previous complete Monday–Sunday). No sliding windows.
+//
+// ALL TIME IS TOTALS ONLY (Tom, 2026-09-16, unchanged by the widening): "'All
+// time' returns as a TOTAL, never an average: since the class started, total
+// practice time and phrases reached, shown on their own with no comparison
+// figure". So the card's second column is absent under it, the faint average
+// line is absent from the bars, and the response says `totalsOnly`.
+// Monday-anchoring and the DST-safe boundary maths are in _utils/schoolWeek.ts.
 interface WindowConfig {
   value: string
   label: string
-  days: number       // headline period length; 'all' uses a practical-unbounded value
+  days: number       // days of history the rate/measure math reads (window start → now)
   periods: number     // trend series point count
-  periodDays: number  // trend granularity in days (fractional = sub-day buckets)
+  periodDays: number  // trend granularity in days
   trendLabel: string  // honest chart caption
-  perDay?: boolean    // per-week rate measures present in per-day form (a per-week rate over one day would lie)
+  perDay?: boolean
+  weekId?: WeekWindowId
 }
-const WINDOWS: WindowConfig[] = [
-  { value: 'today', label: 'Today', days: 1, periods: 24, periodDays: 1 / 24, trendLabel: 'Hourly · last 24 hours', perDay: true },
-  { value: '7d', label: 'Last 7 days', days: 7, periods: 7, periodDays: 1, trendLabel: 'Daily · last 7 days' },
-  { value: '30d', label: 'Last 30 days', days: 30, periods: 30, periodDays: 1, trendLabel: 'Daily · last 30 days' },
-  { value: 'all', label: 'All time', days: 3650, periods: 12, periodDays: 30, trendLabel: 'Monthly · last 12 months' },
+const TREND_WEEKS = 12
+const ALL_TIME_WINDOW = 'all_time'
+/**
+ * How far back "all time" reads. The oldest play row in production is
+ * 2026-04-20, so this is years of headroom; it exists so a corrupt future
+ * timestamp cannot turn one page load into a full-table scan.
+ */
+const ALL_TIME_MAX_DAYS = 1500
+const WINDOW_OPTIONS = [
+  { value: ALL_TIME_WINDOW, label: 'All time' },
+  { value: 'this_week', label: 'This week' },
+  { value: 'last_week', label: 'Last week' },
 ]
-const DEFAULT_WINDOW = '30d'
-// Old chip values live in bookmarks/deep links — map them onto the nearest
-// rolling window rather than 404ing to the default.
-const WINDOW_ALIASES: Record<string, string> = { week: '7d', '4w': '30d', term: '30d' }
-const WINDOW_OPTIONS = WINDOWS.map((w) => ({ value: w.value, label: w.label }))
+// Every old chip value lives in somebody's bookmark. They all mean "recent
+// practice", so they land on a week rather than 404ing — except `all`, which
+// meant all time before job #989 removed it and means it again.
+const WINDOW_ALIASES: Record<string, string> = {
+  week: 'this_week', today: 'this_week', '7d': 'this_week',
+  '4w': 'last_week', '30d': 'this_week', term: 'this_week', all: ALL_TIME_WINDOW,
+}
 // Legacy trend shape (unchanged) for callers that pass ?days= without ?window=.
 const LEGACY_TREND_WEEKS = 8
 
@@ -156,7 +221,7 @@ async function subtreeSchools(svc: SupabaseClient, subtreeGroupIds: string[]): P
   return out
 }
 
-interface SubtreeClass { id: string; course_code: string | null; school_id: string | null; group_id: string | null }
+interface SubtreeClass { id: string; class_name: string | null; course_code: string | null; school_id: string | null; group_id: string | null; tags: unknown }
 
 /** Active classes in a subtree: node-attached (group_id) ∪ school-attached — the home.ts union. */
 async function subtreeClasses(
@@ -171,12 +236,12 @@ async function subtreeClasses(
     for (const c of rows ?? []) {
       if (c.id && !seen.has(c.id)) {
         seen.add(c.id)
-        out.push({ id: c.id, course_code: c.course_code ?? null, school_id: c.school_id ?? null, group_id: c.group_id ?? null })
+        out.push({ id: c.id, class_name: c.class_name ?? null, course_code: c.course_code ?? null, school_id: c.school_id ?? null, group_id: c.group_id ?? null, tags: c.tags ?? {} })
       }
     }
   }
   const forBatch = (col: 'group_id' | 'school_id', batch: string[]) => {
-    let q = svc.from('classes').select('id, course_code, school_id, group_id').in(col, batch).eq('is_active', true)
+    let q = svc.from('classes').select('id, class_name, course_code, school_id, group_id, tags').in(col, batch).eq('is_active', true)
     if (courseCode) q = q.eq('course_code', courseCode)
     return q.limit(MAX_COHORT_IDS).then(({ data }) => add(data))
   }
@@ -234,26 +299,87 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const requestedWindowRaw = String(req.query.window || '').trim()
   const requestedWindow = WINDOW_ALIASES[requestedWindowRaw] ?? requestedWindowRaw
   const requestedDaysRaw = req.query.days !== undefined ? String(req.query.days) : null
+  const now = new Date()
+  const nowMs = now.getTime()
+  // The school's own clock decides where Monday starts — the client sends its
+  // IANA zone. An unknown or absent zone falls back to Europe/London rather
+  // than UTC: every school on this platform today keeps UK hours, and a UTC
+  // Monday is an hour wrong for half the year.
+  const requestedTz = String(req.query.tz || '').trim()
+  let timeZone = DEFAULT_TIME_ZONE
+  if (requestedTz) {
+    try { new Intl.DateTimeFormat('en-GB', { timeZone: requestedTz }); timeZone = requestedTz } catch { /* keep the default */ }
+  }
   let windowConfig: WindowConfig
   let appliedWindowValue: string | null
-  if (requestedWindow && WINDOWS.some((w) => w.value === requestedWindow)) {
-    windowConfig = WINDOWS.find((w) => w.value === requestedWindow)!
-    appliedWindowValue = windowConfig.value
-  } else if (requestedDaysRaw !== null) {
-    const legacyDays = Math.min(180, Math.max(7, parseInt(requestedDaysRaw, 10) || 90))
+  let weekWindowId: WeekWindowId | null = null
+  // ALL TIME IS THE DEFAULT (Tom, 2026-09-17). The Monday/Tuesday rule that
+  // used to pick which week the page opened on (`defaultWeekWindow`) no
+  // longer decides anything here — a week is now something a reader asks
+  // for by name — so it is no longer read. It stays in _utils/schoolWeek.ts
+  // with its tests; nothing else about the school week changed.
+  let allTimeMode = false
+  if (requestedWindow === ALL_TIME_WINDOW) {
+    allTimeMode = true
+  } else if (requestedWindow === 'this_week' || requestedWindow === 'last_week') {
+    weekWindowId = requestedWindow
+  } else if (requestedDaysRaw === null) {
+    allTimeMode = true
+  }
+  let currentWeek = { startMs: 0, endMs: 0 }
+  if (allTimeMode) {
+    // The whole history, as one range. `weekNumbersForClassIds` and the
+    // per-class rows below take these bounds exactly as they take a week's,
+    // so a total and a week are the same function over a different range —
+    // never a second aggregation.
+    currentWeek = { startMs: 0, endMs: nowMs }
+    windowConfig = {
+      value: ALL_TIME_WINDOW,
+      label: 'All time',
+      days: ALL_TIME_MAX_DAYS,
+      periods: TREND_WEEKS,
+      periodDays: 7,
+      trendLabel: `Weekly · last ${TREND_WEEKS} weeks`,
+    }
+    appliedWindowValue = ALL_TIME_WINDOW
+  } else if (weekWindowId) {
+    currentWeek = weekRange(weekWindowId, nowMs, timeZone)
+    windowConfig = {
+      value: weekWindowId,
+      label: weekWindowId === 'this_week' ? 'This week' : 'Last week',
+      // The legacy measure math reads from the window's own Monday to now; the
+      // week card's three numbers read the week's exact bounds, never this.
+      days: Math.max(Math.ceil((nowMs - currentWeek.startMs) / 86_400_000), 1),
+      periods: TREND_WEEKS,
+      periodDays: 7,
+      trendLabel: `Weekly · last ${TREND_WEEKS} weeks`,
+      weekId: weekWindowId,
+    }
+    appliedWindowValue = weekWindowId
+  } else {
+    const legacyDays = Math.min(180, Math.max(7, parseInt(requestedDaysRaw!, 10) || 90))
     windowConfig = {
       value: 'custom', label: `Last ${legacyDays} days`, days: legacyDays,
       periods: LEGACY_TREND_WEEKS, periodDays: 7, trendLabel: `Weekly · last ${LEGACY_TREND_WEEKS} weeks`,
     }
     appliedWindowValue = null
-  } else {
-    windowConfig = WINDOWS.find((w) => w.value === DEFAULT_WINDOW)!
-    appliedWindowValue = DEFAULT_WINDOW
   }
   const days = windowConfig.days
-  // Ceil: periodDays can be fractional (hourly buckets) and the RPC takes whole days.
-  const fetchDays = Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
-  const now = new Date()
+  // Week windows fetch the whole 12-week trend span, Monday-anchored, so the
+  // oldest bar is a real week rather than a truncated one.
+  // A week window fetches the whole 12-week trend span, Monday-anchored, so
+  // the oldest bar is a real week rather than a truncated one. All time
+  // fetches the lot — measured live 2026-09-17 against production: the whole
+  // history of the largest real school, 73 learner ids over 34 classes and
+  // 4,727 play rows, reads in 712 ms, and the legacy analytics RPC answers a
+  // 1,500-day request in 83 ms because `class_sessions` has been dead since
+  // 2026-08-19. It is also a NARROWER read than a week's: all time shows no
+  // comparison, so only the entity's own classes are read, never the cohort's.
+  const fetchDays = allTimeMode
+    ? ALL_TIME_MAX_DAYS
+    : weekWindowId
+      ? fetchDaysForWeeks(nowMs, timeZone, TREND_WEEKS)
+      : Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
 
   try {
     // ─── One opening wave: auth + every :id interpretation + the forest map.
@@ -263,7 +389,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       verifyAdmin(req),
       svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
       svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
-      svc.from('classes').select('id, class_name, course_code, school_id, group_id').eq('id', rawId).maybeSingle(),
+      svc.from('classes').select('id, class_name, course_code, school_id, group_id, tags').eq('id', rawId).maybeSingle(),
       svc.from('groups').select('id, name, type, parent_id, path, is_demo'),
     ])
 
@@ -287,7 +413,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ─── Resolve :id → node / class (same precedence as home.ts). ───
     let nodeId: string | null = null
-    let classRow: { id: string; class_name: string; course_code: string | null; school_id: string | null; group_id: string | null } | null = null
+    let classRow: { id: string; class_name: string; course_code: string | null; school_id: string | null; group_id: string | null; tags?: unknown } | null = null
 
     if (asGroup) {
       nodeId = rawId
@@ -365,30 +491,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined
     }
 
-    const compareOptions: CompareOption[] = [
-      ...ancestors.map((a) => ({ value: a.id, label: `${a.name} average`, word: a.type })),
-      { value: 'global', label: 'Global average · this course', word: 'global' },
-      { value: 'global_all_courses', label: 'Global average · all courses', word: 'global' },
-    ]
-    // `let`, not `const`: a root node whose default this-course global cohort
-    // is empty auto-widens to all-courses below (never a blank landing).
-    let compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
-      ? requestedCompare
-      : compareOptions[0].value
-
-    // ─── Entity subtree + cohort scope: ONE schools wave + ONE classes wave
-    // over the WIDEST scope needed (an ancestor's subtree contains the
-    // entity's), then split entity vs peers in memory — instead of fetching
-    // the entity's subtree and the compare scope's subtree separately. ───
-    const entitySubtreeGroupIds = classRow
-      ? []
-      : descendantIds(allGroups, nodeId!)
+    // ─── STRUCTURE, fetched once at the ROOT of the entity's tree. The compare
+    // ladder below walks every rung — year, department, school, district,
+    // region, country — and each rung's members are a filter over this one
+    // set, so widening the comparison costs no second structural read. Only
+    // the SESSION rows are expensive, and those are read once, at the end,
+    // for exactly the entity and the rung that won. ───
+    const rootScopeId = ancestors.length > 0 ? ancestors[ancestors.length - 1].id : nodeId
+    const scopeGroupIds = rootScopeId ? descendantIds(allGroups, rootScopeId) : []
+    const entitySubtreeGroupIds = classRow ? [] : descendantIds(allGroups, nodeId!)
     const entityGroupIdSet = new Set(entitySubtreeGroupIds)
-    const isGlobalCompare = compareTo === 'global' || compareTo === 'global_all_courses'
-    const compareAnc = isGlobalCompare ? undefined : byId.get(compareTo)
-    const scopeGroupIds = compareAnc
-      ? descendantIds(allGroups, compareAnc.id)
-      : entitySubtreeGroupIds
 
     const scopeSchools = await subtreeSchools(svc, scopeGroupIds)
     const entitySchoolIds = new Set(scopeSchools
@@ -396,9 +508,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .map((s) => s.id))
     const scopeClasses = await subtreeClasses(svc, scopeGroupIds, scopeSchools.map((s) => s.id), null)
     const entityAllClasses = classRow
-      ? [{ id: classRow.id, course_code: classRow.course_code, school_id: classRow.school_id, group_id: classRow.group_id }]
+      ? [{ id: classRow.id, class_name: classRow.class_name, course_code: classRow.course_code, school_id: classRow.school_id, group_id: classRow.group_id, tags: classRow.tags ?? {} }]
       : scopeClasses.filter((c) =>
           (c.group_id && entityGroupIdSet.has(c.group_id)) || (c.school_id && entitySchoolIds.has(c.school_id)))
+
+    /** The schools and classes under ONE ancestor — a rung's own scope. */
+    const underAncestor = (ancId: string): { schools: SchoolRef[]; schoolIdSet: Set<string>; classes: SubtreeClass[] } => {
+      const groupSet = new Set(descendantIds(allGroups, ancId))
+      const schools = scopeSchools.filter((sc) =>
+        (sc.node_group_id && groupSet.has(sc.node_group_id)) || (sc.group_id && groupSet.has(sc.group_id)))
+      const schoolIdSet = new Set(schools.map((sc) => sc.id))
+      const classes = scopeClasses.filter((c) =>
+        (c.group_id && groupSet.has(c.group_id)) || (c.school_id && schoolIdSet.has(c.school_id)))
+      return { schools, schoolIdSet, classes }
+    }
+
+    // ─── TAG RUNGS — year and department, the two containers below a school
+    // (Tom's ruling 2026-09-16). Offered for a class only when ITS tag is
+    // CONFIRMED and at least one other class in its school carries the same
+    // confirmed tag on this course: a derived guess never moves a cohort, and
+    // a rung with nobody on it is absence, not an empty comparison. ───
+    const classTags = classRow ? classTagsView(classRow.class_name, classRow.course_code, classRow.tags) : null
+    const tagRungs: CompareOption[] = []
+    const tagPeers = (kind: TagKind, value: string): SubtreeClass[] => {
+      if (!classRow || ancestors.length === 0) return []
+      return underAncestor(ancestors[0].id).classes.filter((c) =>
+        c.id !== classRow!.id && c.course_code === classRow!.course_code && confirmedTag(c.tags, kind) === value)
+    }
+    if (classRow) {
+      for (const kind of ['year', 'department'] as const) {
+        const v = confirmedTag(classRow.tags, kind)
+        if (v && tagPeers(kind, v).length > 0) tagRungs.push({ value: `tag:${kind}`, label: tagRungLabel(kind, v), word: kind })
+      }
+    }
+
+    const compareOptions: CompareOption[] = [
+      ...tagRungs,
+      ...ancestors.map((a) => ({ value: a.id, label: `${a.name} average`, word: a.type })),
+      { value: 'global', label: 'Global average · this course', word: 'global' },
+      { value: 'global_all_courses', label: 'Global average · all courses', word: 'global' },
+    ]
+    // `let`, not `const`: the DEFAULT walks up the rungs below until one
+    // holds more than one started class — the smallest container that does
+    // (Tom, 2026-09-16) — so a class with no comparable sibling in its year
+    // opens on its school, and a school alone in its district on its region.
+    let compareTo = requestedCompare && compareOptions.some((o) => o.value === requestedCompare)
+      ? requestedCompare
+      : compareOptions[0].value
+    const isTagRung = (v: string): v is `tag:${TagKind}` => v === 'tag:year' || v === 'tag:department'
+    let compareAnc: GroupRow | undefined = isTagRung(compareTo) || compareTo === 'global' || compareTo === 'global_all_courses'
+      ? undefined
+      : byId.get(compareTo)
 
     const courseCounts = new Map<string, number>()
     for (const c of entityAllClasses) {
@@ -420,7 +580,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let censusRows: ScopedSessionRow[] = []
     if (censusIds.length > 0) {
       const { data: censusData, error: censusError } = await loadScopedSessionRows(svc, censusIds, CENSUS_EVER_DAYS, entityIsDemo)
-      if (censusError) console.error('[node-rate-compare] course census error:', censusError.message)
+      // The census RANKS courses AND decides `hasData` — a node with every
+      // course dark answers "No practice recorded in this class yet." So a
+      // failed census is not a cosmetic ordering loss: it prints that
+      // sentence over a school that has practised (job #180). Fail loudly.
+      if (censusError) {
+        console.error('[node-rate-compare] course census error:', censusError.message)
+        res.status(500).json({ error: 'Failed to load rate data' })
+        return
+      }
       censusRows = (censusData as ScopedSessionRow[]) || []
     }
     // Privacy floor: the cohort is classes or schools (entities), never
@@ -459,11 +627,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // ─── Measure: options omit active_classes at class level (degenerate
     // 0/100 — a class either ran or didn't). An unavailable/unknown request
     // falls back to the default rather than erroring. ───
-    const availableMeasures = MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
+    // Under the week primitive the card IS the three numbers, so there is no
+    // measure to pick: 'rate' is a per-week rate over a one-week window (the
+    // count itself), 'minutes' is one of the three already, and
+    // 'active_classes' never applied at class level. The dropdown goes rather
+    // than standing there offering the same number three ways.
+    const availableMeasures = (weekWindowId || allTimeMode)
+      ? []
+      : MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
     const requestedMeasureRaw = String(req.query.measure || '').trim()
     const requestedMeasure = MEASURE_ALIASES[requestedMeasureRaw] ?? requestedMeasureRaw
     const measureConfig = availableMeasures.find((m) => m.value === requestedMeasure)
-      ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)!
+      ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)
+      ?? MEASURES.find((m) => m.value === DEFAULT_MEASURE)!
 
     const baseBody = {
       node: nodeMeta,
@@ -481,7 +657,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const insufficient = (reason: string, cohortSize = 0): void => {
       res.setHeader('Cache-Control', 'no-store')
-      res.status(200).json({ ...baseBody, insufficientData: true, cohortSize, reason })
+      // A class that has never played has no totals either, and says so.
+      res.status(200).json({ ...baseBody, tags: classTags, allTime: classRow ? { started: false } : null, insufficientData: true, cohortSize, reason })
     }
 
     if (!courseCode) {
@@ -501,37 +678,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // DEFAULTING the course at a node whose compare scope is an ancestor,
     // prefer the highest-ranked active course whose peer cohort actually
     // clears the floor — never land on an honest-but-empty screen when a
-    // comparable course exists one slot down. One scope-wide RPC; its rows
-    // are reused for the final comparison (no extra round trip on the
-    // ancestor path). Root nodes keep the global auto-widen fallback below. ───
-    let scopeRows: ScopedSessionRow[] | null = null
+    // comparable course exists one slot down. Cohort membership is now
+    // STRUCTURAL (every school in scope running the course, active or not —
+    // Tom's ruling 2026-09-16), so this is a pure count over scopeClasses; no
+    // session data needed for it. The RPC below still runs to prefetch rows
+    // for the final comparison (no extra round trip on the ancestor path). ───
     const activeCourses = rankedCourses.filter((c) => c.hasData)
-    if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && compareAnc?.path) {
-      const scopeIds = scopeClasses.map((c) => c.id).slice(0, MAX_COHORT_IDS)
-      const { data: scopeData, error: scopeError } = await loadScopedSessionRows(svc, scopeIds, fetchDays, Boolean(nodeRow?.is_demo))
-      if (scopeError) {
-        console.error('[node-rate-compare] scope census error:', scopeError.message)
-      } else {
-        scopeRows = (scopeData as ScopedSessionRow[]) || []
-        const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
-        const activePeersFor = (code: string): number => {
-          const bySchool = new Map<string, string[]>()
-          for (const c of scopeClasses) {
-            if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
-            if (c.course_code !== code) continue
-            const arr = bySchool.get(c.school_id) ?? []
-            arr.push(c.id)
-            bySchool.set(c.school_id, arr)
-          }
-          let n = 0
-          for (const ids of bySchool.values()) if (aggregateWindowPace(scopeRows!, ids, days, now).hasData) n++
-          return n
+    if (!(requestedCourse && courseCounts.has(requestedCourse)) && !classRow && ancestors.length > 0) {
+      const nearest = underAncestor(ancestors[0].id)
+      const peerSchoolsFor = (code: string): number => {
+        const schools = new Set<string>()
+        for (const c of nearest.classes) {
+          if (!c.school_id || !nearest.schoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+          if (c.course_code !== code) continue
+          schools.add(c.school_id)
         }
-        const preferred = activeCourses.find((c) => activePeersFor(c.code) >= effectiveFloor)
-        if (preferred && preferred.code !== courseCode) {
-          courseCode = preferred.code
-          baseBody.applied.course_code = preferred.code
-        }
+        return schools.size
+      }
+      const preferred = activeCourses.find((c) => peerSchoolsFor(c.code) >= effectiveFloor)
+      if (preferred && preferred.code !== courseCode) {
+        courseCode = preferred.code
+        baseBody.applied.course_code = preferred.code
       }
     }
 
@@ -586,23 +753,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const world = await schoolIdsInWorld(svc, [...bySchool.keys()], entityIsDemo)
         return { members: [...bySchool.entries()].filter(([id]) => world.has(id)).map(([id, classIds]) => ({ id, classIds })) }
       }
-      // an ancestor group id — its subtree is exactly the scope already fetched
+      // a tag rung — the viewed class's school, filtered to its confirmed year
+      // or department. Same-course peers only, like every other rung.
+      if (isTagRung(compareTo)) {
+        const kind: TagKind = compareTo === 'tag:year' ? 'year' : 'department'
+        const v = classRow ? confirmedTag(classRow.tags, kind) : null
+        if (!v) return { members: [], error: 'That comparison needs the tag confirmed first.' }
+        return { members: tagPeers(kind, v).map((c) => ({ id: c.id, classIds: [c.id] })) }
+      }
+      // an ancestor group id — a filter over the root-scoped structure
       if (!compareAnc || !compareAnc.path) {
         return { members: [], error: 'That comparison scope has no resolvable data yet.' }
       }
+      const rung = underAncestor(compareAnc.id)
       if (classRow) {
         return {
-          members: scopeClasses
+          members: rung.classes
             .filter((c) => c.id !== classRow!.id && (!cohortCourse || c.course_code === cohortCourse))
             .map((c) => ({ id: c.id, classIds: [c.id] })),
         }
       }
       // Peer schools only: classes attached directly to groups with no school
       // stay out of the cohort (counted in entity values only — header note).
-      const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
       const bySchool = new Map<string, string[]>()
-      for (const c of scopeClasses) {
-        if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+      for (const c of rung.classes) {
+        if (!c.school_id || !rung.schoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
         if (cohortCourse && c.course_code !== cohortCourse) continue
         const arr = bySchool.get(c.school_id) ?? []
         arr.push(c.id)
@@ -611,41 +786,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return { members: [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds })) }
     }
 
-    // ─── Sessions + math (shared primitives). Gating (entity floor / "does this
-    // peer have any data") is always decided by RATE activity — the same
-    // cohort, regardless of which measure is displayed. `preRows`: the k-floor
-    // preference pass already fetched the whole ancestor scope's rows (a
-    // superset of entity + members) — reuse them instead of re-fetching. ───
-    const loadActive = async (
-      members: { id: string; classIds: string[] }[],
-      preRows: ScopedSessionRow[] | null = null,
-    ): Promise<{ rows: ScopedSessionRow[]; active: { member: { id: string; classIds: string[] }; rateWindow: ReturnType<typeof aggregateWindowPace> }[] } | { rpcError: string }> => {
-      let rows: ScopedSessionRow[]
-      if (preRows) {
-        rows = preRows
-      } else {
-        const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
-        const { data: rawRows, error } = await loadScopedSessionRows(svc, allClassIds, fetchDays, entityIsDemo)
-        if (error) return { rpcError: error.message }
-        rows = (rawRows as ScopedSessionRow[]) || []
-      }
-      const active = members
-        .map((m) => ({ member: m, rateWindow: aggregateWindowPace(rows, m.classIds, days, now) }))
-        .filter((x) => x.rateWindow.hasData)
-      return { rows, active }
-    }
-
+    // ─── Cohort membership is STRUCTURAL, not activity-gated (Tom's ruling
+    // 2026-09-16): every OTHER class/school in the compare-to scope on this
+    // course is a member whether or not it practised in the selected window —
+    // an inactive member counts with its true value (0 for a sum measure).
+    // The floor and the compare ladder below gate on membership COUNT, which
+    // needs no session data at all — only the final averaging needs rows. ───
     const firstMembers = await resolveMembers()
     if (firstMembers.error) {
       insufficient(firstMembers.error)
       return
     }
-    let loaded = await loadActive(firstMembers.members, isGlobalCompare ? null : scopeRows)
-    if ('rpcError' in loaded) {
-      console.error('[node-rate-compare] session rows error:', loaded.rpcError)
-      res.status(500).json({ error: 'Failed to load rate data' })
-      return
+    // ─── WHO IS IN THE DENOMINATOR (Tom via Watson, 2026-09-16) — every class
+    // in the compare-to scope on this course that had STARTED by the end of
+    // the window being read, the viewed class included on the same terms. A
+    // class that has never played is in no denominator anywhere: 67 of the 127
+    // active classes on cym_s_for_eng have never played a session, and
+    // counting them read the school as less than half as busy as it is.
+    //
+    // THIS OVERRIDES the never-started half of job #979b's structural cohort,
+    // on Tom's ruling. The rest of #979b stands exactly: membership does not
+    // move with the window, a STARTED but quiet class counts at its true value
+    // (0 for a sum, job #982's rule), and the viewed class is inside its own
+    // average — so the number a school leader reads is the same from every
+    // class they open it from.
+    //
+    // ONE gate for the whole page: the ladder, the floor, the card, the bars,
+    // the headline average, the percentile and the caption all divide by this
+    // same set. Two denominators on one screen is the bug this replaces.
+    const firstPlay = new Map<string, number | null>()
+    const ensureFirstPlay = async (ids: string[]): Promise<void> => {
+      const missing = ids.filter((id) => !firstPlay.has(id))
+      if (missing.length === 0) return
+      for (const [id, t] of await loadClassFirstPlay(svc, missing)) firstPlay.set(id, t)
     }
+    // The cohort is read at the END of the window: for a week that is the
+    // week's own end, so last week's bars never move when a class starts this
+    // week; for the legacy ?days= path it is now, i.e. "has ever played".
+    const windowCohortEnd = weekWindowId ? currentWeek.endMs : nowMs
+    const onlyStarted = async (
+      ms: { id: string; classIds: string[] }[],
+    ): Promise<{ id: string; classIds: string[] }[]> => {
+      await ensureFirstPlay([...entityClassIds, ...ms.flatMap((m) => m.classIds)])
+      return ms
+        .map((m) => ({ ...m, classIds: cohortFor(m.classIds, firstPlay, windowCohortEnd) }))
+        .filter((m) => m.classIds.length > 0)
+    }
+
+    // TWO member lists, deliberately (job #989 fix-up):
+    //   · `members`     — started by the END OF THE SELECTED WINDOW. The floor,
+    //                     the ladder, the headline average and the percentile
+    //                     divide by this, because they describe that window.
+    //   · `rawMembers`  — the structural set, unfiltered. The 12 weekly bars
+    //                     are built from THIS, and each bucket does its own
+    //                     per-week exclusion through `cohortFor`. Filtering the
+    //                     candidates up front made the bars move when the
+    //                     reader changed the window: with "last week" selected,
+    //                     a class that first played THIS week vanished from the
+    //                     newest bar's average, and reappeared on "this week".
+    //                     History must read the same whichever week you stand in.
+    let rawMembers = firstMembers.members
+    let members = await onlyStarted(rawMembers)
 
     // ─── Compare LADDER on the untouched DEFAULT (generalises the old
     // root-only all-courses fallback, 2026-07-20): when the default
@@ -658,47 +859,347 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // the DEFAULT — an explicit empty pick keeps its named empty-state
     // (below), and every narrower option stays selectable. On total failure
     // the last rung's state stands (honest all-courses reason). ───
+    // The rungs are walked IN ORDER — year, department, school, then every
+    // ancestor up to the root, then the two globals — and the first one with
+    // enough started members wins. That is "the smallest container that holds
+    // more than one class" (Tom, 2026-09-16), and it is one rule at every
+    // level, so a school alone in its district lands on its region the same
+    // way a class alone in its year lands on its school.
     if (!requestedCompare) {
-      for (const rung of ['global', 'global_all_courses'] as const) {
-        if (loaded.active.length >= effectiveFloor) break
-        if (compareTo === rung) continue // already tried as the default
-        compareTo = rung
-        cohortCourse = rung === 'global_all_courses' ? null : courseCode
-        baseBody.applied.compare_to = rung
+      for (const opt of compareOptions) {
+        if (members.length >= effectiveFloor) break
+        if (compareTo === opt.value) continue // already tried as the default
+        compareTo = opt.value
+        cohortCourse = opt.value === 'global_all_courses' ? null : courseCode
+        compareAnc = isTagRung(opt.value) || opt.value === 'global' || opt.value === 'global_all_courses' ? undefined : byId.get(opt.value)
+        baseBody.applied.compare_to = opt.value
         const wm = await resolveMembers()
-        const wl = await loadActive(wm.members)
-        if ('rpcError' in wl) {
-          console.error('[node-rate-compare] session rows error:', wl.rpcError)
-          res.status(500).json({ error: 'Failed to load rate data' })
-          return
-        }
-        loaded = wl
+        if (wm.error) continue
+        rawMembers = wm.members
+        members = await onlyStarted(rawMembers)
       }
     }
 
-    const rows = loaded.rows
-    const active = loaded.active
-    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
-    if (active.length < effectiveFloor) {
+    // ─── NO COMPARABLE COHORT is not "no page" (Tom, 2026-09-16: the class's
+    // own numbers and its all-time totals stand on their own, with no
+    // comparison figure). The reason is named beside the card; the cohort
+    // column is absent; nothing else is withheld. ───
+    let noCohortReason: string | null = null
+    if (members.length < effectiveFloor) {
       // Name the actual gate rather than a vague "not enough data" (founder ask
-      // 2026-07-20): which peer unit, how many are needed, over what window. On
-      // a widened root this still fires only when all-courses is ALSO empty.
-      const unit = classRow ? 'classes' : 'schools'
+      // 2026-07-20): which peer unit, how many are needed. Membership does not
+      // move with the WINDOW — a quiet week never empties the card — but it
+      // does require the peer to have STARTED, so the honest words are "have
+      // started", not "exist": a scope full of classes that were set up and
+      // never played has nothing to compare against, and saying so is the
+      // point (a widened root still only lands here when all-courses is ALSO
+      // empty).
+      const plural = classRow ? 'classes' : 'schools'
+      const unit = members.length === 1 ? (classRow ? 'class' : 'school') : plural
       const worldNote = entityIsDemo ? 'demo ' : ''
-      const scopeNote = cohortCourse ? 'on this course ' : ''
-      const reason = active.length === 0
-        ? `No other ${worldNote}${unit} ${scopeNote}have practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
-        : `Only ${active.length} other ${worldNote}${unit} ${scopeNote}${active.length === 1 ? 'has' : 'have'} practised in the selected period (${windowConfig.label}) — a fair comparison needs at least ${effectiveFloor}.`
-      insufficient(reason, active.length)
+      const scopeNote = cohortCourse ? 'running this course ' : ''
+      const reason = members.length === 0
+        ? `No other ${worldNote}${plural} ${scopeNote}have started in this scope yet — a fair comparison needs at least ${effectiveFloor}.`
+        : `Only ${members.length} other ${worldNote}${unit} ${scopeNote}${members.length === 1 ? 'has' : 'have'} started in this scope — a fair comparison needs at least ${effectiveFloor}.`
+      noCohortReason = reason
+      rawMembers = []
+      members = []
+    }
+
+    // Rows for the RAW set, not the window-filtered one: a member that had
+    // not started by the end of the selected window still owns bars in the
+    // weeks after it did start, and those bars are drawn from these rows.
+    // ONE read, for the entity and the rung that won — never the whole tree.
+    // All time draws no comparison, so it reads the ENTITY's classes only —
+    // the whole history of one school rather than twelve weeks of every peer.
+    const allClassIds = (allTimeMode
+      ? [...new Set(entityClassIds)]
+      : [...new Set([...entityClassIds, ...rawMembers.flatMap((m) => m.classIds)])]
+    ).slice(0, MAX_COHORT_IDS)
+    const { data: rawRows, error } = await loadScopedSessionRows(
+      svc, allClassIds, fetchDays, entityIsDemo, Date.now(),
+      { includePupils: Boolean(weekWindowId || allTimeMode) && allClassIds.length <= PUPIL_CLASS_CAP })
+    if (error) {
+      console.error('[node-rate-compare] session rows error:', error.message)
+      res.status(500).json({ error: 'Failed to load rate data' })
+      return
+    }
+    const rows: ScopedSessionRow[] = (rawRows as ScopedSessionRow[]) || []
+    // ─── The COHORT UNITS for the week card and its bars — peers-like-me,
+    // the same unit this endpoint compares at every level: CLASSES when the
+    // entity is a class, SCHOOLS when it is a school node or an interior
+    // group. Before this fix-up the card flattened the members into a list of
+    // class ids, so at school level the mean was over CLASSES while the
+    // caption counted them as "schools": a leader read "school average · 120
+    // schools" over a 120-CLASS average. The unit decides both, once.
+    //
+    // The entity is a unit of the same kind, on the same terms as any peer —
+    // that is what keeps "the same average whoever looks at it" true.
+    //
+    // Built from `rawMembers`, so the set does not move with the selected
+    // window; each bucket's own `cohortFor` decides who had started by THAT
+    // week, which is the per-week rule and the only place it belongs.
+    const cohortUnits: { id: string; classIds: string[] }[] =
+      [{ id: nodeMeta.id, classIds: entityClassIds }, ...rawMembers]
+    const candidateIds = [...new Set(cohortUnits.flatMap((u) => u.classIds))]
+    await ensureFirstPlay(candidateIds)
+    // A unit is in a week's cohort once ANY of its classes has started, and it
+    // is measured over exactly those classes — a school that opened its second
+    // class in week 9 counts one class in weeks 1-8 and two from week 9.
+    const cohortUnitsAt = (weekEndMs: number): { id: string; classIds: string[] }[] =>
+      cohortUnits
+        .map((u) => ({ id: u.id, classIds: cohortFor(u.classIds, firstPlay, weekEndMs) }))
+        .filter((u) => u.classIds.length > 0)
+
+    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
+
+    // ─── THE WEEK CARD (job #989) — three numbers for the window, the
+    // cohort's same three beside them, and 12 Monday-anchored weekly bars.
+    // Never a ratio: the two sets of numbers sit side by side and the reader
+    // does the comparing (Tom's ruling via RBF, 2026-09-16). The cohort is
+    // job #979b's FIXED structural set — every class on the course in scope,
+    // the quiet ones and the viewed one included — so the school's week reads
+    // the same whoever is looking at it. ───
+    // The cohort's unit: classes when the entity is a class, schools above it
+    // (the peers-like-me rule this endpoint has always used).
+    const cohortNoun = (n: number): string =>
+      classRow ? (n === 1 ? 'class' : 'classes') : (n === 1 ? 'school' : 'schools')
+
+    // Since when the entity has been playing at all — the range line under
+    // "All time", and the honest answer to "totals since when?".
+    let entityFirstPlayMs: number | null = null
+    for (const id of entityClassIds) {
+      const t = firstPlay.get(id)
+      if (typeof t === 'number' && (entityFirstPlayMs === null || t < entityFirstPlayMs)) entityFirstPlayMs = t
+    }
+
+    let weekBlock: Record<string, unknown> | null = null
+    if (weekWindowId || allTimeMode) {
+      const buckets = weekBuckets(nowMs, timeZone, TREND_WEEKS)
+      const entityWeek = weekNumbersForClassIds(rows, entityClassIds, currentWeek.startMs, currentWeek.endMs)
+      // The cohort, evaluated at the end of the window for the card and
+      // AGAIN at the end of each bucket for the bars — one function, three
+      // callers, so a bar and the number above it can never disagree. Under
+      // ALL TIME there is no cohort at all: totals stand on their own.
+      const windowCohort = allTimeMode ? [] : cohortUnitsAt(currentWeek.endMs)
+      const cohortWeek = meanWeekNumbers(
+        windowCohort.map((u) => weekNumbersForClassIds(rows, u.classIds, currentWeek.startMs, currentWeek.endMs)))
+      // The entity's OWN series: the sum of ITS classes that had started by
+      // each week, and absence before any of them had. A zero in a week the
+      // class did not yet exist as a playing class would say it was idle.
+      const entityBars = weeklyMinutesBars(rows, entityClassIds, buckets,
+        (end) => cohortFor(entityClassIds, firstPlay, end))
+      // The comparison series: the MEAN over the cohort as it stood each week,
+      // built from each member's own series so a member is absent from the
+      // weeks before it started and a zero in every week after. Same
+      // `cohortFor`, one class at a time — the bar and the number above it
+      // cannot disagree because they are the same function.
+      // One series per UNIT — a school's series is its own classes summed,
+      // and the cohort bar is the mean of those, never the mean of bare
+      // classes. Mean-of-schools and mean-of-classes are different numbers
+      // whenever schools differ in size, and the caption says schools.
+      const cohortBars = allTimeMode
+        ? buckets.map(() => null)
+        : meanBars(cohortUnits.map((u) =>
+          weeklyMinutesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      // The phrases twin of both series (job #26, the display lab): same
+      // buckets, same cohortFor, so a phrases bar and the newPhrases number
+      // above it are one function. Additive — the minutes fields are untouched.
+      const entityPhrasesBars = weeklyPhrasesBars(rows, entityClassIds, buckets,
+        (end) => cohortFor(entityClassIds, firstPlay, end))
+      const cohortPhrasesBars = allTimeMode
+        ? buckets.map(() => null)
+        : meanBars(cohortUnits.map((u) =>
+          weeklyPhrasesBars(rows, u.classIds, buckets, (end) => cohortFor(u.classIds, firstPlay, end))))
+      weekBlock = {
+        window: appliedWindowValue,
+        label: windowConfig.label,
+        rangeLabel: allTimeMode
+          ? (entityFirstPlayMs === null
+            ? 'Not started yet'
+            : `Since ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(new Date(entityFirstPlayMs))}`)
+          : weekLabel(currentWeek, timeZone),
+        timeZone,
+        entity: {
+          label: nodeMeta.name,
+          classMinutes: entityWeek.classMinutes,
+          pupilMinutes: entityWeek.pupilMinutes,
+          totalMinutes: entityWeek.totalMinutes,
+          newPhrases: entityWeek.newPhrases,
+          hasData: entityWeek.hasData,
+        },
+        // An empty cohort is ABSENCE — no numbers at all, never a row of
+        // zeros that reads as "the school did nothing".
+        cohort: windowCohort.length === 0 || noCohortReason ? null : {
+          label: compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average',
+          classMinutes: cohortWeek.classMinutes,
+          pupilMinutes: cohortWeek.pupilMinutes,
+          totalMinutes: cohortWeek.totalMinutes,
+          newPhrases: cohortWeek.newPhrases,
+          size: windowCohort.length,
+          // "school average · 27 classes" (Watson, 2026-09-16) — the
+          // denominator said in four words, with the right noun at every
+          // level. Counted off the SAME windowCohort the numbers above it
+          // were averaged over, so the caption cannot drift from them.
+          sizeLabel: `${windowCohort.length} ${cohortNoun(windowCohort.length)}`,
+        },
+        bars: {
+          weeks: buckets.map((b) => weekLabel(b, timeZone)),
+          entity: entityBars,
+          cohort: noCohortReason ? cohortBars.map(() => null) : cohortBars,
+          entityPhrases: entityPhrasesBars,
+          cohortPhrases: noCohortReason ? cohortPhrasesBars.map(() => null) : cohortPhrasesBars,
+        },
+        // Named, not hidden: past the cap Y is not read at all, so the total
+        // is class play only and says so.
+        pupilMinutesCapped: entityClassIds.length > PUPIL_CLASS_CAP,
+        // ─── THE LEADER'S PAGE: the same week, once per class, quietest first
+        // (Tom, 2026-09-16: "how long since each class practised" IS the
+        // page). Each row is that class's own three numbers off the SAME rows
+        // and the SAME week bounds as the card above, so a class's card and
+        // the school's card cannot disagree. Silence is drawn as absence: a
+        // class that has never played carries no numbers and no zero, only
+        // `started: false`; one that played before the twelve weeks read here
+        // carries `lastPlayedAt: null` and `started: true` — quiet, not new.
+        // Started classes come first, longest since practice first; never-
+        // started ones follow, because they have not "gone quiet" — they have
+        // not begun. ───
+        // The faint "normal" line drawn across every per-class card on the
+        // leader's page: the mean over THIS node's own classes, week by week,
+        // so a class reads against the level it actually sits in. Sent once,
+        // not once per class — 27 identical copies is payload, not meaning.
+        // Absent under All time: a "normal" line is an average, and All time
+        // carries no comparison figure of any kind.
+        classesNormal: classRow || allTimeMode ? undefined : meanBars(entityAllClasses
+          .filter((c) => c.course_code === courseCode)
+          .map((c) => weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)))),
+        classes: classRow ? undefined : entityAllClasses
+          .filter((c) => c.course_code === courseCode)
+          .map((c) => {
+            const started = typeof firstPlay.get(c.id) === 'number'
+            const w = weekNumbersForClassIds(rows, [c.id], currentWeek.startMs, currentWeek.endMs)
+            let lastMs: number | null = null
+            for (const r of rows) {
+              if (r.class_id !== c.id) continue
+              const t = new Date(r.started_at).getTime()
+              if (Number.isFinite(t) && (lastMs === null || t > lastMs)) lastMs = t
+            }
+            return {
+              id: c.id,
+              name: c.class_name || 'Unnamed class',
+              started,
+              lastPlayedAt: lastMs === null ? null : new Date(lastMs).toISOString(),
+              classMinutes: started ? w.classMinutes : null,
+              pupilMinutes: started ? w.pupilMinutes : null,
+              totalMinutes: started ? w.totalMinutes : null,
+              newPhrases: started ? w.newPhrases : null,
+              // That class's own twelve weeks, same buckets and same
+              // `cohortFor` as the card above, so a bar and the number beside
+              // it can never disagree. Absence before it started, never a zero.
+              bars: started ? weeklyMinutesBars(rows, [c.id], buckets, (end) => cohortFor([c.id], firstPlay, end)) : null,
+            }
+          })
+          .sort((a, b) => {
+            if (a.started !== b.started) return a.started ? -1 : 1
+            const at = a.lastPlayedAt ? new Date(a.lastPlayedAt).getTime() : -1
+            const bt = b.lastPlayedAt ? new Date(b.lastPlayedAt).getTime() : -1
+            return at - bt || a.name.localeCompare(b.name)
+          }),
+      }
+    }
+
+    // ─── ALL TIME ENDS HERE — totals, and nothing to measure them against
+    // (Tom, 2026-09-16). Everything below this line computes the entity's
+    // measure against a cohort, and under All time no cohort was read, so
+    // running it would put a comparison in the payload that no data backs.
+    // `totalsOnly` names the state rather than borrowing `insufficientData`,
+    // which would make the page say "not enough data to compare fairly yet"
+    // about a window that is not trying to compare. ───
+    if (allTimeMode) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({
+        ...baseBody,
+        totalsOnly: true,
+        week: weekBlock,
+        // The all-time LINE under the week card would repeat the card's own
+        // numbers here, so it is absent: the card IS the totals.
+        allTime: null,
+        startedAt: entityFirstPlayMs === null ? null : new Date(entityFirstPlayMs).toISOString(),
+        levelNoun: nodeMeta.kind === 'class' ? 'class' : (nodeMeta.label || 'group'),
+        tags: classTags,
+      })
       return
     }
 
-    // ─── The displayed measure — entity + each active cohort member, via
-    // the SAME dispatch function so every measure follows one grammar. ───
+    // ─── ALL TIME, totals only (Tom, 2026-09-16: "'All time' returns as a
+    // TOTAL, never an average: since the class started, total practice time
+    // and phrases reached, shown on their own with no comparison figure").
+    // Class entities only; read off the same session rows as the week — the
+    // twelve weeks already in hand when the class is younger than that, else
+    // one read back to its first play. A class that has not started has no
+    // totals, and says so rather than showing zeros. ───
+    let allTime: Record<string, unknown> | null = null
+    if (classRow && weekWindowId) {
+      const first = firstPlay.get(classRow.id)
+      if (typeof first !== 'number') {
+        allTime = { started: false }
+      } else {
+        const daysSinceFirst = Math.ceil((nowMs - first) / 86_400_000) + 1
+        let lifeRows: ScopedSessionRow[] = rows
+        if (daysSinceFirst > fetchDays) {
+          const { data: lifeData, error: lifeError } = await loadScopedSessionRows(
+            svc, [classRow.id], Math.min(daysSinceFirst, 1500), entityIsDemo, nowMs, { includePupils: true })
+          // The same read as the window's, so the same answer to failure: a
+          // total quietly computed off twelve weeks when the class has played
+          // for two years is an UNDERSTATEMENT, which is the one thing this
+          // endpoint must never show (job #180).
+          if (lifeError) {
+            console.error('[node-rate-compare] all-time rows error:', lifeError.message)
+            res.status(500).json({ error: 'Failed to load rate data' })
+            return
+          }
+          lifeRows = (lifeData as ScopedSessionRow[]) || []
+        }
+        const x = rangeMinutesByActor(lifeRows, [classRow.id], 'class', 0, nowMs)
+        const y = rangeMinutesByActor(lifeRows, [classRow.id], 'pupil', 0, nowMs)
+        let reached = 0
+        for (const r of lifeRows) {
+          if (r.class_id !== classRow.id || (r.actor ?? 'class') !== 'class') continue
+          reached = Math.max(reached, r.end_ord ?? 0, r.start_ord ?? 0)
+        }
+        allTime = {
+          started: true,
+          since: new Date(first).toISOString(),
+          sinceLabel: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone }).format(new Date(first)),
+          classMinutes: x.minutes,
+          pupilMinutes: y.minutes,
+          totalMinutes: Math.round((x.minutes + y.minutes) * 10) / 10,
+          phrasesReached: reached,
+        }
+      }
+    }
+
+    if (noCohortReason) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({
+        ...baseBody,
+        insufficientData: true,
+        cohortSize: 0,
+        reason: noCohortReason,
+        week: weekBlock,
+        allTime,
+        tags: classTags,
+      })
+      return
+    }
+
+    // ─── The displayed measure — entity + every cohort member (active or
+    // not), via the SAME dispatch function so every measure follows one
+    // grammar. ───
     const entityMeasureRaw = computeMeasureForClassIds(
       measureConfig.value, rows, entityClassIds, days, windowConfig.periods, windowConfig.periodDays, now)
-    const memberMeasuresRaw = active.map((x) =>
-      computeMeasureForClassIds(measureConfig.value, rows, x.member.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
+    const memberMeasuresRaw = members.map((m) =>
+      computeMeasureForClassIds(measureConfig.value, rows, m.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
 
     // Under 'Today' a per-week rate would be a 7x extrapolation of one day —
     // present per-week measures in their natural per-day form instead (the
@@ -708,11 +1209,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const perDay = Boolean(windowConfig.perDay) && measureConfig.per === 'week'
     const scaleValue = (v: number): number => (perDay ? Math.round((v / 7) * 10) / 10 : v)
     const measurePer = perDay ? 'day' : measureConfig.per
-    const entityMeasure = { value: scaleValue(entityMeasureRaw.value), trend: entityMeasureRaw.trend }
+    const entityMeasure = {
+      value: scaleValue(entityMeasureRaw.value),
+      // Under a week window every chart is Monday-anchored, so the legacy
+      // trend array carries the same bars the week card draws — no reader ever
+      // sees two different "last 12 weeks".
+      trend: weekBlock ? (weekBlock.bars as { entity: number[] }).entity : entityMeasureRaw.trend,
+    }
     const memberMeasures = memberMeasuresRaw.map((m) => ({ value: scaleValue(m.value), trend: m.trend }))
 
-    const cohortValues = memberMeasures.map((m) => m.value)
-    const averageTrend = meanTrend(memberMeasures.map((m) => m.trend))
+    // ─── The average ALWAYS includes the entity's own value (Tom's ruling
+    // 2026-09-16): "a set member should ALWAYS be included in the average,
+    // not excluded — else the school average changes when a school leader
+    // looks at each class against it." Because membership is now the same
+    // fixed structural set for every viewer (every class/school in scope on
+    // this course), the average — and the percentile, ranked over this same
+    // self-inclusive cohort — reads identically whichever member is looking,
+    // and a wider window can only raise or hold a sum measure, never lower it. ───
+    //
+    // ONE EXCEPTION, and it is the same rule read straight (job #989 fix-up):
+    // the entity joins the DENOMINATOR only once it has STARTED, exactly like
+    // every peer. A never-started class is still shown its own numbers — it is
+    // simply not one of the classes the average divides by, in any week. Before
+    // this the headline and the percentile counted it while the week card did
+    // not, so one screen carried two denominators and two averages.
+    const entityHasStarted = cohortFor(entityClassIds, firstPlay, windowCohortEnd).length > 0
+    const cohortValues = entityHasStarted
+      ? [entityMeasure.value, ...memberMeasures.map((m) => m.value)]
+      : memberMeasures.map((m) => m.value)
+    const averageTrend = weekBlock
+      ? (weekBlock.bars as { cohort: number[] }).cohort
+      : meanTrend(entityHasStarted
+        ? [entityMeasure.trend, ...memberMeasures.map((m) => m.trend)]
+        : memberMeasures.map((m) => m.trend))
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
@@ -725,7 +1254,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // its FINAL value, not the request-time isGlobalCompare.
     const cohortLabel = compareTo === 'global' || compareTo === 'global_all_courses'
       ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
-      : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
+      : `${cohortUnit} in ${compareAnc?.name ?? compareOptions.find((o) => o.value === compareTo)?.label ?? 'this scope'}`
+    // "school average · 32 classes" — Tom's own form, 2026-09-16. The
+    // denominator, named, and nothing else: not "all" classes, because a class
+    // nobody has ever pressed play on is not in it, and not the course a second
+    // time, which the label beside it already says on the rungs that carry it.
+    // The global rungs already carry their scope in the label itself — "Global
+    // average · this course" — so appending it again read "Global average ·
+    // this course · all 6 classes on this course" on staging. Name the scope
+    // once, wherever it already lives.
+    const cohortSizeLine = `${compareLabel} · ${cohortValues.length} ${cohortUnit}`
+    // The week card carries its own denominator caption (`cohort.sizeLabel`),
+    // counted off the cohort its own numbers were averaged over. Nothing to
+    // set here — the two must not be written twice.
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
@@ -759,6 +1300,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       subjectIsViewer: false,
       levelNoun,
       cohortLabel,
+      cohortUnit,
+      cohortSizeLine,
+      cohortIncludesEntity: entityHasStarted,
+      week: weekBlock,
+      allTime,
+      tags: classTags,
       distribution: {
         values: dist.values,
         min: dist.min,
@@ -770,9 +1317,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         averageValue,
         percentile: dist.percentileOf(entityMeasure.value),
       },
-      cohortSize: active.length,
+      cohortSize: cohortValues.length,
     })
   } catch (error) {
+    // A first-play read that FAILED is not a set of classes that never played.
+    // Falling through would have silently shrunk every denominator on the page
+    // and still rendered an average, so it is loud instead (job #989 fix-up).
+    if (error instanceof ClassFirstPlayError) {
+      console.error('[node-rate-compare] class first-play read failed:', error.message)
+      res.status(500).json({ error: 'Could not read when these classes first played, so the average would divide by the wrong number of them. Please try again.' })
+      return
+    }
     console.error('[node-rate-compare] error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }

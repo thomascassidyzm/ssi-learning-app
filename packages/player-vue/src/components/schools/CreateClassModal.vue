@@ -215,9 +215,11 @@ const handleSubmit = () => {
               <!-- Full catalogue (~74 courses): the shared searchable dropdown. -->
               <!-- HANDBOOK Choose what a class learns
                    section: courses-and-content
+                   moment: setting-up
                    roles: school_admin, teacher
                    place: classes
                    keywords: course, language, choose, class, catalogue
+                   walk: choose-a-class-course
                    What it's for. Setting the language a class learns. Every
                    class carries one course, and it decides what the class
                    practises, what students hear when they join, and where the

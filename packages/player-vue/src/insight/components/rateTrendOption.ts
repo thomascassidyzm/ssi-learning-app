@@ -14,9 +14,15 @@ import { FONT_MONO } from '../theme'
 
 export interface RateTrendOptionInput {
   entityLabel: string
-  entity: number[]
+  /**
+   * A number is a real bucket; NULL is ABSENCE — there was nothing there to
+   * measure, as against a 0 which says there was and it was nothing. ECharts
+   * draws no bar for a null and, with connectNulls off, the dashed line breaks
+   * rather than ruling a straight edge across a gap it knows nothing about.
+   */
+  entity: (number | null)[]
   averageLabel: string
-  average: number[]
+  average: (number | null)[]
   yLabel?: string
   xLabels: string[]
   entityRgb: string  // "r, g, b"
@@ -83,8 +89,9 @@ export function buildRateTrendOption(i: RateTrendOptionInput): Record<string, un
         type: 'bar',
         barMaxWidth: 28,
         itemStyle: { color: entityColor, borderRadius: [3, 3, 0, 0], shadowColor: `rgba(${i.glowRgb}, 0.35)`, shadowBlur: 6 },
-        // The newest bucket carries its value so the current figure reads off the chart.
-        data: entityData.map((v, idx) => (idx === lastIdx
+        // The newest bucket carries its value so the current figure reads off
+        // the chart — unless it is absent, which gets no bar and no label.
+        data: entityData.map((v, idx) => (idx === lastIdx && typeof v === 'number'
           ? { value: v, label: { show: true, position: 'top', formatter: () => fmtTrendValue(v), color: entityColor, fontFamily: FONT_MONO, fontWeight: 'bold', fontSize: 12 } }
           : v)),
         emphasis: { focus: 'series' },
@@ -100,6 +107,9 @@ export function buildRateTrendOption(i: RateTrendOptionInput): Record<string, un
         itemStyle: { color: averageColor },
         emphasis: { focus: 'series' },
         data: i.average ?? [],
+        // A gap in the cohort is a gap in the line: joining across it would
+        // draw a school average for weeks when no class had started.
+        connectNulls: false,
         z: 2,
       },
     ],

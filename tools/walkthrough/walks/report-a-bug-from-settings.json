@@ -1,0 +1,57 @@
+{
+  "id": "report-a-bug-from-settings",
+  "title": "Report a bug from Settings",
+  "personas": [
+    "teacher",
+    "school_admin",
+    "leader"
+  ],
+  "place": {
+    "route": "player-settings"
+  },
+  "keywords": [
+    "bug",
+    "report",
+    "problem",
+    "went wrong",
+    "feedback",
+    "broken",
+    "settings",
+    "tools"
+  ],
+  "steps": [
+    {
+      "anchor": "report-bug",
+      "say": "Under **Tools** in Settings sits **Report a bug** — tap it to open the sheet. Nothing is sent until you tap Send on it.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "94f2d18d.7dee0b7f"
+    },
+    {
+      "anchor": "report-bug-sheet",
+      "say": "This sheet is the whole flow — one box, one optional screenshot, one Send. Tap outside it and it closes without sending anything.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "018bade6.77f319c1"
+    },
+    {
+      "anchor": "report-bug-text",
+      "say": "Write what you saw in your own words here. Your course and device details are added for you, so you only need to describe the problem itself.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "08bb76bc.cffc2385"
+    },
+    {
+      "anchor": "report-bug-send",
+      "say": "**Send** stays off until you have written something. You would tap **Send** here — press Next to continue without sending. When you do send for real it reads **Sending…** while your note, and your screenshot if you added one, goes.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "565f1b85.afedad59",
+      "terminal": "Once it lands, **Got it, thank you** replaces the form — that line is the whole reply. The sheet closes on its own a moment later, or tap the line to close it now. Nobody replies through the app: your note goes to one place where we read it, whether or not you are signed in."
+    }
+  ]
+}

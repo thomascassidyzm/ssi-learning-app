@@ -1,0 +1,56 @@
+{
+  "id": "copy-a-teachers-play-onto-their-class",
+  "title": "Copy a teacher's own play onto the class",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
+  },
+  "keywords": [
+    "copy",
+    "play as class",
+    "mistake",
+    "own account",
+    "progress"
+  ],
+  "steps": [
+    {
+      "anchor": "class-copy-play-picker",
+      "say": "**Played as themselves by mistake?** — a school leader picks the teacher here. A teacher fixing their own lesson sees no list; the card is about them.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "f4a1b6d4.77f049e5"
+    },
+    {
+      "anchor": "class-copy-play-preview",
+      "say": "**See what would move** reads the sessions, the time in the app, and where the class will end up. Nothing moves yet.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "d36bb57b.b82c440e"
+    },
+    {
+      "anchor": "class-copy-play-preview-result",
+      "say": "The teacher keeps their own record either way. Only play on this class's course moves, and the class ends up at the further of the two places.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "439501ed.ae711870"
+    },
+    {
+      "anchor": "class-copy-play-apply",
+      "say": "**Copy onto the class** commits it — one line afterwards says what was copied. Running it again copies nothing twice.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Preview first, copy only when you're sure. This tour previewed nothing and copied nothing.",
+      "checked": "327306c8.eaee4cf2"
+    }
+  ]
+}

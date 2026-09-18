@@ -1,0 +1,30 @@
+{
+  "id": "download-your-schools-data",
+  "title": "Download your school's data",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "export",
+    "download",
+    "csv",
+    "data",
+    "spreadsheet",
+    "records"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-export-data",
+      "say": "Under **Data & privacy** in Settings, **Download all data** takes your school's progress figures out of the app as one spreadsheet file — every student, their class, how far they have got, how long they have practised and when they were last active. The file lands in your downloads, named after your school and today's date.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "It is a snapshot of the moment you press the button, not a live link — download it again whenever you want current figures.",
+      "checked": "68f6d84a.1f505ac3"
+    }
+  ]
+}

@@ -12,35 +12,72 @@
   "keywords": [
     "insights",
     "numbers",
-    "rate",
+    "week",
     "compare",
-    "measure",
-    "window"
+    "minutes",
+    "phrases",
+    "total",
+    "classes",
+    "voice",
+    "pause",
+    "journey"
   ],
   "steps": [
     {
-      "anchor": "insights-measure",
-      "say": "The **measure** picks what's being counted — progress, practice, class sessions. The line underneath the pickers says exactly what the current one means.",
-      "advance": {
-        "on": "next"
-      },
-      "checked": "ee636721.5ccfae1b"
-    },
-    {
       "anchor": "insights-window",
-      "say": "The **window** is the period the rate is computed over — shorter windows react faster, longer ones smooth the noise.",
+      "say": "**All time** is where the page opens — everything this level has done since it first pressed play. **This week** and **Last week** are the school week, Monday to Sunday, and those are the only two weeks. The card is the first thing on the page; this is the one thing you switch.",
       "advance": {
         "on": "next"
       },
-      "checked": "e4bdf6b9.3be7e37a"
+      "checked": "40c97618.8d47d25d"
     },
     {
       "anchor": "insights-compare",
-      "say": "**Compare to** puts an average alongside. Everything here is a rate, not a raw total — so groups of different sizes compare fairly.",
+      "say": "**Compare to** decides whose average sits beside yours, and it appears once you pick a week — totals have nothing beside them on purpose. It opens on the smallest group this level is part of that holds more than one, and walks up from there — year, department, school, district. Every class in that scope that has started this course counts, this one included.",
       "advance": {
         "on": "next"
       },
-      "checked": "dcff4a14.97ac1945"
+      "checked": "0d9945c9.c1d47a5b"
+    },
+    {
+      "anchor": "insights-rate-widget",
+      "say": "One card, two columns. Down the left: time playing as a class, time students put in on their own accounts, those two added together, and the new phrases reached for the first time this week. The average's same numbers sit beside each so you do the comparing yourself. The thin line under the total is the last twelve weeks.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "7d832afa.afbef272"
+    },
+    {
+      "anchor": "insights-classes",
+      "say": "Under the card, every class here, the one that has gone longest without practising first. Each says when it last practised and its week. Tap one for its own card. Nothing is ranked by minutes.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "b09ac89e.18d8c9b8"
+    },
+    {
+      "anchor": "insights-more",
+      "say": "**More about this level** keeps the journey question off the first screen — how far through the course your classes are, and where most of them stop. Tap it to open. On a single class the line is not there at all: its journey is the Course journey card on its own Overview.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ad71c53f.0a5d62e1"
+    },
+    {
+      "anchor": "insights-org-journey",
+      "say": "**Journey** shows where in the course each class has got to, as the last phrase it played in both languages, and the funnel shows the sentence most classes stop before. Nothing here is ranked.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "28e6edf7.1a829f31"
+    },
+    {
+      "anchor": "insights-voice-pause",
+      "say": "**Voice and pause**, the last line, is what the microphone is giving us below this level. Tap it to open; read the uptake figure first — it is how many learners the rest is based on.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "18500c27.6ebbb158"
     },
     {
       "anchor": "insights-overview",
@@ -48,7 +85,7 @@
       "advance": {
         "on": "next"
       },
-      "terminal": "Rates lead, position is context — and the picker text always says what a measure means.",
+      "terminal": "Weeks lead, and there is no score to chase — a quiet week is allowed to read as a quiet week.",
       "checked": "7f2e884d.cf8e6712"
     }
   ]

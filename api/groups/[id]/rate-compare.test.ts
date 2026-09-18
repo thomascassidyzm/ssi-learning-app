@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { weekLabel, weekRange } from '../../_utils/schoolWeek'
 
 process.env.SUPABASE_URL = 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
@@ -124,16 +125,23 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
   return result
 }
 
+// A table whose read FAILS, so a DB error can be told from an empty table
+// (job #180). Null for every test that does not set it.
+let TABLE_ERROR: string | null = null
+
 function makeChainable(table: string) {
   const calls: { method: string; args: any[] }[] = []
   const builder: any = {}
   const chain = (method: string) => (...args: any[]) => { calls.push({ method, args }); return builder }
   for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'like', 'gte', 'order', 'limit', 'range']) builder[m] = chain(m)
+  const failure = () => ({ data: null, error: { message: `${table} statement timeout` } })
   builder.maybeSingle = () => {
+    if (table === TABLE_ERROR) return Promise.resolve(failure())
     const rows = applyFilters(TABLES[table] || [], calls)
     return Promise.resolve({ data: rows[0] || null, error: null })
   }
   builder.then = (resolve: any) => {
+    if (table === TABLE_ERROR) return resolve(failure())
     const rows = applyFilters(TABLES[table] || [], calls)
     return resolve({ data: rows, error: null })
   }
@@ -141,10 +149,37 @@ function makeChainable(table: string) {
 }
 
 let lastRpcArgs: any = null
+let firstPlayRpcError = false
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
     rpc: (fn: string, args: any) => {
+      // WHEN EACH CLASS FIRST PLAYED (migration 20260916a) — the cohort gate
+      // reads it for every candidate. The double answers from the same
+      // fixtures the rest of the file uses: a class's first session across
+      // SESSION_ROWS and the class account's diary, null when it has neither,
+      // which is the never-started case the rule excludes.
+      if (fn === 'class_first_play') {
+        // A READ FAILURE is not an absence of play (job #989 fix-up): flip
+        // this and the endpoint must say so rather than quietly dividing by
+        // however many classes happened to survive.
+        if (firstPlayRpcError) return Promise.resolve({ data: null, error: { message: 'statement timeout' } })
+        const ids = (args?.p_class_ids ?? []) as string[]
+        const learnerByClass = new Map<string, string>()
+        for (const c of TABLES.classes ?? []) if (c.class_learner_id) learnerByClass.set(c.id, c.class_learner_id)
+        return Promise.resolve({
+          data: ids.map((id) => {
+            const times: number[] = []
+            for (const r of SESSION_ROWS) if (r.class_id === id) times.push(new Date(r.started_at).getTime())
+            const lid = learnerByClass.get(id)
+            if (lid) for (const e of (TABLES.player_events ?? [])) {
+              if (e.learner_id === lid) times.push(new Date(e.occurred_at).getTime())
+            }
+            return { class_id: id, first_play: times.length ? new Date(Math.min(...times)).toISOString() : null }
+          }),
+          error: null,
+        })
+      }
       if (fn !== 'analytics_class_sessions_scoped') return Promise.resolve({ data: null, error: { message: `unknown rpc ${fn}` } })
       lastRpcArgs = args
       const ids = (args?.p_class_ids ?? []) as string[]
@@ -174,6 +209,8 @@ let handler: typeof import('./rate-compare').default
 beforeEach(async () => {
   resetTables()
   coverageExpired = false
+  firstPlayRpcError = false
+  TABLE_ERROR = null
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: false, error: 'no token' }
   visibleScopeResult = { ...EMPTY_SCOPE }
@@ -184,36 +221,52 @@ beforeEach(async () => {
 describe('GET /api/groups/:id/rate-compare', () => {
   it('401s an unauthenticated caller', async () => {
     const res = makeRes()
-    await handler(makeReq('programme'), res)
+    await handler(makeReq('programme', { days: '90' }), res)
     expect(res.statusCode).toBe(401)
   })
 
   it('admin · class entity: ancestor chain starts at its own school, defaults to it', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1'), res)
+    await handler(makeReq('c1', { window: 'this_week' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.node).toEqual({ id: 'c1', name: 'Year 6 Hindi', label: 'class', kind: 'class' })
     // Compare chain nearest-first: school → programme → nation → globals
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
       ['s1-node', 'programme', 'nation', 'global', 'global_all_courses'])
     // c1 is the only class in school-1 — the school-average default is empty,
-    // so the ladder widens to global · this course (c2/c3/c5): never a blank landing.
-    expect(res.body.applied.compare_to).toBe('global')
+    // so the ladder walks ONE rung up to the programme (c2/c3 in school-2): the
+    // smallest container that holds more than one class (Tom, 2026-09-16),
+    // never a blank landing and never a leap straight to global.
+    expect(res.body.applied.compare_to).toBe('programme')
     expect(res.body.insufficientData).toBe(false)
+    // cohort = c1 (itself) + c2/c3 — the average is self-inclusive (Tom, 2026-09-16)
     expect(res.body.cohortSize).toBe(3)
+  })
+
+  it('the DEFAULT walks every rung in order and stops at the first that holds more than one class — never skipping to global while an ancestor would do', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Empty the programme of peers on c1's course: c2/c3 move to other-prog.
+    for (const c of TABLES.classes) if (c.id === 'c2' || c.id === 'c3') { c.school_id = 'school-3'; c.group_id = 's3-node' }
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.statusCode).toBe(200)
+    // school (empty) → programme (empty) → nation (c2/c3/c5 under other-prog): lands on the nation
+    expect(res.body.applied.compare_to).toBe('nation')
+    expect(res.body.cohortSize).toBe(4)
   })
 
   it('admin · class vs programme average: peer classes on the SAME course only', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // cohort = c2 (8) + c3 (4); the tam class c4 is excluded by course
-    expect(res.body.cohortSize).toBe(2)
+    // cohort = c1 (itself, 10) + c2 (8) + c3 (4); the tam class c4 is excluded
+    // by course. The average is self-inclusive (Tom, 2026-09-16): mean(10,8,4).
+    expect(res.body.cohortSize).toBe(3)
     expect(res.body.entity.value).toBe(10)
-    expect(res.body.average.value).toBe(6)
+    expect(res.body.average.value).toBe(7.3)
     expect(res.body.average.label).toBe('IME Demo Programme average')
     expect(res.body.percentile).toBe(100)
     // Anonymity: no peer identity ever leaves the server
@@ -226,7 +279,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
   it('speaks AS the node: voice fields + LEGO-content position line, never raw ids', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     // Voice: subject = the node's own name; "You" is reserved for the viewer's identity
     expect(res.body.subject).toBe('Year 6 Hindi')
@@ -238,7 +291,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
 
     // A node whose furthest LEGO has no content row gets NO line (never a raw id)
     const res2 = makeRes()
-    await handler(makeReq('school-2'), res2)
+    await handler(makeReq('school-2', { window: 'this_week' }), res2)
     expect(res2.statusCode).toBe(200)
     expect(res2.body.contextLine).toBeUndefined()
     expect(res2.body.cohortLabel).toBe('schools in IME Demo Programme')
@@ -248,7 +301,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
   it('admin · school id resolves to its node; course defaults to the busiest below', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.node.id).toBe('s2-node')
     expect(res.body.node.kind).toBe('node')
@@ -258,24 +311,26 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // Default compare = parent (programme); peers-like-me = schools
     expect(res.body.applied.compare_to).toBe('programme')
     expect(res.body.insufficientData).toBe(false)
-    // cohort = school-1 only (aggregate of c1 = 10); entity = mean(c2, c3) = 6
-    expect(res.body.cohortSize).toBe(1)
+    // cohort = school-2 (itself) + school-1 peer (10); entity = mean(c2, c3) = 6.
+    // The average is self-inclusive (Tom, 2026-09-16): mean(6, 10) = 8.
+    expect(res.body.cohortSize).toBe(2)
     expect(res.body.entity.value).toBe(6)
-    expect(res.body.average.value).toBe(10)
+    expect(res.body.average.value).toBe(8)
   })
 
   it('admin · group node vs nation: school-spread cohort excludes own subtree', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('programme'), res)
+    await handler(makeReq('programme', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.compare_to).toBe('nation')
     // entity = hin classes below programme: c1 (10), c2 (8), c3 (4) → 7.3
     expect(res.body.entity.value).toBe(7.3)
-    // cohort = schools under nation minus programme's own → school-3 (12)
-    expect(res.body.cohortSize).toBe(1)
-    expect(res.body.average.value).toBe(12)
-    expect(res.body.deltaPct).toBe(-39.2)
+    // cohort = programme (itself) + school-3 peer (12), excluding programme's
+    // own subtree from the PEER set. Self-inclusive average: mean(7.3, 12) = 9.7.
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.average.value).toBe(9.7)
+    expect(res.body.deltaPct).toBe(-24.7)
   })
 
   // ─── Compare-set fullness at every depth (THE LENS windows+measures
@@ -298,7 +353,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
   it('full ancestor chain at SCHOOL depth: programme -> nation -> both globals', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
       ['programme', 'nation', 'global', 'global_all_courses'])
@@ -307,7 +362,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
   it('full ancestor chain at REGION/GROUP depth (programme, a non-root group): nation -> both globals', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('programme'), res)
+    await handler(makeReq('programme', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['nation', 'global', 'global_all_courses'])
   })
@@ -323,14 +378,14 @@ describe('GET /api/groups/:id/rate-compare', () => {
   it('admin · explicit course_code is honoured; unknown falls back to default', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2', { course_code: 'tam_for_eng', compare_to: 'global' }), res)
+    await handler(makeReq('school-2', { window: 'this_week', course_code: 'tam_for_eng', compare_to: 'global' } ), res)
     expect(res.body.applied.course_code).toBe('tam_for_eng')
     // no other school runs tam — insufficient, but options still present
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.options.compares.length).toBeGreaterThan(0)
 
     const res2 = makeRes()
-    await handler(makeReq('school-2', { course_code: 'nope_for_no' }), res2)
+    await handler(makeReq('school-2', { window: 'this_week', course_code: 'nope_for_no' } ), res2)
     expect(res2.body.applied.course_code).toBe('hin_for_eng')
   })
 
@@ -338,12 +393,13 @@ describe('GET /api/groups/:id/rate-compare', () => {
     verifyAuthTokenResult = { valid: true, userId: 'teacher-1' }
     visibleScopeResult = { ...EMPTY_SCOPE, role: 'teacher', classIds: ['c1'] }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     // The 5-floor is for cohorts of INDIVIDUAL learners (GDPR); classes are
     // entities. Before this ruling a teacher here was told "needs at least 5".
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(2)
+    // c1 (itself) + 2 peer classes — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(3)
     expect(res.body.kFloor).toBe(1)
   })
 
@@ -351,16 +407,19 @@ describe('GET /api/groups/:id/rate-compare', () => {
     verifyAuthTokenResult = { valid: true, userId: 'teacher-1' }
     visibleScopeResult = { ...EMPTY_SCOPE, role: 'teacher', classIds: ['c1'] }
     // One class, one comparable class elsewhere: only c1 and c2 (another
-    // school, same course) have practised — a cohort of exactly one.
+    // school, same course) exist — membership is structural (Tom, 2026-09-16),
+    // so c3/c4/c5 are removed here rather than just their session rows.
+    TABLES.classes = TABLES.classes.filter((c: any) => ['c1', 'c2'].includes(c.id))
     SESSION_ROWS = [
       ...sessions('c1', 'hin_for_eng', [[0, 5], [5, 10]]),
       ...sessions('c2', 'hin_for_eng', [[0, 4], [4, 8]]),
     ]
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    await handler(makeReq('c1', { compare_to: 'global', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(1)
+    // c1 (itself) + 1 comparable peer — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(2)
     expect(res.body.kFloor).toBe(1)
     expect(res.body.average.value).toBeGreaterThan(0)
   })
@@ -380,7 +439,7 @@ describe('GET /api/groups/:id/rate-compare', () => {
       schoolIds: ['school-1', 'school-2'], classIds: ['c1', 'c2', 'c3', 'c4'],
     }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
 
     const res2 = makeRes()
@@ -404,24 +463,25 @@ describe('GET /api/groups/:id/rate-compare', () => {
 
     verifyAdminResult = { userId: 'admin-1' }
     const res2 = makeRes()
-    await handler(makeReq('c1'), res2)
+    await handler(makeReq('c1', { days: '90' }), res2)
     expect(res2.statusCode).toBe(200)
   })
 
   it('global_all_courses widens the cohort pool across courses', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-1', { compare_to: 'global_all_courses' }), res)
+    await handler(makeReq('school-1', { window: 'this_week', compare_to: 'global_all_courses' } ), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // schools 2 + 3 as peers (school-2's pool now includes the tam class)
-    expect(res.body.cohortSize).toBe(2)
+    // school-1 (itself) + schools 2 + 3 as peers (school-2's pool now
+    // includes the tam class) — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(3)
   })
 
   it('a DEMO node opts into its own demo sessions; a real node never does', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(lastRpcArgs.p_include_demo).toBe(false)
 
     TABLES.groups.find((g: any) => g.id === 's2-node').is_demo = true
@@ -438,14 +498,14 @@ describe('GET /api/groups/:id/rate-compare', () => {
     const res = makeRes()
     // c1 (demo) vs global on hin — the only hin peers (c2/c3/c5) live in real
     // schools, so the demo entity is left with no comparable world.
-    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    await handler(makeReq('c1', { compare_to: 'global', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.cohortSize).toBe(0)
     // …and the empty-state NAMES the gate, not a vague "not enough data".
-    expect(res.body.reason).toMatch(/classes on this course/)
+    // Membership is structural now, so the reason no longer names a window.
+    expect(res.body.reason).toMatch(/demo classes running this course/)
     expect(res.body.reason).toMatch(/at least 1/)
-    expect(res.body.reason).toMatch(/Last 30 days/)
     expect(res.body.reason).not.toBe('Not enough data to compare fairly yet.')
   })
 
@@ -459,11 +519,12 @@ describe('GET /api/groups/:id/rate-compare', () => {
     TABLES.classes.push({ id: 'c6', class_name: 'Demo Hindi', course_code: 'hin_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
     SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'global' }), res)
+    await handler(makeReq('c1', { compare_to: 'global', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    // only the demo peer (c6) — real peers c2/c3/c5 are excluded from the demo world
-    expect(res.body.cohortSize).toBe(1)
+    // c1 (itself) + the demo peer (c6) — real peers c2/c3/c5 are excluded
+    // from the demo world; self-inclusive (Tom, 2026-09-16).
+    expect(res.body.cohortSize).toBe(2)
   })
 
   it('real entity global_all_courses cohort excludes DEMO schools (a real average is never diluted)', async () => {
@@ -472,10 +533,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     TABLES.schools.find((s: any) => s.id === 'school-3').is_demo = true
     TABLES.groups.find((g: any) => g.id === 's3-node').is_demo = true
     const res = makeRes()
-    await handler(makeReq('school-1', { compare_to: 'global_all_courses' }), res)
+    await handler(makeReq('school-1', { window: 'this_week', compare_to: 'global_all_courses' } ), res)
     expect(res.statusCode).toBe(200)
-    // school-2 remains (real); school-3 now demo → dropped. Was 2, now 1.
-    expect(res.body.cohortSize).toBe(1)
+    // school-1 (itself) + school-2 (real); school-3 now demo → dropped from
+    // peers. Was 2 peers, now 1 peer + entity = 2 (self-inclusive).
+    expect(res.body.cohortSize).toBe(2)
   })
 
   it('root node auto-widens to all-courses when its default this-course global cohort is empty (landing never blank)', async () => {
@@ -486,12 +548,13 @@ describe('GET /api/groups/:id/rate-compare', () => {
     TABLES.groups.find((g: any) => g.id === 'programme').parent_id = null
     TABLES.classes.find((c: any) => c.id === 'c5').course_code = 'fra_for_eng'
     const res = makeRes()
-    await handler(makeReq('programme'), res) // no compare_to → default = global (this course)
+    await handler(makeReq('programme', { days: '90' }), res) // no compare_to → default = global (this course)
     expect(res.statusCode).toBe(200)
     // The empty this-course default silently widened to all-courses…
     expect(res.body.applied.compare_to).toBe('global_all_courses')
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(1) // school-3, via its (now fra) class
+    // programme (itself) + school-3 (via its now-fra class) — self-inclusive
+    expect(res.body.cohortSize).toBe(2)
     // …but the this-course option stays offered for anyone who wants to switch back.
     expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['global', 'global_all_courses'])
     expect(res.body.average.label).toBe('Global average · all courses')
@@ -502,11 +565,11 @@ describe('GET /api/groups/:id/rate-compare', () => {
     TABLES.groups.find((g: any) => g.id === 'programme').parent_id = null
     TABLES.classes.find((c: any) => c.id === 'c5').course_code = 'fra_for_eng'
     const res = makeRes()
-    await handler(makeReq('programme', { compare_to: 'global' }), res)
+    await handler(makeReq('programme', { window: 'this_week', compare_to: 'global' } ), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.compare_to).toBe('global') // respected, not widened
     expect(res.body.insufficientData).toBe(true)
-    expect(res.body.reason).toMatch(/on this course/)
+    expect(res.body.reason).toMatch(/running this course/)
     expect(res.body.reason).toMatch(/at least 1/)
   })
 
@@ -515,12 +578,12 @@ describe('GET /api/groups/:id/rate-compare', () => {
     // `nation` is a root that contains every school → both this-course and
     // all-courses global cohorts are empty. Widening cannot rescue it.
     const res = makeRes()
-    await handler(makeReq('nation'), res)
+    await handler(makeReq('nation', { window: 'this_week' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.applied.compare_to).toBe('global_all_courses') // it did attempt the widen
-    expect(res.body.reason).toMatch(/have practised in the selected period/)
-    expect(res.body.reason).not.toMatch(/on this course/) // all-courses scope, so no course clause
+    expect(res.body.reason).toMatch(/have started in this scope/)
+    expect(res.body.reason).not.toMatch(/running this course/) // all-courses scope, so no course clause
   })
 
   it('404s an unknown id', async () => {
@@ -540,7 +603,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
       TABLES.classes.push({ id, class_name: `Eng ${id}`, course_code: 'eng_for_hin', school_id: 'school-2', group_id: 's2-node', is_active: true })
     }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.course_code).toBe('hin_for_eng') // active, not class-heavy
     expect(res.body.insufficientData).toBe(false)
@@ -556,7 +619,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     // admin floor of 1. hin has an active peer (school-1). Default must be hin.
     SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.compare_to).toBe('programme')
     expect(res.body.applied.course_code).toBe('hin_for_eng')
@@ -569,7 +632,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     verifyAdminResult = { userId: 'admin-1' }
     SESSION_ROWS.push(...sessions('c4', 'tam_for_eng', [[40, 50], [50, 60], [60, 70]]))
     const res = makeRes()
-    await handler(makeReq('school-2', { course_code: 'tam_for_eng' }), res)
+    await handler(makeReq('school-2', { window: 'this_week', course_code: 'tam_for_eng' } ), res)
     expect(res.body.applied.course_code).toBe('tam_for_eng') // the pick is honoured
     // no other school runs tam → programme and global · this-course are both
     // empty; the DEFAULT compare ladders to all-courses so the pick still
@@ -597,20 +660,21 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     for (const g of TABLES.groups) g.is_demo = true
     for (const s of TABLES.schools) s.is_demo = true
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.kFloor).toBe(1)
     expect(res.body.insufficientData).toBe(false) // school-1 is a single valid demo peer
-    expect(res.body.cohortSize).toBe(1)
+    // school-2 (itself) + school-1 peer — self-inclusive (Tom, 2026-09-16)
+    expect(res.body.cohortSize).toBe(2)
     // a REAL school for the same leader: a SCHOOL cohort is entities too, so
     // the floor is 1 there as well (Tom, 2026-09-15) — one real peer compares.
     for (const g of TABLES.groups) g.is_demo = false
     for (const s of TABLES.schools) s.is_demo = false
     const res2 = makeRes()
-    await handler(makeReq('school-2'), res2)
+    await handler(makeReq('school-2', { window: 'this_week' }), res2)
     expect(res2.body.kFloor).toBe(1)
     expect(res2.body.insufficientData).toBe(false)
-    expect(res2.body.cohortSize).toBe(1)
+    expect(res2.body.cohortSize).toBe(2)
   })
 
   it('an INTERIOR node whose peers share NONE of its courses ladders the compare to global · all courses (the Metro case)', async () => {
@@ -623,7 +687,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     TABLES.classes.push({ id: 'c6', class_name: 'Year 8 French', course_code: 'fra_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
     SESSION_ROWS.push(...sessions('c6', 'fra_for_eng', [[0, 6], [6, 12]]))
     const res = makeRes()
-    await handler(makeReq('metro'), res) // default compare = programme average
+    await handler(makeReq('metro', { days: '90' }), res) // default compare = programme average
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.course_code).toBe('fra_for_eng') // its own busiest
     // parent cohort empty on fra → ladder: global (still empty) → all courses
@@ -640,7 +704,7 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
     verifyAdminResult = { userId: 'admin-1' }
     SESSION_ROWS = SESSION_ROWS.filter((r) => !['c2', 'c3', 'c4'].includes(r.class_id))
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.reason).toBe('No practice recorded below this level yet.')
@@ -652,110 +716,271 @@ describe('GET /api/groups/:id/rate-compare — course defaulting (founder rule 2
   })
 })
 
-describe('GET /api/groups/:id/rate-compare — windows (?window=, rolling day units)', () => {
-  it('defaults to "30d" when neither window nor days is present', async () => {
+describe('GET /api/groups/:id/rate-compare — the SCHOOL WEEK is the window (job #989)', () => {
+  // Tom, 2026-09-16: "today / 7 days / 30 days is the wrong primitive for
+  // schools who work in week-units." These replaced the rolling-window tests
+  // deliberately — Today / Last 7 days / Last 30 days are not selectable
+  // windows, and ?days= is the only rolling path left. ALL TIME came back on
+  // 2026-09-17, on his ruling, as the DEFAULT — pinned in its own block below.
+  // A week is now something a reader asks for by name, which is why every
+  // comparison test in this file passes ?window= explicitly.
+  const LONDON = 'Europe/London'
+
+  it('offers both school weeks, under All time', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme' }), res)
-    expect(res.body.applied.window).toBe('30d')
-    expect(res.body.applied.days).toBe(30)
-    expect(res.body.windowLabel).toBe('Last 30 days')
-    expect(res.body.trendLabel).toBe('Daily · last 30 days')
-    expect(res.body.trendPeriodDays).toBe(1)
-    expect(lastRpcArgs.p_days).toBe(31) // (30+1)*1
+    await handler(makeReq('school-2'), res)
+    expect(res.body.options.windows).toEqual([
+      { value: 'all_time', label: 'All time' },
+      { value: 'this_week', label: 'This week' },
+      { value: 'last_week', label: 'Last week' },
+    ])
   })
 
-  it('?window=7d sets a 7-day headline period and a 7-point daily trend', async () => {
+  it('a week is asked for by name, and answers as that week', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const w of ['this_week', 'last_week']) {
+      const res = makeRes()
+      await handler(makeReq('c1', { compare_to: 'programme', window: w, tz: LONDON }), res)
+      expect(res.body.applied.window).toBe(w)
+      expect(res.body.week.window).toBe(w)
+    }
+  })
+
+  it('?window=this_week runs Monday 00:00 local to now', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: '7d' }), res)
-    expect(res.body.applied.window).toBe('7d')
-    expect(res.body.windowLabel).toBe('Last 7 days')
-    expect(res.body.trendLabel).toBe('Daily · last 7 days')
-    expect(res.body.trendPeriodDays).toBe(1)
-    expect(res.body.entity.trend).toHaveLength(7)
-    expect(lastRpcArgs.p_days).toBe(8) // (7+1)*1
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.window).toBe('this_week')
+    expect(res.body.windowLabel).toBe('This week')
+    expect(res.body.week.rangeLabel).toBe(weekLabel(weekRange('this_week', Date.now(), LONDON), LONDON))
   })
 
-  it('?window=today sets a 1-day headline period, a 24-point hourly trend, and a per-day rate', async () => {
+  it('?window=last_week is the previous complete Monday–Sunday', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: 'today' }), res)
-    expect(res.body.applied.window).toBe('today')
-    expect(res.body.applied.days).toBe(1)
-    expect(res.body.windowLabel).toBe('Today')
-    expect(res.body.trendLabel).toBe('Hourly · last 24 hours')
-    expect(res.body.trendPeriodDays).toBeCloseTo(1 / 24)
-    expect(res.body.entity.trend).toHaveLength(24)
-    // honest rate framing: never "per week" over a single day
-    expect(res.body.per).toBe('day')
-    expect(lastRpcArgs.p_days).toBe(2) // ceil((24+1)/24)
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), res)
+    expect(res.body.applied.window).toBe('last_week')
+    expect(res.body.windowLabel).toBe('Last week')
   })
 
-  it('?window=today scales the headline AND the cohort together (delta is scale-invariant)', async () => {
-    verifyAdminResult = { userId: 'admin-1' }
-    const resWeekly = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: '7d' }), resWeekly)
-    const resToday = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: 'today' }), resToday)
-    // both headline and average carry the same /7 scaling, so the entity's
-    // standing vs the cohort is a pure function of the window's data.
-    expect(resToday.body.distribution.entityValue).toBe(resToday.body.entity.value)
-    expect(resToday.body.distribution.averageValue).toBe(resToday.body.average.value)
-    // c1 advanced 5 LEGOs in its today-session → exactly 5 LEGOs/day, not 35/week
-    expect(resToday.body.entity.value).toBe(5)
-    expect(resToday.body.average.value).toBe(3) // mean of c2 (4/day) and c3 (2/day)
-  })
-
-  it('?window=all sets a practical-unbounded headline period and a 12-point monthly trend', async () => {
+  it('the trend is 12 Monday-anchored weekly bars, and an empty week is an empty week', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: 'all' }), res)
-    expect(res.body.applied.window).toBe('all')
-    expect(res.body.trendLabel).toBe('Monthly · last 12 months')
-    expect(res.body.trendPeriodDays).toBe(30)
-    expect(res.body.entity.trend).toHaveLength(12)
-    expect(lastRpcArgs.p_days).toBe(3650)
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.body.week.bars.weeks).toHaveLength(12)
+    expect(res.body.week.bars.entity).toHaveLength(12)
+    expect(res.body.trendPeriodDays).toBe(7)
+    // The legacy trend array carries the SAME bars — never two different
+    // "last 12 weeks" on one page.
+    expect(res.body.entity.trend).toEqual(res.body.week.bars.entity)
+    // Two different nothings, and nothing else: a number is a real week, null
+    // is absence (nobody had started yet). Never an interpolated value.
+    const bars: (number | null)[] = res.body.week.bars.entity
+    expect(bars.every((v) => v === null || typeof v === 'number')).toBe(true)
+    // c1 first played 7 days ago, so the earlier buckets are ABSENCE, and the
+    // newest ones are real weeks — a zero there would claim it was idle when
+    // it did not yet exist as a playing class.
+    expect(bars[0]).toBeNull()
+    expect(typeof bars[bars.length - 1]).toBe('number')
   })
 
-  it('old chip values alias forward (week→7d, 4w→30d, term→30d) — saved links keep working', async () => {
+  it('carries the three numbers, with the total equal to X + Y', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    for (const [legacy, expected] of [['week', '7d'], ['4w', '30d'], ['term', '30d']] as const) {
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    const e = res.body.week.entity
+    expect(typeof e.classMinutes).toBe('number')
+    expect(typeof e.pupilMinutes).toBe('number')
+    expect(e.totalMinutes).toBeCloseTo(e.classMinutes + e.pupilMinutes, 5)
+    expect(typeof e.newPhrases).toBe('number')
+  })
+
+  it('the cohort keeps job #979b\u2019s fixed, self-inclusive denominator', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    // c1 + its two hin peers c2/c3 — the tam class c4 is excluded by course.
+    expect(res.body.week.cohort.size).toBe(3)
+    expect(res.body.week.cohort.size).toBe(res.body.cohortSize)
+  })
+
+  it('never ships a ratio or a percent-vs-average inside the week block', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    const keys = [...Object.keys(res.body.week.entity), ...Object.keys(res.body.week.cohort ?? {})]
+    expect(keys.some((k) => /ratio|pct|percent|delta/i.test(k))).toBe(false)
+  })
+
+  it('there is no measure dropdown under a week — the card IS the numbers', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), res)
+    expect(res.body.options.measures).toEqual([])
+  })
+
+  it('old chip values in saved links land on a week rather than 404ing', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const [legacy, expected] of [['7d', 'this_week'], ['30d', 'this_week'], ['today', 'this_week'], ['all', 'all_time'], ['4w', 'last_week'], ['term', 'this_week']]) {
       const res = makeRes()
       await handler(makeReq('c1', { compare_to: 'programme', window: legacy }), res)
       expect(res.body.applied.window).toBe(expected)
     }
   })
 
-  it('legacy ?days= alone still works — byte-identical trend shape, applied.window is null (no chip matches)', async () => {
+  it('?days= still resolves the legacy rolling path, with no week block', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', days: '30' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', days: '45' }), res)
     expect(res.body.applied.window).toBeNull()
-    expect(res.body.applied.days).toBe(30)
-    expect(res.body.trendLabel).toBe('Weekly · last 8 weeks')
-    expect(res.body.entity.trend).toHaveLength(8)
-    expect(lastRpcArgs.p_days).toBe(63) // (8+1)*7
+    expect(res.body.applied.days).toBe(45)
+    expect(res.body.week).toBeNull()
   })
 
   it('?window= wins over ?days= when both are present', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: '7d', days: '90' }), res)
-    expect(res.body.applied.window).toBe('7d')
-    expect(res.body.applied.days).toBe(7)
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', days: '45' }), res)
+    expect(res.body.applied.window).toBe('last_week')
   })
 
-  it('options.windows always carries the 4 canonical chips', async () => {
+  it('a class that has NEVER played is in no denominator — the cohort counts started classes only (Tom via Watson, 2026-09-16)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity), c2 and c3 are the hin classes; c3 is set up and has never
+    // played a session. This OVERRIDES the never-started half of job #979b's
+    // structural cohort: averaging a school against classes that never started
+    // reads it as less than half as busy as it is — on the live cym_s course,
+    // 67 of 127 active classes have never played.
+    SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c3')
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort.size).toBe(2) // c1 + c2, never c3
+    expect(res.body.cohortSize).toBe(2)       // and ONE denominator for the whole page
+  })
+
+  it('the denominator does not move with the WINDOW — this week and last week divide by the same classes', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const thisW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), thisW)
+    const lastW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), lastW)
+    expect(thisW.body.week.cohort.size).toBe(lastW.body.week.cohort.size)
+  })
+
+  it('the denominator is viewer-independent — two classes in one school read the same N', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const asC2 = makeRes()
+    await handler(makeReq('c2', { compare_to: 'programme', window: 'last_week', tz: LONDON }), asC2)
+    const asC3 = makeRes()
+    await handler(makeReq('c3', { compare_to: 'programme', window: 'last_week', tz: LONDON }), asC3)
+    expect(asC2.body.week.cohort.size).toBe(asC3.body.week.cohort.size)
+    expect(asC2.body.week.cohort.totalMinutes).toBe(asC3.body.week.cohort.totalMinutes)
+  })
+
+  it('a week before any class had started draws as ABSENCE, never as a row of zeros', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // Every class first plays 7 days ago, so the eleven older buckets have no
+    // cohort at all — nothing to average, and nothing to draw.
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    const cohortBars: (number | null)[] = res.body.week.bars.cohort
+    expect(cohortBars).toHaveLength(12)
+    expect(cohortBars[0]).toBeNull()
+    expect(cohortBars.slice(0, 9).every((v) => v === null)).toBe(true)
+    expect(cohortBars.some((v) => typeof v === 'number')).toBe(true)
+  })
+
+  it('a class joining today does not rewrite the school’s past bars', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const before = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), before)
+    // A brand-new class on the same course plays for the first time today.
+    TABLES.classes.push({ id: 'c9', class_name: 'New', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    SESSION_ROWS.push({ class_id: 'c9', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 3600, started_at: daysAgo(0) })
+    const after = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), after)
+    const b: (number | null)[] = before.body.week.bars.cohort
+    const a: (number | null)[] = after.body.week.bars.cohort
+    // Every bucket before the newcomer's first week is byte-identical.
+    expect(a.slice(0, 11)).toEqual(b.slice(0, 11))
+    expect(after.body.week.cohort.size).toBe(before.body.week.cohort.size + 1)
+  })
+
+  it('at SCHOOL level the cohort is SCHOOLS — the mean and the caption count the same thing (job #989 fix-up)', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1'), res)
-    expect(res.body.options.windows).toEqual([
-      { value: 'today', label: 'Today' },
-      { value: '7d', label: 'Last 7 days' },
-      { value: '30d', label: 'Last 30 days' },
-      { value: 'all', label: 'All time' },
-    ])
+    await handler(makeReq('school-2', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    // Entity school-2 = c2 + c3 (30 min each this week). Peer school-1 = c1 (30).
+    // Two SCHOOLS, so the average is mean(60, 30) = 45 — not mean(30,30,30) = 30,
+    // which is what flattening the members into a list of class ids produced
+    // while the caption underneath it still said "schools".
+    expect(res.body.week.entity.totalMinutes).toBe(60)
+    expect(res.body.week.cohort.size).toBe(2)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 schools')
+    expect(res.body.week.cohort.totalMinutes).toBe(45)
+    // One denominator for the whole page, at every level.
+    expect(res.body.cohortSize).toBe(2)
+  })
+
+  it('the 12 cohort bars are IDENTICAL whichever week is selected (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // A class whose FIRST play is this week. Selecting "last week" used to drop
+    // it from the candidate set before the buckets were built, so the newest
+    // bar's average lost a member — history changed under the reader's feet
+    // depending on which week they were standing in.
+    TABLES.classes.push({ id: 'c9', class_name: 'Brand New', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true })
+    SESSION_ROWS.push({ class_id: 'c9', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S3L01', start_ord: 0, end_ord: 3, duration_seconds: 5400, started_at: daysAgo(0) })
+    const thisW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), thisW)
+    const lastW = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), lastW)
+    expect(thisW.body.week.bars.cohort).toEqual(lastW.body.week.bars.cohort)
+    expect(thisW.body.week.bars.entity).toEqual(lastW.body.week.bars.entity)
+    // The newcomer really is in the newest bar — otherwise this pins nothing.
+    expect(typeof thisW.body.week.bars.cohort[11]).toBe('number')
+  })
+
+  it('a viewed class that had not STARTED by the end of the selected week is in no denominator — headline and card agree (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1's only play is today, i.e. THIS week. Read with "last week" selected,
+    // it had not started by that week's end — so it is not one of the classes
+    // last week's average divides by, exactly as a peer in the same position
+    // would not be. It is still shown its own numbers. Before this fix-up the
+    // headline counted it and the week card did not, so one screen carried two
+    // denominators.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S2L01', start_ord: 0, end_ord: 2, duration_seconds: 1800, started_at: daysAgo(0) },
+      ...SESSION_ROWS.filter((r) => r.class_id === 'c2' || r.class_id === 'c3'),
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'last_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    // Its own row is still drawn — a class always sees itself.
+    expect(res.body.entity.label).toBe('Year 6 Hindi')
+    expect(res.body.week.cohort.size).toBe(2)      // c2 + c3, never c1
+    expect(res.body.cohortSize).toBe(2)            // ONE denominator for the page
+    expect(res.body.cohortIncludesEntity).toBe(false)
+  })
+
+  it('a FAILED first-play read is loud, never a quietly smaller cohort (job #989 fix-up)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    firstPlayRpcError = true
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: LONDON }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.error).toMatch(/first played/i)
+  })
+
+  it('a nonsense time zone falls back rather than throwing', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Mars/Olympus' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.timeZone).toBe('Europe/London')
   })
 })
 
@@ -771,11 +996,11 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
       { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 300, started_at: daysAgo(20) },
     )
     const week = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '7d' }), week)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '7' }), week)
     const month = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: '30d' }), month)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '30' }), month)
     const all = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: 'all' }), all)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '180' }), all)
     expect(week.statusCode).toBe(200)
     expect(week.body.applied.measure).toBe('minutes')
     expect(week.body.per).toBe('')
@@ -789,18 +1014,21 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
     verifyAdminResult = { userId: 'admin-1' }
     for (const legacy of ['minutes_per_class', 'hours_total']) {
       const res = makeRes()
-      await handler(makeReq('c1', { compare_to: 'programme', measure: legacy }), res)
+      await handler(makeReq('c1', { compare_to: 'programme', measure: legacy, days: '90' }), res)
       expect(res.statusCode).toBe(200)
       expect(res.body.applied.measure).toBe('minutes')
     }
   })
 
-  it('under Today the minutes total is the total — never divided by seven', async () => {
+  it('the minutes total is a TOTAL, never divided down to a per-day rate', async () => {
+    // Was "under Today…": the Today window went when the week became the
+    // primitive (job #989). The rule it guarded — a total is never scaled —
+    // still holds on the preserved ?days= path.
     verifyAdminResult = { userId: 'admin-1' }
     SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c1')
     SESSION_ROWS.push({ class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S5L01', start_ord: 0, end_ord: 5, duration_seconds: 1800, started_at: daysAgo(0) })
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', window: 'today' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '7' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.entity.value).toBe(30)
     expect(res.body.per).toBe('')
@@ -809,7 +1037,7 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
   it('measure=minutes: same grammar, a different metric — the in-app minutes total in the window', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.measure).toBe('minutes')
     expect(res.body.metricLabel).toBe('Practice minutes')
@@ -822,7 +1050,7 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
   it('measure=active_classes: % of the entity’s own classes active — available at node level', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2', { measure: 'active_classes' }), res)
+    await handler(makeReq('school-2', { measure: 'active_classes', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.measure).toBe('active_classes')
     expect(res.body.metricLabel).toBe('Active classes share')
@@ -834,7 +1062,7 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
   it('measure=active_classes on a CLASS entity falls back to the default (rate) rather than erroring', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { measure: 'active_classes' }), res)
+    await handler(makeReq('c1', { measure: 'active_classes', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.applied.measure).toBe('rate')
     expect(res.body.options.measures.map((m: any) => m.value)).not.toContain('active_classes')
@@ -843,20 +1071,20 @@ describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
   it('options.measures: full 3 at node level, 2 (no active_classes) at class level; each carries a plain-language desc', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('school-2'), res)
+    await handler(makeReq('school-2', { days: '90' }), res)
     expect(res.body.options.measures.map((m: any) => m.value)).toEqual(
       ['rate', 'minutes', 'active_classes'])
     expect(res.body.options.measures.every((m: any) => typeof m.desc === 'string' && m.desc.length > 0)).toBe(true)
 
     const res2 = makeRes()
-    await handler(makeReq('c1'), res2)
+    await handler(makeReq('c1', { days: '90' }), res2)
     expect(res2.body.options.measures.map((m: any) => m.value)).toEqual(['rate', 'minutes'])
   })
 
   it('unknown measure falls back to the default (rate)', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', measure: 'bogus' }), res)
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'bogus', days: '90' }), res)
     expect(res.body.applied.measure).toBe('rate')
     expect(res.body.metricLabel).toBe('Rate of progress')
   })
@@ -883,16 +1111,63 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     seedDiaryClass()
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c6', { compare_to: 'programme' }), res)
+    await handler(makeReq('c6', { compare_to: 'programme', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
     expect(res.body.entity.value).toBeGreaterThan(0)       // LEGOs per week off the diary
     expect(res.body.contextLine).toBeUndefined()           // S5L01 has no content row in this fixture: no line, never a raw id
 
     const mins = makeRes()
-    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes' }), mins)
+    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes', days: '90' }), mins)
     expect(mins.statusCode).toBe(200)
     expect(mins.body.entity.value).toBeGreaterThan(0)      // in-app minutes off the same diary blocks
+  })
+
+  // ─── A BROKEN DIARY IS NOT A QUIET ZERO (job #180) ───
+  // Since job #170 dropped the legacy RPC rows for any class with a class
+  // account, a failed diary read has nothing left to mask it: the endpoint
+  // would have answered 200 with the class's minutes missing. It must 500.
+  it('a diary read failure returns an error, never a smaller total', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    // The class also has a legacy recorder row, which is exactly what would
+    // have been served as the whole truth had the failure stayed silent.
+    SESSION_ROWS.push({
+      class_id: 'c6', course_code: 'hin_for_eng',
+      start_lego_id: 'S1L01', end_lego_id: 'S5L01', start_ord: 1, end_ord: 5,
+      started_at: new Date(NOW - 3 * DAY + 10_000).toISOString(), duration_seconds: 154,
+    })
+    TABLE_ERROR = 'player_events'
+    const res = makeRes()
+    await handler(makeReq('c6', { compare_to: 'programme', measure: 'minutes', days: '90' }), res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.entity).toBeUndefined()
+
+    // and the same for the week/all-time card, which reads the same rows
+    const week = makeRes()
+    await handler(makeReq('c6', { window: 'all_time' }), week)
+    expect(week.statusCode).toBe(500)
+  })
+
+  it('counts a recorded class lesson once, using the same diary seconds as Overview', async () => {
+    seedDiaryClass()
+    verifyAdminResult = { userId: 'admin-1' }
+    // The recorder starts on the first clip and ends after the final clip;
+    // its wall time differs from the diary's play-to-last-audio span.
+    SESSION_ROWS.push({
+      class_id: 'c6', course_code: 'hin_for_eng',
+      start_lego_id: 'S1L01', end_lego_id: 'S5L01', start_ord: 1, end_ord: 5,
+      started_at: new Date(NOW - 3 * DAY + 10_000).toISOString(), duration_seconds: 154,
+    })
+    const { createClient } = await import('@supabase/supabase-js')
+    const { inAppTimeTotals } = await import('../../_utils/classPractice')
+    const overview = await inAppTimeTotals(createClient('https://example.supabase.co', 'test'), ['CL6'], [])
+    const res = makeRes()
+    await handler(makeReq('c6', { window: 'all_time' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(overview.classSeconds).toBe(40)
+    expect(res.body.week.entity.classMinutes).toBeCloseTo(overview.classSeconds / 60, 1)
+    expect(SESSION_ROWS.find((r) => r.class_id === 'c6')?.duration_seconds).toBe(154)
   })
 
   it('a school whose classes ALL play from the front is no longer dark', async () => {
@@ -902,9 +1177,349 @@ describe('GET /api/groups/:id/rate-compare — whole-class play lives in the dia
     // has ONLY diary practice, the Chepstow shape.
     SESSION_ROWS = SESSION_ROWS.filter((r) => r.class_id !== 'c1')
     const res = makeRes()
-    await handler(makeReq('school-1', { compare_to: 'programme' }), res)
+    await handler(makeReq('school-1', { compare_to: 'programme', days: '90' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
     expect(res.body.entity.value).toBeGreaterThan(0)
+  })
+})
+
+// ─── Self-inclusive, structural averaging (Tom's ruling 2026-09-16: "the
+// averages need to be logical to a teacher, not technically correct, and a
+// set member should ALWAYS be included in the average, not excluded — else
+// the school average changes when a school leader looks at each class
+// against it"). Cohort membership is now every class/school in the compare-to
+// scope on this course, active or not, entity included — a fixed set for a
+// given school+course whoever is looking and whichever window is applied. ───
+describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 2026-09-16)', () => {
+  it('a sum measure (practice minutes): the average only rises as the window widens', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity) practises 2 days ago only; c2 (peer) 20 days ago only; c3
+    // (peer) 120 days ago only — inactive members count with their TRUE
+    // value (0) in a window they didn't practise in, never dropped. The three
+    // arms ride ?days=, the only rolling path left since the week became the
+    // primitive (job #989); 180 days is its ceiling and stands in for the old
+    // all-time arm.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 3600, started_at: daysAgo(2) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 1800, started_at: daysAgo(20) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 1, duration_seconds: 1800, started_at: daysAgo(120) },
+    ]
+    const week = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '7' }), week)
+    const month = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '30' }), month)
+    const all = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes', days: '180' }), all)
+    expect(week.statusCode).toBe(200)
+    expect(month.statusCode).toBe(200)
+    expect(all.statusCode).toBe(200)
+    // cohort = c1 (60), c2 (0 this window), c3 (0 this window) -> mean 20
+    expect(week.body.average.value).toBe(20)
+    // cohort = c1 (60), c2 (30), c3 (0 this window) -> mean 30
+    expect(month.body.average.value).toBe(30)
+    // cohort = c1 (60), c2 (30), c3 (30) -> mean 40
+    expect(all.body.average.value).toBe(40)
+    expect(month.body.average.value).toBeGreaterThanOrEqual(week.body.average.value)
+    expect(all.body.average.value).toBeGreaterThanOrEqual(month.body.average.value)
+  })
+
+  it('the caption is the average and its denominator, and nothing else', async () => {
+    // Tom's own form, 2026-09-16: "school average · N classes". Not "all"
+    // classes — a class nobody has ever pressed play on is not in it — and not
+    // the course a second time, which staging read as "Global average · this
+    // course · all 6 classes on this course".
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week', compare_to: 'global' } ), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.average.label).toBe('Global average · this course')
+    expect(res.body.cohortSizeLine).toBe('Global average · this course · 4 classes')
+    const res2 = makeRes()
+    await handler(makeReq('c1', { window: 'this_week', compare_to: 'programme' } ), res2)
+    expect(res2.body.cohortSizeLine).toBe('IME Demo Programme average · 3 classes')
+    expect(res2.body.cohortSizeLine).not.toContain('all')
+  })
+
+  it('a ladder from an ancestor default onto a global rung values peers OUTSIDE the prefetched scope', async () => {
+    // Regression (job #983): the ancestor-default path prefetches session rows
+    // for the ancestor SCOPE and reuses them for the final averaging. When the
+    // compare ladder then widens to a global rung, the cohort is global — so
+    // school-3, which sits under `other-prog` and never appears in programme's
+    // scope rows, must have its rows fetched rather than silently valued 0.
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.groups.push({ id: 'metro', name: 'Metro International', type: 'region', parent_id: 'programme', path: 'india/ime/metro', is_demo: false })
+    TABLES.groups.push({ id: 's4-node', name: 'Metro School', type: 'school', parent_id: 'metro', path: 'india/ime/metro/s4', is_demo: false })
+    TABLES.schools.push({ id: 'school-4', school_name: 'Metro School', group_id: 'metro', node_group_id: 's4-node', is_demo: false })
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 8 French', course_code: 'fra_for_eng', school_id: 'school-4', group_id: 's4-node', is_active: true })
+    SESSION_ROWS.push(...sessions('c6', 'fra_for_eng', [[0, 6], [6, 12]]))
+    const res = makeRes()
+    await handler(makeReq('metro', { days: '90' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.compare_to).toBe('global_all_courses')
+    // school-3 (outside programme's scope, pace 12 via c5) is in the cohort
+    // with its REAL value, so no cohort member reads as an unpractised zero.
+    expect(res.body.distribution.values).toContain(12)
+    expect(res.body.distribution.min).toBeGreaterThan(0)
+  })
+
+  it('the average is identical whichever of two classes in the same school requests it', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c2 (pace 8) and c3 (pace 4) are the only two hin classes in school-2.
+    // Each viewer's own compare_to defaults to its own school node (s2-node);
+    // asking explicitly pins both requests to the same scope.
+    const asC2 = makeRes()
+    await handler(makeReq('c2', { compare_to: 's2-node', days: '90' }), asC2)
+    const asC3 = makeRes()
+    await handler(makeReq('c3', { compare_to: 's2-node', days: '90' }), asC3)
+    expect(asC2.statusCode).toBe(200)
+    expect(asC3.statusCode).toBe(200)
+    // same two-member cohort (c2, c3) either way -> the same mean, 6
+    expect(asC2.body.cohortSize).toBe(2)
+    expect(asC3.body.cohortSize).toBe(2)
+    expect(asC2.body.average.value).toBe(6)
+    expect(asC3.body.average.value).toBe(6)
+    expect(asC2.body.average.value).toBe(asC3.body.average.value)
+  })
+
+  it('the dashed comparison series is a mean over the SAME cohort as the headline average — a dormant member contributes zeros, it does not drop out', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 (entity) and c2 practise today; c3 STARTED long ago and has been
+    // silent since. periodTrendForClass used to return an empty array for a
+    // silent class and meanTrend silently dropped it, so the dashed line was
+    // a mean of 2 while the headline average beside it was a mean of 3.
+    //
+    // c3 was a NEVER-PLAYED class when this test was written. Tom's cohort
+    // ruling of 2026-09-16 (job #989) takes never-started classes out of every
+    // denominator, so the fixture is now a class that started and went quiet —
+    // which is the case this rule is actually about, and it is unchanged:
+    // dormancy is a fact about the week, never grounds for dropping out.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
+    ]
+    const res = makeRes()
+    // measure=rate is where the bug lived: the minutes trend already emitted
+    // zeros for a dormant member, the LEGO-progress trend emitted nothing. It
+    // rides the ?days= path now — the week windows carry their own bars.
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'rate', days: '7' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.cohortSize).toBe(3)
+    // The newest point is mean(c1's 6 LEGOs, c2's 3, c3's 0) = 3. Dropping c3
+    // reads 4.5 — a dashed line drawn over a different cohort than the
+    // figure it sits beside.
+    const trend: number[] = res.body.average.trend
+    expect(trend[trend.length - 1]).toBe(3)
+    expect(trend.slice(0, -1).every((v: number) => v === 0)).toBe(true)
+  })
+
+  it('the same rule under a WEEK window: the dashed weekly bars are a mean over every member, dormant ones at zero (job #989)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 and c2 each play half an hour this week; c3 STARTED 150 days ago and
+    // has been silent since. The bars are total learning time, so this week's
+    // bar is mean(30, 30, 0) = 20 — dropping the dormant c3 would read 30.
+    SESSION_ROWS = [
+      // daysAgo(0), not `new Date()`: the week's end is EXCLUSIVE (cohortFor
+      // and the minute sums both read `< endMs`), and for THIS week that end
+      // is the instant the request is served — a fixture stamped in the same
+      // millisecond as the handler's own clock is a knife-edge, not a case.
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort.size).toBe(3)
+    const bars: number[] = res.body.week.bars.cohort
+    expect(bars).toHaveLength(12)
+    expect(bars[bars.length - 1]).toBe(20)
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — year/department tags, the leader\'s per-class rows and all-time totals (job #22, 2026-09-16)', () => {
+  beforeEach(() => { verifyAdminResult = { userId: 'admin-1' } })
+
+  it('a DERIVED tag is reported as a guess and offers NO rung — a misread name must never move a cohort', async () => {
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.tags.year).toEqual({ value: '6', confirmed: false, derived: '6' })
+    expect(res.body.tags.department).toEqual({ value: 'Hindi', confirmed: false, derived: 'Hindi' })
+    expect(res.body.options.compares.map((o: any) => o.value)).not.toContain('tag:year')
+    // c6 IS a school peer, so the default lands on the school, not on a year
+    expect(res.body.applied.compare_to).toBe('s1-node')
+  })
+
+  it('a CONFIRMED year with a confirmed sibling offers the year rung first, and the default lands on it — the smallest container', async () => {
+    for (const c of TABLES.classes) if (c.id === 'c1') c.tags = { year: '6' }
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: { year: '6' } })
+    TABLES.classes.push({ id: 'c7', class_name: 'Year 5 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: { year: '5' } })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]), ...sessions('c7', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.tags.year).toEqual({ value: '6', confirmed: true, derived: '6' })
+    const values = res.body.options.compares.map((o: any) => o.value)
+    expect(values[0]).toBe('tag:year')
+    expect(res.body.options.compares[0].label).toBe('Year 6 average')
+    expect(res.body.applied.compare_to).toBe('tag:year')
+    // c1 + c6 only — c7 is Year 5, and it is in the school rung, not this one
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 classes')
+  })
+
+  it('a confirmed year with NO confirmed sibling is absence — no rung, and the default walks on to the school', async () => {
+    for (const c of TABLES.classes) if (c.id === 'c1') c.tags = { year: '6' }
+    TABLES.classes.push({ id: 'c6', class_name: 'Year 6 Hindi B', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    SESSION_ROWS.push(...sessions('c6', 'hin_for_eng', [[0, 3], [3, 6]]))
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.options.compares.map((o: any) => o.value)).not.toContain('tag:year')
+    expect(res.body.applied.compare_to).toBe('s1-node')
+  })
+
+  it('a school\'s week carries one row per class off the SAME rows and week — quietest first, never-started as absence, last', async () => {
+    // school-2 runs c2, c3 (Hindi) and c4 (Tamil); add a Hindi class that has never played
+    TABLES.classes.push({ id: 'c8', class_name: 'Year 2 Hindi', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true, tags: {} })
+    // c3 last played a fortnight ago; c2 played today — c3 is the quieter
+    for (const r of SESSION_ROWS) if (r.class_id === 'c3') r.started_at = daysAgo(14)
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), res)
+    expect(res.statusCode).toBe(200)
+    const rows = res.body.week.classes
+    expect(rows.map((r: any) => r.id)).toEqual(['c3', 'c2', 'c8'])
+    const c8 = rows.find((r: any) => r.id === 'c8')
+    expect(c8).toMatchObject({ started: false, lastPlayedAt: null, totalMinutes: null, newPhrases: null, classMinutes: null })
+    const c2 = rows.find((r: any) => r.id === 'c2')
+    expect(c2.started).toBe(true)
+    expect(typeof c2.lastPlayedAt).toBe('string')
+    expect(c2.totalMinutes).toBe(30) // one 1800s session inside this week
+    // the school's own card is the sum of its classes' rows — one source
+    expect(res.body.week.entity.classMinutes).toBe(30)
+    // a class entity carries no per-class rows
+    const single = makeRes()
+    await handler(makeReq('c2', { window: 'this_week' }), single)
+    expect(single.body.week.classes).toBeUndefined()
+    expect(single.body.week.classesNormal).toBeUndefined()
+  })
+
+  it('every started class row carries its OWN twelve weeks of bars, with one faint normal line for the level (Tom\'s lab verdict, 2026-09-16)', async () => {
+    TABLES.classes.push({ id: 'c8', class_name: 'Year 2 Hindi', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true, tags: {} })
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), res)
+    const rows = res.body.week.classes
+    const c2 = rows.find((r: any) => r.id === 'c2')
+    // same twelve buckets as the card above it, so a bar and its number agree
+    expect(c2.bars).toHaveLength(res.body.week.bars.weeks.length)
+    expect(c2.bars[c2.bars.length - 1]).toBe(c2.totalMinutes)
+    // a class that has never played draws nothing — absence, never a row of zeros
+    expect(rows.find((r: any) => r.id === 'c8').bars).toBeNull()
+    // the faint normal line is sent ONCE for the level, not copied per class
+    expect(res.body.week.classesNormal).toHaveLength(res.body.week.bars.weeks.length)
+  })
+
+  it('a class carries ALL-TIME totals with no comparison figure; a never-started class says so rather than showing zeros', async () => {
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week' }), res)
+    expect(res.body.allTime).toMatchObject({ started: true, classMinutes: 60, pupilMinutes: 0, totalMinutes: 60, phrasesReached: 10 })
+    expect(typeof res.body.allTime.sinceLabel).toBe('string')
+    expect(Object.keys(res.body.allTime)).not.toContain('cohort')
+    TABLES.classes.push({ id: 'c9', class_name: 'Year 1 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 's1-node', is_active: true, tags: {} })
+    const dark = makeRes()
+    await handler(makeReq('c9', { window: 'this_week' }), dark)
+    expect(dark.body.allTime).toEqual({ started: false })
+    // a school has no all-time block: totals are a class's own
+    const school = makeRes()
+    await handler(makeReq('school-2', { window: 'this_week' }), school)
+    expect(school.body.allTime).toBeNull()
+  })
+
+  it('NO comparable cohort is not no page: the class keeps its own week and its all-time totals, the cohort column is absent, and the reason is named', async () => {
+    // An explicit pick of the school, where c1 is the only class: the named
+    // empty-state stands (no auto-widening on an explicit pick), and so does
+    // the class's own week beside it.
+    const res = makeRes()
+    await handler(makeReq('c1', { window: 'this_week', compare_to: 's1-node' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.reason).toMatch(/started/)
+    expect(res.body.week.entity.classMinutes).toBe(30)
+    expect(res.body.week.cohort).toBeNull()
+    expect(res.body.week.bars.cohort.every((v: any) => v === null)).toBe(true)
+    expect(res.body.allTime).toMatchObject({ started: true, totalMinutes: 60 })
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — ALL TIME is the default window (job #127)', () => {
+  // Tom, 2026-09-17: the schools Insights "must ALSO offer All time, and All
+  // time is the DEFAULT", with this week / last week kept selectable. All time
+  // stays what his 2026-09-16 ruling made it: totals, never an average, with
+  // no comparison figure of any kind.
+  const LONDON = 'Europe/London'
+
+  it('offers All time first, then the two school weeks', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.body.options.windows).toEqual([
+      { value: 'all_time', label: 'All time' },
+      { value: 'this_week', label: 'This week' },
+      { value: 'last_week', label: 'Last week' },
+    ])
+  })
+
+  it('a school opens on All time, with totals and NO cohort column', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2', { tz: LONDON }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.window).toBe('all_time')
+    expect(res.body.totalsOnly).toBe(true)
+    expect(res.body.week.window).toBe('all_time')
+    expect(res.body.week.label).toBe('All time')
+    expect(res.body.week.cohort).toBeNull()
+    expect(res.body.week.bars.cohort.every((v: number | null) => v === null)).toBe(true)
+    expect(res.body.week.classesNormal).toBeUndefined()
+    // Never the "not enough data to compare fairly yet" state: All time is not
+    // trying to compare.
+    expect(res.body.insufficientData).toBeUndefined()
+  })
+
+  it('a class opens on All time too, and does not repeat the totals as a line under the card', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { tz: LONDON }), res)
+    expect(res.body.applied.window).toBe('all_time')
+    expect(res.body.week.cohort).toBeNull()
+    expect(res.body.allTime).toBeNull()
+  })
+
+  it('the totals count the WHOLE history, not the last twelve weeks', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const all = makeRes()
+    await handler(makeReq('c1', { tz: LONDON }), all)
+    const week = makeRes()
+    await handler(makeReq('c1', { window: 'this_week', compare_to: 'programme', tz: LONDON }), week)
+    expect(all.body.week.entity.totalMinutes).toBeGreaterThanOrEqual(week.body.week.entity.totalMinutes)
+  })
+
+  it('the two weeks stay selectable, and a week still carries its cohort', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const w of ['this_week', 'last_week']) {
+      const res = makeRes()
+      await handler(makeReq('c1', { compare_to: 'programme', window: w, tz: LONDON }), res)
+      expect(res.body.applied.window).toBe(w)
+      expect(res.body.week.window).toBe(w)
+      expect(res.body.totalsOnly).toBeUndefined()
+    }
+  })
+
+  it('the legacy ?all chip lands on All time again', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2', { window: 'all', tz: LONDON }), res)
+    expect(res.body.applied.window).toBe('all_time')
   })
 })

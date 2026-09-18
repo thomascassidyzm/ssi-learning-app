@@ -56,8 +56,29 @@ const ALLOWED_METHODS = [
   'checkpointSession',
   'endSession',
   'bumpSpeakingOpportunities',
+  'recordLegoPairings',
+  'getPodRatchet',
+  'persistPodRatchet',
+  'resetPodRatchet',
+  'loadPodState',
+  'upsertPodState',
+  'deletePodState',
+  'getMetaCommentaryState',
+  'saveMetaCommentaryState',
+  'touchLastPracticed',
+  'startClassSession',
+  'endClassSession',
 ] as const
 type Method = typeof ALLOWED_METHODS[number]
+
+// A 30-minute class session flushes a few hundred distinct pairs; the cap is
+// an abuse bound, not a product limit, and the tally is rebuilt each flush.
+const MAX_PAIRINGS_PER_CALL = 5000
+const MAX_FIRE_COUNT_PER_CALL = 100000
+
+// A pod lap debuts one cohort — a handful of sentences — so a flush is tiny.
+// The cap is an abuse bound, not a product limit.
+const MAX_POD_STATE_ROWS_PER_CALL = 2000
 
 interface ClassProgressBody {
   classId?: string
@@ -362,6 +383,254 @@ async function bumpSpeakingOpportunities(
   if (error) throw new Error(`bumpSpeakingOpportunities insert failed: ${error.message}`)
 }
 
+/**
+ * LEGO co-firing for the CLASS account (job #52·B). `record_lego_pairings` is
+ * SECURITY INVOKER and `learner_lego_pairings` carries own-row RLS
+ * (`learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text)`),
+ * so every class-mode flush raised "new row violates row-level security
+ * policy" and the player only console.warned it: the table held ONE row for
+ * any class account against 5,432 class audio_play events (verified live
+ * 2026-09-17). Individual learners were never affected — their own-row insert
+ * passes the same policy.
+ *
+ * Same RPC, same semantics; it just runs under the service role here, on the
+ * server-resolved class learner id. The exact twin of bumpSpeakingOpportunities
+ * above.
+ */
+async function recordLegoPairings(
+  svc: SupabaseClient, learnerId: string, courseId: string,
+  pairs: unknown, counts: unknown,
+) {
+  if (!Array.isArray(pairs) || pairs.length === 0) return
+  const countsIn = Array.isArray(counts) ? counts : []
+  const safePairs: string[][] = []
+  const safeCounts: number[] = []
+  for (let i = 0; i < pairs.length && safePairs.length < MAX_PAIRINGS_PER_CALL; i++) {
+    const pair = pairs[i]
+    if (!Array.isArray(pair) || pair.length !== 2) continue
+    const a = typeof pair[0] === 'string' ? safeIdToken(pair[0]) : ''
+    const b = typeof pair[1] === 'string' ? safeIdToken(pair[1]) : ''
+    if (!a || !b || a === b) continue
+    safePairs.push([a, b])
+    safeCounts.push(Math.min(MAX_FIRE_COUNT_PER_CALL, Math.max(1, Math.floor(Number(countsIn[i]) || 1))))
+  }
+  if (safePairs.length === 0) return
+  const { error } = await svc.rpc('record_lego_pairings', {
+    _learner_id: learnerId,
+    _course_code: courseId,
+    _pairs: safePairs,
+    _counts: safeCounts,
+  })
+  if (error) throw new Error(`recordLegoPairings failed: ${error.message}`)
+}
+
+/**
+ * Listening-pod persistence for the CLASS account (job #61 census → this job).
+ * Three writes that own-row RLS refuses for a class entity, all confirmed live
+ * 2026-09-17: `learner_pod_state` held 2,160 rows for individuals and ZERO for
+ * any class, ever; `course_enrollments.completed_pod_rounds` reached 327 for
+ * individuals while all 199 class enrollment rows sat at exactly 0; and
+ * `learner_meta_commentary_state`'s 24 class rows all carried one backfill
+ * timestamp (2026-07-24 01:30:20), nothing organic.
+ *
+ * The READS matter as much as the writes here: RLS hides rows rather than
+ * erroring, so a class that wrote its ratchet through this door and then read
+ * it back through the browser would still see null and restart at zero. Both
+ * directions come through the endpoint.
+ */
+async function getPodRatchet(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { data, error } = await svc
+    .from('course_enrollments')
+    .select('rounds_since_pod, completed_pod_rounds')
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+    .maybeSingle()
+  if (error) throw new Error(`getPodRatchet failed: ${error.message}`)
+  return data ?? null
+}
+
+async function persistPodRatchet(
+  svc: SupabaseClient, learnerId: string, courseId: string,
+  completedPodRounds: unknown, roundsSincePod: unknown,
+) {
+  const nonNeg = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({
+      completed_pod_rounds: nonNeg(completedPodRounds),
+      rounds_since_pod: nonNeg(roundsSincePod),
+    })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`persistPodRatchet failed: ${error.message}`)
+}
+
+async function resetPodRatchet(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({ completed_pod_rounds: 0, rounds_since_pod: 0 })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`resetPodRatchet failed: ${error.message}`)
+}
+
+async function loadPodState(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { data, error } = await svc
+    .from('learner_pod_state')
+    .select('sentence_id, exposures')
+    .eq('learner_id', learnerId)
+    .eq('course_code', courseId)
+  if (error) throw new Error(`loadPodState failed: ${error.message}`)
+  return data ?? []
+}
+
+async function upsertPodState(svc: SupabaseClient, learnerId: string, courseId: string, rows: unknown) {
+  if (!Array.isArray(rows) || rows.length === 0) return
+  const safe: Array<{ learner_id: string; course_code: string; sentence_id: string; exposures: number }> = []
+  for (const r of rows) {
+    if (safe.length >= MAX_POD_STATE_ROWS_PER_CALL) break
+    const sentenceId = (r as any)?.sentence_id
+    if (typeof sentenceId !== 'string' || !sentenceId) continue
+    // learner_id / course_code from the client are IGNORED — always the
+    // server-resolved class learner and course, like every method here.
+    safe.push({
+      learner_id: learnerId,
+      course_code: courseId,
+      sentence_id: sentenceId,
+      exposures: Math.max(0, Math.floor(Number((r as any).exposures) || 0)),
+    })
+  }
+  if (safe.length === 0) return
+  const { error } = await svc
+    .from('learner_pod_state')
+    .upsert(safe, { onConflict: 'learner_id,course_code,sentence_id' })
+  if (error) throw new Error(`upsertPodState failed: ${error.message}`)
+}
+
+async function deletePodState(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('learner_pod_state')
+    .delete()
+    .eq('learner_id', learnerId)
+    .eq('course_code', courseId)
+  if (error) throw new Error(`deletePodState failed: ${error.message}`)
+}
+
+/**
+ * Instruction-exposure progress (`learner_meta_commentary_state`) for the
+ * CLASS account. The row is per LEARNER, not per course — instruction progress
+ * carries across every course a learner touches — so no course filter here.
+ */
+async function getMetaCommentaryState(svc: SupabaseClient, learnerId: string) {
+  const { data, error } = await svc
+    .from('learner_meta_commentary_state')
+    .select('instruction_index, instructions_complete')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  if (error) throw new Error(`getMetaCommentaryState failed: ${error.message}`)
+  return data ?? null
+}
+
+async function saveMetaCommentaryState(
+  svc: SupabaseClient, learnerId: string, instructionIndex: unknown, instructionsComplete: unknown,
+) {
+  const { error } = await svc
+    .from('learner_meta_commentary_state')
+    .upsert({
+      learner_id: learnerId,
+      instruction_index: Math.max(0, Math.floor(Number(instructionIndex) || 0)),
+      instructions_complete: !!instructionsComplete,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'learner_id' })
+  if (error) throw new Error(`saveMetaCommentaryState failed: ${error.message}`)
+}
+
+/**
+ * The belt sync's `last_practiced_at` touch (useBeltProgress.syncToRemote).
+ * Refused for a class like everything else, but MASKED — setLivePosition and
+ * updateEnrollmentActivity re-stamp the same column on every real class
+ * progress event — so this is routed for cleanliness, not to recover data.
+ * Deliberately narrower than the client upsert it replaces: it never CREATES
+ * an enrollment row (createEnrollment owns that), it only touches an existing
+ * one.
+ */
+async function touchLastPracticed(svc: SupabaseClient, learnerId: string, courseId: string) {
+  const { error } = await svc
+    .from('course_enrollments')
+    .update({ last_practiced_at: new Date().toISOString() })
+    .eq('learner_id', learnerId)
+    .eq('course_id', courseId)
+  if (error) throw new Error(`touchLastPracticed failed: ${error.message}`)
+}
+
+/**
+ * The class LESSON record (`class_sessions`) — the second source for minutes.
+ *
+ * Job #65 found that `class_sessions` holds 637 rows and every one belongs to a
+ * demo/test school: not one real school has ever written it, and `sessions` has
+ * no rows for a class learner either. So a class's practice minutes came from
+ * `player_events` alone, with nothing to reconcile against — 9b/KW LJ's 38.2
+ * minutes was unfalsifiable, and any future undercount of that kind would have
+ * been invisible.
+ *
+ * The client code to write it existed and was simply never reached on the real
+ * play-as-class path — verified live on staging 2026-09-17: a real teacher
+ * playing as a real class issues GETs to `class_sessions` and not one POST.
+ * Routing it here rather than re-wiring the browser insert gets two things at
+ * once: it runs from a call site that cannot be missed, and it stops depending
+ * on the own-row insert policy (`teacher_user_id = auth.uid()::text`), which a
+ * co-teacher covering someone else's class would be at the mercy of.
+ *
+ * `teacher_user_id` is the CALLER's own auth uid, taken from the verified
+ * token — never from the body. `class_id` is the authorised class. So a caller
+ * can no more forge a lesson for another teacher than for another class.
+ */
+async function startClassSession(
+  svc: SupabaseClient, classId: string, teacherUserId: string, startLegoId: unknown,
+) {
+  const { data, error } = await svc
+    .from('class_sessions')
+    .insert({
+      class_id: classId,
+      teacher_user_id: teacherUserId,
+      start_lego_id: typeof startLegoId === 'string' && startLegoId ? safeIdToken(startLegoId) : 'S0001L01',
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(`startClassSession failed: ${error.message}`)
+  return data
+}
+
+async function endClassSession(
+  svc: SupabaseClient, classId: string, sessionId: unknown,
+  endLegoId: unknown, cyclesCompleted: unknown, durationSeconds: unknown,
+) {
+  if (typeof sessionId !== 'string' || !sessionId) throw new Error('endClassSession: sessionId required')
+  // Same extra-hop ownership check as updateLegoProgress / the session methods:
+  // the client holds only a row id, so verify the row is THIS class's lesson
+  // before writing it.
+  const { data: row, error: readErr } = await svc
+    .from('class_sessions')
+    .select('class_id')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (readErr) throw new Error(`endClassSession read failed: ${readErr.message}`)
+  if (!row || (row as any).class_id !== classId) {
+    throw new Error('endClassSession: session does not belong to this class')
+  }
+  const nonNeg = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0))
+  const { error } = await svc
+    .from('class_sessions')
+    .update({
+      ended_at: new Date().toISOString(),
+      end_lego_id: typeof endLegoId === 'string' && endLegoId ? safeIdToken(endLegoId) : null,
+      cycles_completed: nonNeg(cyclesCompleted),
+      duration_seconds: nonNeg(durationSeconds),
+    })
+    .eq('id', sessionId)
+  if (error) throw new Error(`endClassSession failed: ${error.message}`)
+}
+
 async function updateCurrentCycle(svc: SupabaseClient, learnerId: string, courseId: string, cycleIndex: number) {
   const { error } = await svc
     .from('course_enrollments')
@@ -533,6 +802,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         break
       case 'bumpSpeakingOpportunities':
         await bumpSpeakingOpportunities(svc, learnerId, courseId, a[0], a[1], a[2])
+        break
+      case 'recordLegoPairings':
+        await recordLegoPairings(svc, learnerId, courseId, a[0], a[1])
+        break
+      case 'getPodRatchet':
+        result = await getPodRatchet(svc, learnerId, courseId)
+        break
+      case 'persistPodRatchet':
+        await persistPodRatchet(svc, learnerId, courseId, a[0], a[1])
+        break
+      case 'resetPodRatchet':
+        await resetPodRatchet(svc, learnerId, courseId)
+        break
+      case 'loadPodState':
+        result = await loadPodState(svc, learnerId, courseId)
+        break
+      case 'upsertPodState':
+        await upsertPodState(svc, learnerId, courseId, a[0])
+        break
+      case 'deletePodState':
+        await deletePodState(svc, learnerId, courseId)
+        break
+      case 'getMetaCommentaryState':
+        result = await getMetaCommentaryState(svc, learnerId)
+        break
+      case 'saveMetaCommentaryState':
+        await saveMetaCommentaryState(svc, learnerId, a[0], a[1])
+        break
+      case 'touchLastPracticed':
+        await touchLastPracticed(svc, learnerId, courseId)
+        break
+      case 'startClassSession':
+        result = await startClassSession(svc, classId, auth.userId, a[0])
+        break
+      case 'endClassSession':
+        await endClassSession(svc, classId, a[0], a[1], a[2], a[3])
         break
       case 'updateCurrentCycle':
         await updateCurrentCycle(svc, learnerId, courseId, a[0])

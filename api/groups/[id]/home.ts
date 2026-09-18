@@ -37,7 +37,7 @@ import { directMemberPracticeSeconds } from '../../_utils/directMemberPractice'
 import { descendantIds } from '../../_utils/groupSubtree'
 import { leadersForNodes } from '../../_utils/groupLeaderTag'
 import { sortByName } from '../../_utils/alphaSort'
-import { loadClassPractice, practisedSince, topPhrases, ownAccountLearnerIds, ownAccountLedgerSeconds, inAppTimeSeconds, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
+import { loadClassPractice, practisedSince, topPhrases, ownAccountLearnerIds, ownAccountLedgerSeconds, inAppTimeTotals, legoOrdinal, CLASS_PRACTICE_WINDOW_DAYS } from '../../_utils/classPractice'
 import { applyCors } from '../../_utils/cors'
 import { secondsToMinutesUp } from '../../_utils/inAppTime'
 
@@ -268,26 +268,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     //   - audioPlayedMinutes7d — the SECONDARY figure, own accounts off the
     //     playback ledger; kept, demoted. ownAccountMinutes7d is the same
     //     number under its pre-ruling name so older readers keep working.
-    const classPracticeFactsPromise = subtreeClassesPromise.then((subtreeClasses) => loadClassPractice(svc, subtreeClasses))
+    // ALL TIME LEADS (Tom, 2026-09-17: "I think the weeks are good units, but I
+    // prefer the default to be All Time Totals ... more intuitive for teachers
+    // and admins"). The window read is therefore the whole history, and the
+    // week rides on the SAME rows — `phrasesRecent` off the same diary read,
+    // `recentSeconds` off the same spans split by day. One minute definition,
+    // one phrase definition, one read (job #673's rule, kept).
+    const classPracticeFactsPromise = subtreeClassesPromise.then((subtreeClasses) => loadClassPractice(svc, subtreeClasses, Date.now(), null))
     const classPracticePromise = Promise.all([subtreeClassesPromise, classPracticeFactsPromise, classIdsPromise]).then(async ([subtreeClasses, practice, classIds]) => {
       const weekAgo = Date.now() - CLASS_PRACTICE_WINDOW_DAYS * 86400000
+      let phrasesAllTime = 0
       let phrases7d = 0
       let classesWithPhrases7d = 0
       let activeClasses7d = 0
+      let activeClassesEver = 0
       for (const facts of practice.values()) {
-        phrases7d += facts.phrases
-        if (facts.phrases > 0) classesWithPhrases7d += 1
+        phrasesAllTime += facts.phrases
+        phrases7d += facts.phrasesRecent
+        if (facts.phrasesRecent > 0) classesWithPhrases7d += 1
         if (practisedSince(facts, weekAgo)) activeClasses7d += 1
+        if (facts.lastPractisedAt) activeClassesEver += 1
       }
       const ownIds = await ownAccountLearnerIds(svc, {
         schoolIds: schoolRows.map((s) => s.id),
         groupIds: subtreeIds,
         classIds: [...classIds],
       })
+      // The phrase list stays THIS WEEK — it answers "what did they practise
+      // lately", which an all-time list would bury. It is counted off the same
+      // all-time read, over its last seven days.
       const [topPhrases7d, own, inApp] = await Promise.all([
-        topPhrases(svc, practice.values(), 12),
+        topPhrases(svc, [...practice.values()].map((f) => ({ ...f, phraseCounts: f.phraseCountsRecent })), 12),
         ownAccountLedgerSeconds(svc, ownIds),
-        inAppTimeSeconds(svc, subtreeClasses.map((c) => c.class_learner_id).filter((id): id is string => !!id), ownIds),
+        inAppTimeTotals(svc, subtreeClasses.map((c) => c.class_learner_id).filter((id): id is string => !!id), ownIds),
       ])
       // Each class account's own minutes this week, keyed by class id — the
       // figure the year-group tiles sum and the tree's class rows carry
@@ -299,21 +312,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const secondsByClass: Record<string, number> = {}
       for (const c of subtreeClasses) {
         if (!c.class_learner_id) continue
-        const seconds = inApp.classSecondsByLearner.get(c.class_learner_id) ?? 0
+        const seconds = inApp.recentClassSecondsByLearner.get(c.class_learner_id) ?? 0
         secondsByClass[c.id] = seconds
         minutesByClass[c.id] = secondsToMinutesUp(seconds)
       }
       return {
         windowDays: CLASS_PRACTICE_WINDOW_DAYS,
         classCount: subtreeClasses.length,
+        // ALL-TIME TOTALS — what the Overview leads with.
+        phrasesAllTime,
+        activeClassesEver,
+        inAppMinutesAllTime: secondsToMinutesUp(inApp.seconds),
+        classInAppMinutesAllTime: secondsToMinutesUp(inApp.classSeconds),
+        // THE WEEK, kept as a unit beneath them, off the same read.
         activeClasses7d,
         phrases7d,
         classesWithPhrases7d,
         topPhrases7d,
         // Rounded UP like every other minute on a school page (job #683), so
         // the org headline and the per-class tiles beneath it share one rule.
-        inAppMinutes7d: secondsToMinutesUp(inApp.seconds),
-        classInAppMinutes7d: secondsToMinutesUp(inApp.classSeconds),
+        inAppMinutes7d: secondsToMinutesUp(inApp.recentSeconds),
+        classInAppMinutes7d: secondsToMinutesUp(inApp.recentClassSeconds),
         audioPlayedMinutes7d: Math.round(own.seconds / 60),
         ownAccountMinutes7d: Math.round(own.seconds / 60),
         ownAccountPeople7d: own.people,
@@ -407,7 +426,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         // PLAY-AS-CLASS IS THE PRIMARY METRIC (founder ruling): the class's
         // own teacher-led sessions lead this page — off the class-entity
         // spine, not the dead `class_sessions` table (_utils/classPractice.ts).
-        loadClassPractice(svc, [classRow]),
+        loadClassPractice(svc, [classRow], Date.now(), null),
         // The class's OWN learning account (THE-MODEL I6) — its enrollment
         // cursor is what play-as-class advances, and is the journey source.
         classRow.class_learner_id
@@ -492,17 +511,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // `sessions` rows, which do not describe its lessons
       // (_utils/classPractice.ts). ───
       const classFacts = classPracticeByClass.get(classRow.id)
-      const classInApp = await inAppTimeSeconds(svc, classRow.class_learner_id ? [classRow.class_learner_id] : [], [])
+      const classInApp = await inAppTimeTotals(svc, classRow.class_learner_id ? [classRow.class_learner_id] : [], [])
       const classPractice = {
         windowDays: CLASS_PRACTICE_WINDOW_DAYS,
-        phrases7d: classFacts?.phrases ?? 0,
+        // ALL TIME leads on a class too (Tom, 2026-09-17).
+        phrasesAllTime: classFacts?.phrases ?? 0,
+        inAppMinutesAllTime: secondsToMinutesUp(classInApp.classSeconds),
+        // The week, kept as a unit, off the same read.
+        phrases7d: classFacts?.phrasesRecent ?? 0,
         // Whole-class time in the app this week, gaps included.
         // Rounded UP like every other school-page minute (job #683, applied here by #766).
-        inAppMinutes7d: secondsToMinutesUp(classInApp.classSeconds),
+        inAppMinutes7d: secondsToMinutesUp(classInApp.recentClassSeconds),
         // The cursor stamp counts as evidence the class practised even when
         // the diary is empty, so "last practised" is never falsely blank.
         lastPractisedAt: classFacts?.lastPractisedAt ?? null,
-        phrases: await topPhrases(svc, [classFacts], 40),
+        // The phrase list is the WEEK's — what they practised lately.
+        phrases: await topPhrases(svc, classFacts ? [{ ...classFacts, phraseCounts: classFacts.phraseCountsRecent }] : [], 40),
       }
 
       // Journey: how far the CLASS has travelled together — the class-entity's
@@ -694,7 +718,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
               studentCount: studentCountByClass.get(c.id) || 0,
               // Whole-class play this week, per class — the row a head of
               // department reads on a Monday: who did it, who has gone quiet.
-              phrases7d: classPracticeFacts.get(c.id)?.phrases ?? 0,
+              // The facts map now reads all time (the Overview's headline), so
+              // the week a class row shows is `phrasesRecent` off the same read.
+              phrases7d: classPracticeFacts.get(c.id)?.phrasesRecent ?? 0,
+              phrasesAllTime: classPracticeFacts.get(c.id)?.phrases ?? 0,
               lastPractisedAt: classPracticeFacts.get(c.id)?.lastPractisedAt ?? null,
               // The class account's own in-app minutes this week — the number
               // the year-group tiles sum and the tree orders by (job #766).

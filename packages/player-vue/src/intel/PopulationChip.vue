@@ -28,6 +28,7 @@ withDefaults(defineProps<{
 <template>
   <!-- HANDBOOK Who is behind every number
        section: seeing-progress
+       moment: setting-up
        roles: admin
        place: intel
        keywords: population, real people, demo, staff, test, excluded, chip

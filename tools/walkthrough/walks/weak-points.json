@@ -1,0 +1,46 @@
+{
+  "id": "weak-points",
+  "title": "Which bits of a course make people stumble",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "weak points",
+    "stumble",
+    "skip",
+    "retry",
+    "lego",
+    "course",
+    "too few to say"
+  ],
+  "steps": [
+    {
+      "anchor": "question-weak-points",
+      "say": "**Weak points**, under What's happening, shows for one course which pieces of it real learners skip, retry or stop on, ranked by how much trouble each piece caused per person who met it. Pick a course under **Courses** in the map on the left first; until you do, the page waits.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "eae13885.c50e5555"
+    },
+    {
+      "anchor": "answer",
+      "say": "The sentence names the piece that gave people the most trouble. When fewer than five real people have practised the course, the page says **too few to say** instead of a number. That is the truth about the course, not a fault in the page.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.86a7fcbd"
+    },
+    {
+      "anchor": "rows",
+      "say": "The rows are the bits, worst first, each showing both languages with its skips, retries, failures and the share of people who stopped there. Open a row to see that piece and its phrases.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Pick a course, read the worst piece, open a row to see its phrases.",
+      "checked": "cbac0e66.8a1613ff"
+    }
+  ]
+}

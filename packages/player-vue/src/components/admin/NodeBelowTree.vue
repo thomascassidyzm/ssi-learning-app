@@ -125,6 +125,7 @@ function openClass(id: string): void {
 
       <!-- HANDBOOK Walking down to a school, a class or a person
            section: seeing-progress
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: tree, below, structure, drill down, school, class, teacher, nested

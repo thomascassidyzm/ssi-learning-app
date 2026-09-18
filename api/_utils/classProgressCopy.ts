@@ -11,6 +11,11 @@
  * and inserted there. The course scope is deliberate: a teacher who learns
  * Welsh for themselves must not have that moved onto a Spanish class.
  *
+ * ONE AT A TIME. An apply claims its audit row before it reads anything; a
+ * partial unique index lets one running claim exist per source+course, so a
+ * concurrent second apply is refused by the database (409), never doubled.
+ * See ClaimRecord below (job #811).
+ *
  * COPY, NOT MOVE. The teacher's rows stay where they are. A second run is
  * idempotent: every apply writes one class_progress_copy_audit row listing
  * the source ids it copied, and the next run skips every source id any prior
@@ -193,8 +198,51 @@ export interface UndoRecord {
   error?: string
 }
 
-export const isUndoRow = (r: CopyRecord | UndoRecord | null | undefined): boolean =>
+export const isUndoRow = (r: CopyRecord | UndoRecord | ClaimRecord | null | undefined): boolean =>
   Boolean((r as UndoRecord)?.undo_of || (r as UndoRecord)?.undo_failed_of)
+
+/**
+ * The CLAIM a copy writes before it reads anything (job #811). Two concurrent
+ * applies for the same teacher and course used to both pass the prior-copy
+ * scan, both insert, and both write an audit row: that is how 7E got 22 + 29
+ * duplicated items. Now the apply inserts its audit row FIRST, as a claim
+ * carrying `state: 'running'`, and a partial unique index on
+ * (source_learner_id, course_code) WHERE state = 'running' lets exactly one
+ * claim exist per source+course at a time. The second request's claim insert
+ * is refused by the database and it answers 409; only the holder plans and
+ * inserts. The claim is finalised in place into the full CopyRecord when the
+ * run ends, so the audit row that names the copied ids is the row that held
+ * the claim. A claim older than CLAIM_STALE_MS whose holder died is marked
+ * `abandoned` by the next apply and then never blocks anything.
+ *
+ * The claim also carries what the run has LANDED (job #841). PostgREST gives
+ * no transaction across insert + finalise, so before every chunk insert the
+ * claim is checkpointed with `copied` (every id landed so far) and `pending`
+ * (the source ids of the chunk about to go in); the checkpoint failing stops
+ * the run before that chunk, so nothing lands unrecorded. If the finalising
+ * write then fails after the rows are in, the claim still names them, and
+ * priorCopied treats a claim's copied AND pending ids as done. The one
+ * remaining failure mode is under-copy: a pending chunk whose insert failed
+ * and whose clearing write also failed stays skipped. Never a duplicate.
+ */
+export interface ClaimRecord {
+  state: 'running' | 'abandoned'
+  started_at: string
+  error?: string
+  copied?: CopiedIds
+  pending?: Record<string, string[]>
+}
+const claimIds = (r: ClaimRecord): Record<string, string[]> => {
+  const out: Record<string, string[]> = {}
+  for (const [t, m] of Object.entries(r.copied ?? {})) out[t] = [...(out[t] ?? []), ...Object.keys(m)]
+  for (const [t, ids] of Object.entries(r.pending ?? {})) out[t] = [...(out[t] ?? []), ...ids]
+  return out
+}
+export const isClaimRow = (r: CopyRecord | UndoRecord | ClaimRecord | null | undefined): boolean =>
+  (r as ClaimRecord)?.state === 'running' || (r as ClaimRecord)?.state === 'abandoned'
+export const CLAIM_STALE_MS = 15 * 60 * 1000
+/** Postgres unique_violation, as PostgREST surfaces it. */
+const UNIQUE_VIOLATION = '23505'
 
 export interface CopyPlan {
   courseCode: string
@@ -281,10 +329,13 @@ async function priorCopied(
     .eq('course_code', courseCode)
   if (error) throw new Error(`${AUDIT_TABLE} read failed: ${error.message}`)
   const ids: Record<string, Set<string>> = {}
-  const all = (data ?? []) as Array<{ id: string; class_id: string | null; target_learner_id: string; record: CopyRecord | UndoRecord }>
+  const all = (data ?? []) as Array<{ id: string; class_id: string | null; target_learner_id: string; record: CopyRecord | UndoRecord | ClaimRecord }>
   // An undone run no longer holds its rows on the class side, so its ids must
   // not be skipped by the next copy — otherwise undo would make re-copy
-  // impossible. The undo record names the run it reversed.
+  // impossible. The undo record names the run it reversed. A claim row (the
+  // run in progress, or one abandoned) is a run only if it checkpointed ids
+  // (job #841): those rows ARE on the class side, so they count as done, and
+  // the run's minutes were added, so it counts towards `runs`.
   const undone = new Set(all.map((r) => (r.record as UndoRecord)?.undo_of).filter(Boolean) as string[])
   const rows = all.filter((r) => !isUndoRow(r.record) && !undone.has(String(r.id)))
   let runs = 0
@@ -292,11 +343,16 @@ async function priorCopied(
   let elsewhereRows = 0
   for (const r of rows) {
     const onThisTarget = r.target_learner_id === targetLearnerId
+    const landed: Record<string, string[]> = isClaimRow(r.record)
+      ? claimIds(r.record as ClaimRecord)
+      : Object.fromEntries(Object.entries((r.record as CopyRecord)?.copied ?? {}).map(([t, m]) => [t, Object.keys(m)]))
+    const landedAny = Object.values(landed).some((l) => l.length > 0)
+    if (isClaimRow(r.record) && !landedAny) continue
     if (onThisTarget) runs++
     let copiedHere = 0
-    for (const [table, map] of Object.entries((r.record as CopyRecord)?.copied ?? {})) {
+    for (const [table, list] of Object.entries(landed)) {
       ids[table] ??= new Set()
-      for (const src of Object.keys(map)) { ids[table].add(src); copiedHere++ }
+      for (const src of list) { ids[table].add(src); copiedHere++ }
     }
     if (!onThisTarget && copiedHere > 0) {
       elsewhereRows += copiedHere
@@ -393,15 +449,86 @@ function rekey(row: Record<string, unknown>, spec: CopyTableSpec, targetLearnerI
  * the run and the error names the table; what had landed before it is still
  * recorded so the next preview sees it and never doubles it.
  */
+export type ApplyOutcome =
+  | { conflict: false; plan: CopyPlan; record: CopyRecord; auditId: string | null; error: string | null }
+  /** Another apply for this teacher and course holds the claim right now. Nothing was written. */
+  | { conflict: true }
+
+/**
+ * Take the claim: mark any stale running claim abandoned, then insert ours.
+ * Returns null when the database refused the insert because a live claim
+ * already exists (the partial unique index), which is the concurrent case.
+ */
+async function takeClaim(
+  svc: SupabaseClient,
+  params: { sourceLearnerId: string; targetLearnerId: string; courseCode: string },
+  ctx: { actorUserId: string; classId: string },
+): Promise<string | null> {
+  const { sourceLearnerId, targetLearnerId, courseCode } = params
+  const staleBefore = new Date(Date.now() - CLAIM_STALE_MS).toISOString()
+  const { data: stale, error: staleErr } = await svc
+    .from(AUDIT_TABLE)
+    .select('id, record')
+    .eq('source_learner_id', sourceLearnerId)
+    .eq('course_code', courseCode)
+    .eq('record->>state', 'running')
+    .lt('created_at', staleBefore)
+  if (staleErr) throw new Error(`${AUDIT_TABLE} read failed: ${staleErr.message}`)
+  for (const row of (stale ?? []) as Array<{ id: string; record: ClaimRecord }>) {
+    const abandoned: ClaimRecord = { ...row.record, state: 'abandoned', error: `claim abandoned: holder did not finish within ${CLAIM_STALE_MS / 60000} minutes` }
+    const { error } = await svc.from(AUDIT_TABLE).update({ record: abandoned }).eq('id', row.id).eq('record->>state', 'running')
+    if (error) throw new Error(`${AUDIT_TABLE} stale-claim update failed: ${error.message}`)
+    console.warn('[classProgressCopy] abandoned a stale running claim', row.id)
+  }
+  const claim: ClaimRecord = { state: 'running', started_at: new Date().toISOString() }
+  const { data, error } = await svc
+    .from(AUDIT_TABLE)
+    .insert({
+      actor_user_id: ctx.actorUserId,
+      class_id: ctx.classId,
+      course_code: courseCode,
+      source_learner_id: sourceLearnerId,
+      target_learner_id: targetLearnerId,
+      record: claim,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    const dup = error.code === UNIQUE_VIOLATION || /duplicate key|unique/i.test(error.message ?? '')
+    if (dup) return null
+    throw new Error(`${AUDIT_TABLE} claim insert failed: ${error.message}`)
+  }
+  return String((data as { id: string }).id)
+}
+
 export async function applyCopy(
   svc: SupabaseClient,
-  plan: CopyPlan,
+  params: { sourceLearnerId: string; targetLearnerId: string; courseCode: string },
   ctx: { actorUserId: string; classId: string },
-): Promise<{ record: CopyRecord; auditId: string | null; error: string | null }> {
-  const { sourceLearnerId, targetLearnerId, courseCode } = plan
+): Promise<ApplyOutcome> {
+  const auditId = await takeClaim(svc, params, ctx)
+  if (auditId === null) return { conflict: true }
+  // Plan INSIDE the claim: a plan read before the claim could predate a run
+  // that finished a moment ago, and would double it.
+  let plan: CopyPlan
+  try {
+    plan = await planCopy(svc, params)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await releaseClaimOnError(svc, auditId, `plan: ${message}`)
+    throw err
+  }
+  const { targetLearnerId, courseCode } = plan
   const copied: CopiedIds = {}
   const sessionMap = new Map<string, string>()
   let failure: string | null = null
+  const startedAt = new Date().toISOString()
+  // Checkpoint the claim (see ClaimRecord): what has landed, what is about to.
+  const checkpoint = async (pending: Record<string, string[]>): Promise<string | null> => {
+    const claim: ClaimRecord = { state: 'running', started_at: startedAt, copied, pending }
+    const { error } = await svc.from(AUDIT_TABLE).update({ record: claim }).eq('id', auditId)
+    return error ? `${AUDIT_TABLE} checkpoint: ${error.message}` : null
+  }
 
   for (const spec of COPY_TABLES) {
     const pending = plan.rows[spec.table] ?? []
@@ -411,8 +538,20 @@ export async function applyCopy(
       const slice = pending.slice(i, i + INSERT_CHUNK)
       const payload = slice.map((r) => rekey(r, spec, targetLearnerId, sessionMap))
       const returning = spec.key.kind === 'generated' ? spec.key.idColumn : spec.key.keyColumns.join(',')
+      // Record the chunk BEFORE it goes in; a checkpoint that fails stops the
+      // run while nothing is landed unrecorded.
+      failure = await checkpoint({ [spec.table]: slice.map((r) => sourceIdOf(r, spec)) })
+      if (failure) break
       const { data, error } = await svc.from(spec.table).insert(payload).select(returning)
-      if (error) { failure = `${spec.table}: ${error.message}`; break }
+      if (error) {
+        failure = `${spec.table}: ${error.message}`
+        // Nothing of this chunk landed: clear its pending ids so they are not
+        // treated as done. If this write fails too, the chunk is skipped by
+        // later runs (under-copy), never duplicated.
+        const cleared = await checkpoint({})
+        if (cleared) console.error('[classProgressCopy] could not clear pending ids after a failed insert', auditId, cleared)
+        break
+      }
       const inserted = (data ?? []) as unknown as Record<string, unknown>[]
       if (inserted.length !== slice.length) { failure = `${spec.table}: inserted ${inserted.length} of ${slice.length}`; break }
       slice.forEach((src, idx) => {
@@ -471,23 +610,20 @@ export async function applyCopy(
     inAppSecondsCopied: failure ? 0 : plan.inAppSecondsToCopy,
   }
   if (failure) record.error = failure
-  const { data: audit, error: auditErr } = await svc
-    .from(AUDIT_TABLE)
-    .insert({
-      actor_user_id: ctx.actorUserId,
-      class_id: ctx.classId,
-      course_code: courseCode,
-      source_learner_id: sourceLearnerId,
-      target_learner_id: targetLearnerId,
-      record,
-    })
-    .select('id')
-    .single()
-  const auditId = audit ? String((audit as { id: string }).id) : null
+  // Finalise the claim row into the record: the same row now names every
+  // copied id, and no longer carries state 'running', so the index slot is
+  // free for the next run.
+  const { error: auditErr } = await svc.from(AUDIT_TABLE).update({ record }).eq('id', auditId)
   if (auditErr) {
-    // The rows are in; losing the record would make the next run double them.
+    // The rows are in. The last checkpoint already names every id that
+    // landed (copied + pending), so the next run cannot double them; try to
+    // release the claim carrying those ids, and if that fails too the stale
+    // path abandons it with them intact.
     console.error('[classProgressCopy] audit write failed:', auditErr.message, JSON.stringify(record.copied).slice(0, 4000))
     failure = failure ?? `audit: ${auditErr.message}`
+    const abandoned: ClaimRecord = { state: 'abandoned', started_at: startedAt, copied, error: failure }
+    const { error: relErr } = await svc.from(AUDIT_TABLE).update({ record: abandoned }).eq('id', auditId)
+    if (relErr) console.error('[classProgressCopy] could not release claim after audit failure', auditId, relErr.message)
   }
   // The notice to the teacher whose play moved (job #684), with one-tap undo.
   // Sent from HERE, not from the route, so the sweep and the card cannot
@@ -501,7 +637,14 @@ export async function applyCopy(
       console.error('[classProgressCopy] copy notice threw:', err instanceof Error ? err.message : err)
     }
   }
-  return { record, auditId, error: failure }
+  return { conflict: false, plan, record, auditId, error: failure }
+}
+
+/** A run that failed before writing anything must not hold the claim. */
+async function releaseClaimOnError(svc: SupabaseClient, auditId: string, error: string): Promise<void> {
+  const abandoned: ClaimRecord = { state: 'abandoned', started_at: new Date().toISOString(), error }
+  const { error: err } = await svc.from(AUDIT_TABLE).update({ record: abandoned }).eq('id', auditId)
+  if (err) console.error('[classProgressCopy] could not release claim', auditId, err.message)
 }
 
 
@@ -515,7 +658,7 @@ export interface AuditRow {
   course_code: string
   source_learner_id: string
   target_learner_id: string
-  record: CopyRecord | UndoRecord
+  record: CopyRecord | UndoRecord | ClaimRecord
 }
 
 export async function readAudit(svc: SupabaseClient, auditId: string): Promise<AuditRow | null> {
@@ -581,7 +724,7 @@ export async function undoCopy(
 ): Promise<UndoOutcome> {
   const audit = await readAudit(svc, auditId)
   if (!audit) return { ok: false, reason: 'not_found' }
-  if (isUndoRow(audit.record)) return { ok: false, reason: 'not_a_copy' }
+  if (isUndoRow(audit.record) || isClaimRow(audit.record)) return { ok: false, reason: 'not_a_copy' }
   const record = audit.record as CopyRecord
 
   const prior = await svc

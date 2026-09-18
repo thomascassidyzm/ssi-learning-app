@@ -1,0 +1,40 @@
+{
+  "id": "add-students-to-a-class",
+  "title": "Add students to a class",
+  "personas": [
+    "teacher"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "class"
+    ]
+  },
+  "keywords": [
+    "add",
+    "student",
+    "class",
+    "roster",
+    "move",
+    "join"
+  ],
+  "steps": [
+    {
+      "anchor": "class-student-add",
+      "say": "Above the roster, tap **Add students** — for a pupil already in your school who has changed set or landed in the wrong class.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "508cd332.c143b19b"
+    },
+    {
+      "anchor": "class-student-picker",
+      "say": "Type a few letters of their name to narrow the list, then tap the pupil — they appear on the roster straight away. Add as many as you need, then tap Done.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Adding doesn't take them out of any other class — a pupil can be in more than one, one for each course they're doing. A pupil with no account at all needs the class link in Invite students instead.",
+      "checked": "1d45efab.bb527cb5"
+    }
+  ]
+}

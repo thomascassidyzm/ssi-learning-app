@@ -1,0 +1,71 @@
+{
+  "id": "manage-your-school-settings",
+  "title": "Manage your school's profile, billing and deletion",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "school",
+    "name",
+    "profile",
+    "billing",
+    "plan",
+    "pay",
+    "delete",
+    "danger"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-tab-profile",
+      "say": "Settings opens on **School profile** — your school's name and details.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "025a0524.ee19ca43"
+    },
+    {
+      "anchor": "settings-save-profile",
+      "say": "**School profile** is where your school's name and details live. Change them here and tap **Save changes** — this is the one place to update it after first-time setup.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "d7b3b189.8f6669c1"
+    },
+    {
+      "anchor": "settings-tab-billing",
+      "say": "Tap **Billing** to see what your school is paying for.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "669013a8.9a902cb0"
+    },
+    {
+      "anchor": "settings-billing-plan",
+      "say": "This line is the plain statement of your plan — its name, how many seats it pays for, and whether the subscription is running. **Manage subscription & seats** takes you to the one Upgrade page for any payment change.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "9b43494d.f26d32d0"
+    },
+    {
+      "anchor": "settings-tab-data",
+      "say": "Tap **Data & privacy** to reach the danger zone.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "2bdd71c3.b6d2333f"
+    },
+    {
+      "anchor": "settings-delete-school",
+      "say": "**Delete school** closes your school down for good — its classes and everyone's enrolment go with it, and it cannot be undone. A school with real activity in it asks you to type the school's name back before it confirms.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's your school's own settings — its name, what it pays, and the one door to close it, all in one place.",
+      "checked": "da00565e.79c4719c"
+    }
+  ]
+}

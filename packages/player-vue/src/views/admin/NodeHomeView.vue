@@ -45,6 +45,9 @@ import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import WaysInLedger from '@/components/admin/WaysInLedger.vue'
 import OrgFunderNumbers from '@/components/admin/OrgFunderNumbers.vue'
 import HowThisWorks from '@/components/admin/HowThisWorks.vue'
+// The class's tools — roster, teachers, join link, rename, delete — mounted as
+// the Manage class section of this page since the collapse (job #999).
+const ClassTools = defineAsyncComponent(() => import('@/views/schools/ClassDetail.vue'))
 import YourAccount from '@/components/admin/YourAccount.vue'
 import NoticingInvitations from '@/components/admin/NoticingInvitations.vue'
 import { courseShortName } from '@ssi/core'
@@ -55,11 +58,16 @@ import ShowAll from '@/components/shared/ShowAll.vue'
 import { topThree } from '@/components/shared/topThree'
 import YearGroupTiles from '@/components/schools/shared/YearGroupTiles.vue'
 import { yearGroupBreakdown, practisedWithin, type YearGroupTile } from '@/views/schools/yearGroup'
-import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
+// THE COURSE JOURNEY IS THE BRAIN (Tom, 2026-09-17). JourneyBar is gone from
+// this page: the bar and the brain answer the same question, and two answers
+// on one card is the thing shape B deletes. The component itself stays for the
+// other places that still draw a bar.
+import ClassBrain from '@/components/schools/shared/ClassBrain.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
-import { derivePreset } from '@/composables/nodeTerminology'
+import { derivePreset, deriveInstitutionKind } from '@/composables/nodeTerminology'
+import SchoolVouchCard from '@/components/admin/SchoolVouchCard.vue'
 import { timeAgo } from '@/composables/admin/adminUtils'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
@@ -100,7 +108,10 @@ const playAsClassTitle = computed(() => (playAsClassReadOnly.value ? t('schools.
 const viewerTeachesClass = computed(() => !!home.value?.callerTeachesClass)
 const viewerIsLeader = computed(() => isSchoolAdmin.value || isGovtAdmin.value)
 const showClassVerbs = computed(() => member.value && isClass.value && !!home.value?.node)
-const classToolsPath = computed(() => (home.value?.node ? `/schools/classes/${home.value.node.id}` : ''))
+// MANAGE CLASS is a place on this page, not another page (job #999, Tom's
+// ruling 2026-09-16 collapsing the two class pages into one). The verb now
+// scrolls to the tools section mounted below; /schools/classes/:id redirects
+// here, so an old link still lands on the same tools.
 async function playThisClass(): Promise<void> {
   const n = home.value?.node
   if (!n) return
@@ -109,6 +120,10 @@ async function playThisClass(): Promise<void> {
 // The copy-play repair on the class page itself: a leader picks the teacher;
 // a teacher of this class fixes their own lesson (self mode, no picker).
 const showCopyPlay = computed(() => showClassVerbs.value && (viewerIsLeader.value || viewerTeachesClass.value))
+
+function scrollToManage() {
+  document.getElementById('manage-class')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 const copyPlaySelfUserId = computed(() => (viewerIsLeader.value ? undefined : (schoolUser.value?.user_id || undefined)))
 const copyPlayTeachers = computed(() => (home.value?.teachers ?? []).map((x: any) => ({ user_id: x.user_id, name: x.name })))
 const isOrgLeaderView = computed(() => member.value && isGovtAdmin.value)
@@ -181,6 +196,10 @@ const isClass = computed(() => home.value?.kind === 'class')
 // in the neutral vocabulary — group / group leader / learner — and never
 // shows a school/teacher/class word or lens. ───
 const preset = computed(() => derivePreset(home.value))
+// TOM'S RULING 1 (job #195): the admin vouch card lives on the ADMIN read-view
+// of a school only — the member surface belongs to the founder, who can never
+// vouch for herself.
+const isSchoolNode = computed(() => deriveInstitutionKind(home.value) === 'school')
 const neutral = computed(() => preset.value === 'neutral')
 
 // BELOW THIS is DRAWN, not filtered (founder ruling 2026-09-07: the chip row
@@ -418,12 +437,19 @@ const classPractice = computed(() => home.value?.classPractice ?? null)
 // (api/_utils/inAppTime.ts). Audio-played minutes off the ledger are the
 // secondary figure, named in the sentence under the row. Every figure here is
 // backed by a live record.
-// NO ALL-TIME "MINUTES PRACTISED" HERE ANY MORE (Tom, 2026-09-14, job #673:
-// one minute definition, one aggregation, everywhere). The server's
-// practiceMinutes / practiceHours sum school_summary and class_student_progress
-// off the sessions ledger, which the class account cannot write, so it was a
-// second truth beside the in-app minutes below. Every minutes figure on this
-// page is now the in-app rule (api/_utils/inAppTime.ts) over the last seven days.
+// THE ROW LEADS WITH ALL-TIME TOTALS (Tom, 2026-09-17): this week "gives too
+// much lumpiness to classes that might not do any Welsh from Monday to
+// Wednesday, then do quite a lot on Thursday and Friday", and a total is
+// "more intuitive for teachers and admins". The week is not gone — "the weeks
+// are good units" — it is the sentence under the row and the note under the
+// class card.
+// THIS IS NOT THE OLD ALL-TIME FIGURE COMING BACK (Tom, 2026-09-14, job #673:
+// one minute definition, one aggregation, everywhere). The one that was
+// removed summed school_summary and class_student_progress off the sessions
+// ledger, which the class account cannot write, so it was a second truth. The
+// totals here are the SAME rule as the week beside them — the in-app minute
+// (api/_utils/inAppTime.ts) and the target2 phrase, off one diary read, with
+// the window opened from seven days to all of it.
 
 // EVERYTHING IS TAPPABLE (Tom on staging, 2026-09-14, job #624): on a school
 // leader's own school overview each card is a link to that figure broken
@@ -441,8 +467,8 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
   const link = (to: string) => (statLinksLive.value ? to : undefined)
   if (isClass.value) {
     return [
-      { value: cp?.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week') },
-      { value: cp?.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesPlayedAsClassThisWeek', 'Minutes played as class this week') },
+      { value: cp?.phrasesAllTime ?? 0, word: t('org.nodeHome.statPhrasesPractisedTotal', 'Phrases practised in total') },
+      { value: cp?.inAppMinutesAllTime ?? 0, word: t('org.nodeHome.statMinutesPlayedAsClassTotal', 'Minutes played as class in total') },
       // The class's own journey — never a per-pupil count on a class, which
       // is one learner account (Tom's ruling, 2026-09-11, job #265).
       { value: journey.value ? `${journey.value.source === 'class-play' ? journey.value.done : 0}/${journey.value.total}` : '—', word: t('org.nodeHome.statJourneyLegos', 'Phrases travelled together') },
@@ -452,7 +478,7 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
   // Neutral dressing: no class/teacher words — practice, groups, learners.
   if (neutral.value) {
     return [
-      ...(cp ? [{ value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week') }] : []),
+      ...(cp ? [{ value: cp.inAppMinutesAllTime ?? 0, word: t('org.nodeHome.statMinutesInAppTotal', 'Minutes in the app in total') }] : []),
       { value: r.childGroupCount ?? 0, word: t('org.nodeHome.statGroups', 'Groups') },
       { value: r.learnerCount ?? 0, word: t('org.nodeHome.statLearners', 'Learners') },
     ]
@@ -465,9 +491,9 @@ const stats = computed<{ value: string | number; word: string; to?: string }[]>(
     ]
   }
   return [
-    { value: cp.phrases7d ?? 0, word: t('org.nodeHome.statPhrasesSpokenThisWeek', 'Phrases practised this week'), to: link('/schools/classes?sort=phrases') },
-    { value: `${cp.activeClasses7d ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesPractisingThisWeek', 'Classes practising this week'), to: link('/schools/classes?practising=1&sort=hours') },
-    { value: cp.inAppMinutes7d ?? 0, word: t('org.nodeHome.statMinutesInAppThisWeek', 'Minutes in the app this week'), to: link('/schools/classes?sort=hours') },
+    { value: cp.phrasesAllTime ?? 0, word: t('org.nodeHome.statPhrasesPractisedTotal', 'Phrases practised in total'), to: link('/schools/classes?sort=phrases') },
+    { value: `${cp.activeClassesEver ?? 0}/${cp.classCount || r.classCount || 0}`, word: t('org.nodeHome.statClassesEverPractised', 'Classes that have practised'), to: link('/schools/classes?practising=1&sort=hours') },
+    { value: cp.inAppMinutesAllTime ?? 0, word: t('org.nodeHome.statMinutesInAppTotal', 'Minutes in the app in total'), to: link('/schools/classes?sort=hours') },
     { value: r.teacherCount ?? 0, word: t('org.nodeHome.statTeachers', 'Teachers'), to: link('/schools/teachers') },
   ]
 })
@@ -565,7 +591,7 @@ function askAboutClassPractice(): void {
   supportAnchor.value = 'class-practice'
   supportLabel.value = t('org.nodeHome.statClassPractice', 'Class practice')
   supportValue.value = cp?.lastPractisedAt
-    ? `${cp.phrases7d ?? 0} / ${cp.inAppMinutes7d ?? 0} min / ${cp.lastPractisedAt}`
+    ? `${cp.phrasesAllTime ?? 0} all time / ${cp.phrases7d ?? 0} this week / ${cp.inAppMinutesAllTime ?? 0} min all time / ${cp.inAppMinutes7d ?? 0} min this week / ${cp.lastPractisedAt}`
     : t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.")
   supportOpen.value = true
 }
@@ -626,6 +652,7 @@ const nextBeltInfo = computed(() => {
 })
 
 const journey = computed(() => home.value?.journey ?? null)
+
 
 const enrichedStudents = computed(() => {
   const avg = classAvgSeeds.value
@@ -852,6 +879,7 @@ const listPayload = computed(() => {
              the main pane sliding into this column. -->
         <!-- HANDBOOK Finding your way around the organisation
              section: seeing-progress
+             moment: setting-up
              roles: admin, leader, school_admin
              place: node-home
              keywords: map, rail, navigate, where am i, ancestors, siblings, orientation
@@ -937,6 +965,7 @@ const listPayload = computed(() => {
             <div class="verbs">
               <!-- HANDBOOK Play as class from the class page
                    section: running-classes
+                   moment: every-lesson
                    roles: teacher, school_admin
                    place: node-home
                    keywords: play as class, lesson, start, class page, front of the room
@@ -966,29 +995,31 @@ const listPayload = computed(() => {
               >&#9654; {{ t('org.nodeHome.playAsClass', 'Play as class') }}</button>
               <!-- HANDBOOK Manage a class
                    section: running-classes
+                   moment: setting-up
                    roles: teacher, school_admin
                    place: node-home
                    keywords: manage, tools, roster, teachers, join link, rename, delete
-                   What it's for. Getting from the class page to the class's tools:
-                   the roster of pupils on their own accounts, the teachers, the
-                   join link and code, renaming and deleting.
+                   What it's for. Getting to the class's tools: the roster of pupils
+                   on their own accounts, the teachers, the join link and code,
+                   renaming and deleting.
                    Where it is. The class page, the **Manage class** link beside the
                    class name.
                    How you do it.
                    1. Open the class.
                    2. Tap **Manage class**.
-                   3. The tools page opens; its own **Open the class page** line
-                      brings you back.
-                   Worth knowing. The class's practice, minutes and journey stay on
-                   the class page. The tools page never totals whole-class play.
-                   checked: f1b631d2.b60644b6
+                   3. The page scrolls down to the tools, on the same page.
+                   Worth knowing. The class's practice, minutes and journey stay at
+                   the top of the page, above the tools. Nothing in the tools totals
+                   whole-class play.
+                   checked: bdedeb20.1e6ab15a
               -->
-              <router-link
+              <a
                 v-if="showClassVerbs && !switching"
-                :to="classToolsPath"
+                href="#manage-class"
                 class="btn-ghost"
                 data-walk="class-page-manage"
-              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</router-link>
+                @click.prevent="scrollToManage"
+              >{{ t('org.nodeHome.manageClass', 'Manage class') }}</a>
               <LensTabs v-if="insightsLink" :overview-path="route.path" :insights-path="insightsLink" current="overview" />
             </div>
           </header>
@@ -1055,6 +1086,7 @@ const listPayload = computed(() => {
           <!-- STATS ROW -->
           <!-- HANDBOOK How fresh these numbers are
                section: seeing-progress
+               moment: something-wrong
                roles: admin, leader, school_admin
                place: node-home
                keywords: updated, refresh, fresh, stale, time, reload
@@ -1076,6 +1108,7 @@ const listPayload = computed(() => {
           <div class="stats-updated" data-walk="node-updated"><UpdatedStamp /></div>
           <!-- HANDBOOK The numbers on any level
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: numbers, stats, practice hours, learners, teachers, classes, rollup
@@ -1087,29 +1120,33 @@ const listPayload = computed(() => {
                class, under the name.
                How you do it.
                1. Open the level you want — a group, a school or a class.
-               2. **Phrases practised this week** is how many phrases the classes
-                  beneath this level were prompted with in whole-class play over the
-                  last seven days. It is recorded as each phrase's turn begins, so it
-                  counts every phrase the lesson reached.
-               3. **Classes practising this week** is how many of them played together
-                  in the last seven days, out of all the classes below.
-               4. **Minutes in the app this week** is the time the classes beneath
+               2. **Phrases practised in total** is how many phrases the classes
+                  beneath this level have been prompted with in whole-class play,
+                  from the first lesson to now. It is recorded as each phrase's turn
+                  begins, so it counts every phrase the lessons reached.
+               3. **Classes that have practised** is how many of them have ever
+                  played together, out of all the classes below.
+               4. **Minutes in the app in total** is all the time the classes beneath
                   this level, and their staff and students on their own accounts,
-                  spent in the app over the last seven days, pauses included — the
-                  time they were in the lesson. The sentence under the row says how
-                  much of it was whole-class play and how much was audio playing.
+                  have spent in the app, pauses included — the time they were in the
+                  lesson. The first sentence under the row says how much of it was
+                  whole-class play.
                5. **Teachers** counts the staff below this level, each once however
                   many classes they take.
-               6. On a class the row switches to that class's own phrases practised
-                  this week, its minutes in the app, its students and its teachers.
-               7. On your own school every card is a link: phrases and minutes
-                  open the classes list with the classes in that order, classes
-                  practising opens it narrowed to the classes that played this
+               6. The second sentence under the row gives the same figures for the
+                  last seven days, so the week is still there to read.
+               7. On a class the row switches to that class's own phrases practised
+                  in total, its minutes played as class, its journey and its teachers.
+               8. On your own school every card is a link: phrases and minutes
+                  open the classes list with the classes in that order, classes that
+                  have practised opens it narrowed to the classes that played this
                   week, and teachers opens the staff list.
-               Worth knowing. An organisation that is not school-shaped sees minutes
-               in the app this week, groups and learners instead. Every minute on this
-               page is the same minute: from pressing play to stopping, over the last
-               seven days, each account once. There is no all-time total here.
+               Worth knowing. The figures are totals rather than a week because a
+               week is lumpy — a class that does nothing until Thursday reads as idle
+               on Wednesday. An organisation that is not school-shaped sees minutes in
+               the app in total, groups and learners instead. Every minute on this
+               page is the same minute: from pressing play to stopping, each account
+               once.
                checked: b278e3a1.b7def846
           -->
           <div class="stats-row" data-walk="node-stats">
@@ -1128,6 +1165,7 @@ const listPayload = computed(() => {
           </div>
           <!-- HANDBOOK The numbers by year group
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: year group, year 7, tiles, breakdown, classes practising, minutes, by class
@@ -1164,7 +1202,8 @@ const listPayload = computed(() => {
             <HandbookMark anchor="node-stats" />
           </p>
           <p v-if="showPhrasesCard && !switching" class="stats-note">
-            {{ t('org.nodeHome.statsNoteInAppTime', 'Minutes in the app is the time your classes, staff and students spent in the app over the last seven days, pauses included — the time they were in the lesson. Whole-class play accounts for {classMinutes} of those minutes. Audio actually playing came to {audioMinutes} minutes.').replace('{classMinutes}', String(classPractice?.classInAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
+            {{ t('org.nodeHome.statsNoteInAppTimeTotal', 'The numbers above are totals for all the time your school has been learning. Minutes in the app is the time your classes, staff and students spent in the app, pauses included — the time they were in the lesson — and whole-class play accounts for {classMinutes} of them.').replace('{classMinutes}', String(classPractice?.classInAppMinutesAllTime ?? 0)) }}
+            {{ t('org.nodeHome.statsNoteThisWeek', 'In the last seven days: {phrases} phrases practised, {classes} classes practising and {minutes} minutes in the app, of which audio actually playing came to {audioMinutes} minutes.').replace('{phrases}', String(classPractice?.phrases7d ?? 0)).replace('{classes}', String(classPractice?.activeClasses7d ?? 0)).replace('{minutes}', String(classPractice?.inAppMinutes7d ?? 0)).replace('{audioMinutes}', String(classPractice?.audioPlayedMinutes7d ?? 0)) }}
           </p>
 
           <!-- THE SCHOOL LEADER'S SWEEP for lessons played on teachers' own
@@ -1180,6 +1219,7 @@ const listPayload = computed(() => {
                week and how often each phrase came round. -->
           <!-- HANDBOOK What your classes actually practised
                section: seeing-progress
+               moment: setting-up
                roles: admin, leader, school_admin
                place: node-home
                keywords: phrases, practised, list, what they practised, repetition, this week, show all
@@ -1208,7 +1248,7 @@ const listPayload = computed(() => {
             <span class="schools-kicker">{{ t('org.nodeHome.phrasesCardTitle', 'What they practised this week') }}</span>
             <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
             <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
-            <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
+            <ShowAll v-if="phrasesShown.collapsible" data-walk="node-phrases-show-all" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
           </div>
 
           <!-- NOTICING INVITATIONS — the pack's rules over the payload just
@@ -1229,44 +1269,48 @@ const listPayload = computed(() => {
                  below. -->
             <!-- HANDBOOK Whether a class is practising together
                  section: seeing-progress
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: class practice, sessions, together, this week, last session, play as class
                  What it's for. The headline card on a class: how many phrases the
-                 class was prompted with together in the last seven days,
-                 when it last practised, and the list of those phrases with how often
-                 each came round. Classes practising together is what a language
-                 programme lives on, so this leads over anything individual students
-                 do alone.
+                 class has been prompted with together altogether, when it last
+                 practised, and the phrases of the last seven days with how often each
+                 came round. Classes practising together is what a language programme
+                 lives on, so this leads over anything individual students do alone.
                  Where it is. The **Class practice** card on a class page.
                  How you do it.
                  1. Open a class from the tree or the map.
-                 2. Read the big figure for phrases practised this week.
-                 3. The line under it gives the time since the class last practised
-                    and its minutes in the app this week.
+                 2. Read the big figure for phrases practised in total.
+                 3. The line under it gives the time since the class last practised,
+                    its minutes in the app altogether, and then the phrases and
+                    minutes of the last seven days.
                  4. The list beneath is the three phrases the class practised most this
                     week and the number of times each came round; **Show all** under
                     it opens the whole list.
-                 Worth knowing. The minutes are time in the app with the lesson
-                 running, pauses included, so they are the time the class was in the
-                 lesson. A class that has never played together says so plainly and
+                 Worth knowing. The headline is a total rather than a week because a
+                 week is lumpy — a class that does its Welsh on Thursday and Friday
+                 reads as idle for half of it. The minutes are time in the app with the
+                 lesson running, pauses included, so they are the time the class was in
+                 the lesson. A class that has never played together says so plainly and
                  names the teacher's **Play as class** button as the thing that starts
                  the first lesson.
                  checked: 2423aa12.0aca4ce8
             -->
-            <div class="schools-card class-card" data-walk="class-practice">
+            <div class="schools-card class-card class-card-wide" data-walk="class-practice">
               <span class="class-card-kicker-row"><span class="schools-kicker">{{ t('org.nodeHome.statClassPractice', 'Class practice') }}</span><HandbookMark anchor="class-practice" /></span>
               <template v-if="classPractice?.lastPractisedAt">
                 <p class="class-practice-headline frost-mono-nums">
-                  {{ classPractice.phrases7d }}<span class="class-practice-unit"> {{ classPractice.phrases7d === 1 ? t('org.nodeHome.phraseSpokenThisWeek', 'phrase practised this week') : t('org.nodeHome.phrasesSpokenThisWeek', 'phrases practised this week') }}</span>
+                  {{ classPractice.phrasesAllTime }}<span class="class-practice-unit"> {{ classPractice.phrasesAllTime === 1 ? t('org.nodeHome.phrasePractisedTotal', 'phrase practised in total') : t('org.nodeHome.phrasesPractisedTotal', 'phrases practised in total') }}</span>
                 </p>
                 <p class="class-card-note">
                   {{ t('org.nodeHome.lastPractisedTogether', 'Last practised together {time}.').replace('{time}', timeAgo(classPractice.lastPractisedAt)) }}
-                  {{ t('org.nodeHome.classMinutesInAppThisWeek', '{n} minutes in the app together this week, pauses included.').replace('{n}', String(classPractice.inAppMinutes7d ?? 0)) }}
+                  {{ t('org.nodeHome.classMinutesInAppTotal', '{n} minutes in the app together altogether, pauses included.').replace('{n}', String(classPractice.inAppMinutesAllTime ?? 0)) }}
+                  {{ t('org.nodeHome.classThisWeek', 'In the last seven days: {phrases} phrases and {minutes} minutes.').replace('{phrases}', String(classPractice.phrases7d ?? 0)).replace('{minutes}', String(classPractice.inAppMinutes7d ?? 0)) }}
                 </p>
                 <InsightTable v-if="phraseRows.length" :data="phrasesTable" />
                 <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPlayThisWeek', 'No whole-class practice recorded in the last seven days.') }}</p>
-                <ShowAll v-if="phrasesShown.collapsible" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
+                <ShowAll v-if="phrasesShown.collapsible" data-walk="class-practice-show-all" :expanded="showAllPhrases" :label="showAllPhrasesLabel" @toggle="showAllPhrases = !showAllPhrases" />
               </template>
               <p v-else class="class-card-note">{{ t('org.nodeHome.noClassPracticeYet', "No class practice yet — the teacher's Play as class button starts the first session.") }}</p>
               <p v-if="canAskSupport" class="stats-ask">
@@ -1275,41 +1319,50 @@ const listPayload = computed(() => {
             </div>
             <!-- HANDBOOK How far a class has travelled
                  section: seeing-progress
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
-                 keywords: journey, progress, legos, position, course, belt, how far
-                 What it's for. A bar showing where a class has got to in its
-                 course, measured in phrases — the individual pieces of language the
-                 course teaches. A class is one learner account played from the
-                 front, so the position is the class's own.
+                 keywords: journey, progress, legos, position, course, belt, how far, brain, replay
+                 What it's for. Where a class has got to in its course, drawn as the
+                 class itself: every phrase the course teaches stands on a line in the
+                 order it is taught, a dot lights when the class has met that phrase
+                 and grows each time it comes round, and an arc joins two phrases the
+                 class has said together in one sentence. How far right the ink
+                 reaches is how far through the course the class is.
                  Where it is. The **Course journey** card on a class page.
                  How you do it.
                  1. Open a class.
-                 2. Read the bar for how much of the course the class has covered
-                    together.
-                 3. The line underneath gives the figure in phrases, then names the
-                    next belt and how many phrases are left to reach it.
-                 Worth knowing. A class that has never played together says
-                 **Not started** in words; it is never shown as a bar of zero.
+                 2. Read how far right the ink reaches, and the four totals under it.
+                 3. Tap **Replay how it grew** to watch it build lesson by lesson, or
+                    the expand button to open it full screen.
+                 4. Come out of full screen with **Close**, or by tapping the dim strip
+                    above the sheet, or with your phone's own back gesture.
+                 Worth knowing. It is the class's own account, the one **Play as
+                 class** runs on, so no pupil is behind any of it. New phrases are the
+                 ones the class has met for the first time; practised counts every
+                 time a phrase came round again. A class that has never played
+                 together says **Not started** in words.
                  checked: 37cd9c93.325026db
             -->
-            <div class="schools-card class-card" data-walk="class-journey">
+            <div class="schools-card class-card class-card-wide" data-walk="class-journey">
               <span class="schools-kicker">{{ t('org.nodeHome.courseJourney', 'Course journey') }}</span>
-              <!-- The bar runs in LEGOs on both sides. journey.done is the
-                   CLASS's own play-as-class position as a LEGO ordinal
-                   (source 'class-play'); only classes that have never played
-                   together fall back to the students' average (the server's
-                   'estimate' journey is a seed count — a different unit, so
-                   it never drives this bar). -->
-              <JourneyBar
-                v-if="journey && journey.source === 'class-play'"
-                :done="journey.done"
-                :total="Math.max(journey.total, journey.done)"
+              <!-- THE BRAIN IS THE BAR, DRAWN HONESTLY (Tom's ruling 2026-09-17,
+                   shape B of docs/specimens/class-stats/). The bar it replaces
+                   ran in LEGOs and said one number; this says the same thing
+                   and shows its working, on the same card, with nothing new to
+                   navigate to. The belt line underneath is unchanged. -->
+              <ClassBrain
+                v-if="home.node"
+                :class-id="String(home.node.id)"
+                :get-token="getAuthToken"
               />
-              <JourneyBar v-else-if="journey" :done="0" :total="journey.total" />
+              <!-- The card's own sentence, unmoved: how far the class has
+                   travelled and what is left to the next belt. It is the page's
+                   number, so it is written by the page and never waits on the
+                   drawing above it. -->
               <p class="class-card-note">
                 <template v-if="journey && journey.source === 'class-play'">
-                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
+                  {{ t('org.nodeHome.classTravelled', 'The class has travelled {done} of {total} new phrases together.').replace('{done}', String(journey.done)).replace('{total}', String(journey.total)) }}<br />
                 </template>
                 <template v-else>{{ t('org.nodeHome.classNotStartedJourney', 'Not started — the class has not played together yet.') }}<br /></template>
                 <template v-if="nextBeltInfo">{{ t('org.nodeHome.moreToBelt', '{n} more to {belt} belt.').replace('{n}', String(nextBeltInfo.remaining)).replace('{belt}', nextBeltInfo.name) }}</template>
@@ -1371,6 +1424,7 @@ const listPayload = computed(() => {
               </template>
               <!-- HANDBOOK Reading one student's progress
                    section: seeing-progress
+                   moment: setting-up
                    roles: admin, leader, school_admin
                    place: node-home
                    keywords: student, learner, progress, roster, last active, drifting, spark
@@ -1406,11 +1460,20 @@ const listPayload = computed(() => {
                   <template #empty>{{ t('org.nodeHome.noStudentsYet', 'No students in this class yet.') }}</template>
                 </NodeChildrenList>
                 <div v-if="studentsShown.collapsible" class="children-show-all">
-                  <ShowAll :expanded="showAllStudents" :label="showAllStudentsLabel" @toggle="showAllStudents = !showAllStudents" />
+                  <ShowAll data-walk="class-students-show-all" :expanded="showAllStudents" :label="showAllStudentsLabel" @toggle="showAllStudents = !showAllStudents" />
                 </div>
               </template>
             </div>
           </section>
+
+          <!-- MANAGE CLASS — the class's tools, on the class's own page (job
+               #999, Tom's ruling 2026-09-16). There used to be a second class
+               page at /schools/classes/:id carrying these; that route now
+               redirects here and the same component renders below the class's
+               own figures, with everything this page already shows — the
+               title, the belt line, Play as class, the journey, the copy-play
+               repair — turned off by its `embedded` flag. -->
+          <ClassTools v-if="showClassVerbs && !switching" embedded />
 
           <!-- HOW THIS WORKS — the self-explaining dashboard's reference
                entry: one quiet link, persona-scoped to exactly here. -->
@@ -1425,6 +1488,7 @@ const listPayload = computed(() => {
           <!-- WAYS IN — the link ledger (founder scope-add 2026-07-20):
                every link minted anywhere in this subtree, with copy /
                revoke / re-mint. The management face of the link system. -->
+          <SchoolVouchCard v-if="!member && !isClass && isSchoolNode && home.node" :school-id="home.node.id" />
           <WaysInLedger v-if="!isClass && home.node" ref="ledgerEl" :node-id="home.node.id" />
           <!-- The same ledger on a class, filtered to this class's own links —
                so the leader who just minted one can copy, re-mint or revoke it
@@ -1647,6 +1711,12 @@ const listPayload = computed(() => {
 
 .class-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
 .class-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+/* A wide card takes the whole row rather than one auto-fit column: the brain
+   because its arcs need room to be read, the practice table because its three
+   columns clipped at a third of a desktop screen (Tom, 2026-09-17: "it needs
+   to fit the whole width of the screen in desktop mode so we can see all 3
+   columns"). On a phone the grid is one column anyway, so nothing moves. */
+.class-card-wide { grid-column: 1 / -1; }
 .class-card .schools-kicker {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);

@@ -7,6 +7,7 @@ import {
 } from 'vue-router'
 import { teacherLandingTarget } from '@/composables/teacherLanding'
 import { useUserRole } from '@/composables/useUserRole'
+import { adminNextFromQuery } from '@/composables/useAdminGate'
 import { isChunkLoadError } from './staleChunkError'
 import { prepareMissionFromRoute } from '@/missions/useMission'
 // Build-time: seat/institutional purchase is a WEB-ONLY rail. In a store build
@@ -78,7 +79,6 @@ const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
 const StudentsView = () => import('@/views/schools/StudentsView.vue')
 const TeacherDashboard = () => import('@/views/schools/TeacherDashboard.vue')
-const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
 // THE LENS: the node-scoped Insight Engine — mounted at the old analytics
 // URLs (the URLs live, the old-school analytics page died).
 const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
@@ -165,7 +165,15 @@ const memberSurfaceGuard: NavigationGuardWithThis<undefined> = (to, _from, next)
   // through to the live school experience as intended. (Guard on the PARENT
   // so it covers every child route, not just the bare dashboard.)
   if (canAccessAdmin.value && !hasSchoolRole.value) {
-    return next('/admin/structure')
+    // …unless they were sent here BY the admin estate. useAdminGate hands a
+    // visitor it could not place to /schools with the destination in ?next=,
+    // for the inline sign-in; SchoolsContainer replays it once the role
+    // resolves. An admin whose role was ALREADY cached never reaches that
+    // replay — this guard ejects them first and the destination is lost, so
+    // a deep link to any admin page died on /admin/structure (job #34, Tom's
+    // phone on /admin/insights-lab). Honour the next; it is checked to be an
+    // in-app admin path, so nothing new is reachable through it.
+    return next(adminNextFromQuery(to.query as Record<string, unknown>) ?? '/admin/structure')
   }
   // A user with a KNOWN role but NO school role is not a member.
   // Solo tutors have no `educational_role`, so they look identical to a
@@ -343,25 +351,17 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // THE CLASS TOOLS PAGE (Tom, 2026-09-14, jobs #624 then #651). The
-        // CLASS PAGE for every role is the class node home, /org/:id, which
-        // leads with the class's own play-as-class figures; every class row
-        // and card links there (useSchoolsNav 'class-detail'). This flat page
-        // is where the class's tooling lives — roster, co-teachers, join link,
-        // rename, delete, the copy-play repair — and is reached from the
-        // class page's own "Manage class". Job #624 redirected leaders away
-        // from it, which also took Angharad's copy-play card out of reach;
-        // it is open to every member role again, and it no longer leads with
-        // the pupils' aggregate, so landing here by an old link misleads
-        // nobody.
+        // THE CLASS TOOLS PAGE IS THE CLASS PAGE (job #999, Tom's ruling
+        // 2026-09-16: six teacher-facing views of one class collapse to four,
+        // and a teacher gets ONE class page). The tools — roster, co-teachers,
+        // join link, rename, delete, the copy-play repair — are now the
+        // **Manage class** section of the class node home at /org/:id, which
+        // already led with the class's own figures. This URL lives on as a
+        // redirect so old links, bookmarks and the admin lane's own
+        // /admin/schools/:id/classes/:classId hop keep working; query and hash
+        // ride along. The admin read-view collapsed the same way in July.
         path: 'classes/:id',
-        name: 'class-detail',
-        component: ClassDetail,
-        meta: {
-          title: 'Class tools',
-          description: 'Roster, teachers, join link and settings for one class',
-          railFrame: true,
-        },
+        redirect: (to) => ({ path: `/org/${to.params.id}`, query: to.query, hash: to.hash }),
       },
       {
         path: 'analytics',
@@ -709,6 +709,21 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/structure',
       },
       {
+        // Support (job #28): every in-app report a learner has sent us, from
+        // both postboxes, with the reply. Unanswered first.
+        path: 'support',
+        name: 'admin-support',
+        component: () => import('@/views/admin/AdminSupport.vue'),
+        meta: { title: 'Support', description: 'Every report sent from inside the app, and the reply' },
+      },
+      {
+        // Admin-to-learner messaging (job #821): one composer, three audiences.
+        path: 'messages',
+        name: 'admin-messages',
+        component: () => import('@/views/admin/AdminMessages.vue'),
+        meta: { title: 'Messages', description: 'Tell learners what has gone live — one course, one learner, or everyone' },
+      },
+      {
         path: 'release-notes',
         name: 'admin-release-notes',
         component: () => import('@/views/admin/AdminReleaseNotes.vue'),
@@ -867,6 +882,15 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Class Home (Admin)', nodeSurface: true },
       },
     ],
+  },
+  {
+    // THE DISPLAY LAB (job #26) — a dozen renderings of one rate-compare
+    // series, side by side, with like / unsure / no per tile. Admin-gated by
+    // the /admin prefix; a decision instrument, not a product surface.
+    path: '/admin/insights-lab',
+    name: 'admin-insights-lab',
+    component: () => import('@/views/admin/AdminInsightsLabView.vue'),
+    meta: { title: 'Insights display lab' },
   },
   {
     // THE LENS at class level — "See insights" on a class node home.
@@ -1068,9 +1092,16 @@ router.afterEach((to) => {
 router.beforeEach((to, _from, next) => {
   const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/intel') || to.path.startsWith('/methodology')
   if (!requiresAdmin) return next()
-  const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
+  const { canAccessAdmin, isInitialized, isRoleAuthoritative, restoreFromCache } = useUserRole()
   restoreFromCache()
-  if (isInitialized.value && !canAccessAdmin.value) return next('/')
+  // A role that is only what localStorage remembered is not an ANSWER — it is
+  // the last visit's answer, carrying no identity and no timestamp. Bouncing
+  // on it threw a real ssi_admin off /admin/insights-lab on a phone whose
+  // cache still said "learner", milliseconds before the DB said ssi_admin
+  // (job #34). An unresolved-or-cached role defers to AdminContainer, which
+  // renders nothing while it waits and redirects once resolution genuinely
+  // says non-admin — so nothing is opened up to a non-admin here.
+  if (isInitialized.value && isRoleAuthoritative.value && !canAccessAdmin.value) return next('/')
   next()
 })
 

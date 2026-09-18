@@ -4,25 +4,18 @@ import FrostSelect from '@/components/FrostSelect.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
-// A computed, not a plain array, for the same reason as dataToggles below:
-// evaluated once at setup it would read t() before the locale chunk has
-// landed and freeze the section nav in English for the session.
-const SECTIONS = computed<{ id: SectionId; label: string }[]>(() => [
-  { id: 'profile', label: t('schools.schoolSettings.sectionProfile', 'School profile') },
-  { id: 'locale', label: t('schools.schoolSettings.sectionLocalisation', 'Localisation') },
-  { id: 'data', label: t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') },
-  { id: 'billing', label: t('schools.schoolSettings.sectionBilling', 'Billing') },
-])
-
 const isAdminView = inject<boolean>('isAdminView', false)
 const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
 // WHO YOUR LINKS LET IN (job #371). The school's claimed email domains and
@@ -116,9 +109,6 @@ async function removeIdentityClaim(id: string) {
 // how other admin-only controls hide (not disable) for teachers elsewhere
 // (e.g. TeachersView's invite/remove buttons).
 const canEditSchool = computed(() => isSchoolAdmin.value && !isAdminView)
-// No billing panel in this build (store shell) => no Billing tab either.
-const visibleSections = computed(() =>
-  SECTIONS.value.filter((s) => s.id !== 'billing' || (isSchoolAdmin.value && seatPurchaseAvailable)))
 
 const activeSection = ref<SectionId>('profile')
 
@@ -486,18 +476,50 @@ function toggleDataItem(id: string) {
 <template>
   <main class="settings-screen">
     <h1 class="arsenal page-title">{{ t('schools.schoolSettings.title', 'Settings') }}</h1>
+    <WalkOffer :persona="explainerPersona" place="settings" />
 
     <div class="settings-layout">
       <aside class="schools-card section-nav">
+        <!-- Unrolled from the SECTIONS v-for so each fixed tab carries its own
+             literal data-walk anchor (the walkthrough gate reads the source
+             text, not a bound attribute) — same ids, same classes, same
+             click, one branch per section. -->
         <button
-          v-for="s in visibleSections"
-          :key="s.id"
           type="button"
           class="section-link"
-          :class="{ active: activeSection === s.id }"
-          @click="activeSection = s.id"
+          data-walk="settings-tab-profile"
+          :class="{ active: activeSection === 'profile' }"
+          @click="activeSection = 'profile'"
         >
-          {{ s.label }}
+          {{ t('schools.schoolSettings.sectionProfile', 'School profile') }}
+        </button>
+        <button
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-locale"
+          :class="{ active: activeSection === 'locale' }"
+          @click="activeSection = 'locale'"
+        >
+          {{ t('schools.schoolSettings.sectionLocalisation', 'Localisation') }}
+        </button>
+        <button
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-data"
+          :class="{ active: activeSection === 'data' }"
+          @click="activeSection = 'data'"
+        >
+          {{ t('schools.schoolSettings.sectionDataPrivacy', 'Data & privacy') }}
+        </button>
+        <button
+          v-if="isSchoolAdmin && seatPurchaseAvailable"
+          type="button"
+          class="section-link"
+          data-walk="settings-tab-billing"
+          :class="{ active: activeSection === 'billing' }"
+          @click="activeSection = 'billing'"
+        >
+          {{ t('schools.schoolSettings.sectionBilling', 'Billing') }}
         </button>
       </aside>
 
@@ -535,6 +557,7 @@ function toggleDataItem(id: string) {
           <div v-if="canEditSchool" class="panel-actions">
             <!-- HANDBOOK Change your school's name and details
                  section: your-school
+                 moment: setting-up
                  roles: school_admin
                  place: settings
                  keywords: rename, name, profile, school, details, contact, email, city, region, about, edit
@@ -575,6 +598,7 @@ function toggleDataItem(id: string) {
                 <span class="identity-value">@{{ c.value }}</span>
                 <!-- HANDBOOK Take a domain or address off your school's list
                      section: getting-people-in
+                     moment: setting-up
                      roles: school_admin
                      place: settings
                      keywords: domain, address, remove, allow, links, identity
@@ -594,6 +618,7 @@ function toggleDataItem(id: string) {
               <input v-model="newDomain" type="text" class="field-input" :placeholder="t('schools.identity.domainPlaceholder', 'example.sch.uk')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('domain')" />
               <!-- HANDBOOK Claim another email domain for your school
                    section: getting-people-in
+                   moment: setting-up
                    roles: school_admin
                    place: settings
                    keywords: domain, email, claim, trust, links, identity, sch.uk
@@ -623,6 +648,7 @@ function toggleDataItem(id: string) {
               <input v-model="newAddress" type="email" class="field-input" :placeholder="t('schools.identity.addressPlaceholder', 'name@example.com')" autocapitalize="none" autocorrect="off" spellcheck="false" @keyup.enter="addIdentityClaim('address')" />
               <!-- HANDBOOK Let a named address in through your links
                    section: getting-people-in
+                   moment: something-wrong
                    roles: school_admin
                    place: settings
                    keywords: supply, personal, address, allow, invite, links, identity, gmail
@@ -674,6 +700,7 @@ function toggleDataItem(id: string) {
           <div v-if="!isAdminView" class="panel-actions">
             <!-- HANDBOOK Set your language and time zone
                  section: your-school
+                 moment: setting-up
                  roles: school_admin, teacher
                  place: settings
                  keywords: language, welsh, cymraeg, spanish, time zone, timezone, localisation, interface, week
@@ -722,6 +749,7 @@ function toggleDataItem(id: string) {
           <div class="panel-actions data-actions">
             <!-- HANDBOOK Download your school's data
                  section: seeing-progress
+                 moment: setting-up
                  roles: school_admin, teacher
                  place: settings
                  keywords: export, download, csv, data, spreadsheet, report, records, progress
@@ -756,6 +784,7 @@ function toggleDataItem(id: string) {
               </div>
               <!-- HANDBOOK Delete your school
                    section: your-school
+                   moment: setting-up
                    roles: school_admin
                    place: settings
                    keywords: delete, remove, close, school, danger, permanent, undo

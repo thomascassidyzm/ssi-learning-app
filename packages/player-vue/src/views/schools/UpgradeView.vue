@@ -58,10 +58,13 @@ import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { institutionalPurchaseAvailable, paddleBillingAvailable } from '@/platform/paymentRoute'
 import { useI18n } from '@/composables/useI18n'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 
 const { t } = useI18n()
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 
 // DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
 // the display honest so admins self-correct. `joinedTeacherCount` is the
@@ -562,6 +565,7 @@ watch(currentUser, (user) => {
 
 <template>
   <div class="upgrade-page">
+    <WalkOffer :persona="explainerPersona" place="upgrade" />
     <div class="upgrade-card schools-card">
       <span class="schools-kicker">{{ t('schools.upgrade.ssiPremium', 'SSi Premium') }}</span>
 
@@ -618,6 +622,7 @@ watch(currentUser, (user) => {
         <!-- Honest seats-vs-actual display (DECISION A, no gating). -->
         <!-- HANDBOOK When more people join than you have seats
              section: your-school
+             moment: something-wrong
              roles: school_admin, leader
              place: upgrade
              keywords: seats, over, run out, exceeded, too many, joined, paid, limit, blocked, locked
@@ -661,6 +666,7 @@ watch(currentUser, (user) => {
         <!-- Subscribed → edit seats in place (PATCH, monthly-oriented). -->
         <!-- HANDBOOK Change how many seats you pay for
              section: your-school
+             moment: setting-up
              roles: school_admin, leader
              place: upgrade
              keywords: seats, add, remove, more, fewer, change, update, billing, staff, grow
@@ -696,6 +702,7 @@ watch(currentUser, (user) => {
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your organisation
              section: your-school
+             moment: setting-up
              roles: leader
              place: upgrade
              keywords: subscribe, pay, upgrade, organisation, org, seats, learner seats, group, monthly, annual
@@ -828,6 +835,7 @@ watch(currentUser, (user) => {
         <!-- Else → open the INITIAL inline checkout. -->
         <!-- HANDBOOK Subscribe your school
              section: your-school
+             moment: setting-up
              roles: school_admin
              place: upgrade
              keywords: subscribe, pay, upgrade, seats, teacher seats, trial, monthly, annual, checkout, price
@@ -913,6 +921,7 @@ watch(currentUser, (user) => {
         </button>
         <!-- HANDBOOK Subscribe as a tutor
              section: your-school
+             moment: setting-up
              roles: teacher
              place: upgrade
              keywords: tutor, subscribe, pay, upgrade, freelance, single, monthly, annual, students

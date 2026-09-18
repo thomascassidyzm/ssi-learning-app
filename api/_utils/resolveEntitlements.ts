@@ -28,6 +28,8 @@ export interface ResolvedEntitlement {
   granted_courses: string[] | null
   expires_at: string | null
   redeemed_at: string | null
+  starts_at?: string | null
+  revoked_at?: string | null
   entitlement_code_id: string | null
 }
 
@@ -53,12 +55,15 @@ export async function resolveActiveEntitlements(
 ): Promise<ResolvedEntitlement[]> {
   const { data: entitlements, error } = await supabase
     .from('user_entitlements')
-    .select('id, access_type, granted_courses, expires_at, redeemed_at, entitlement_code_id')
+    .select('id, access_type, granted_courses, expires_at, redeemed_at, entitlement_code_id, starts_at, revoked_at')
     .eq('learner_id', learnerId)
   if (error) throw new Error(error.message)
 
   const now = new Date()
   const active: ResolvedEntitlement[] = ((entitlements || []) as ResolvedEntitlement[]).filter((e) => {
+    if (e.revoked_at) return false
+    const starts = e.starts_at ?? e.redeemed_at
+    if (starts && !(new Date(starts) <= now)) return false
     if (!e.expires_at) return true // lifetime
     return new Date(e.expires_at) > now
   })

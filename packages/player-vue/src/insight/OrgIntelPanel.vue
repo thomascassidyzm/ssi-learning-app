@@ -17,12 +17,11 @@
 // one sentence — never a seed number on screen.
 import { computed } from 'vue'
 import { useI18n } from '@/composables/useI18n'
-import { timeAgo } from '@/composables/admin/adminUtils'
 import { formatPracticeMinutes } from '@/composables/schools/practiceMinutes'
 import InsightWidget from './InsightWidget.vue'
 import { ORG_QUESTIONS } from '@/intel/orgQuestions'
 import type { AnyInsightSpec, ResolvedInsight } from './spec'
-import type { OrgIntelPayload, OrgIntelPosition, OrgIntelClassRow, QuietBucketId } from './data/orgIntel'
+import type { OrgIntelPayload, OrgIntelPosition } from './data/orgIntel'
 
 const props = defineProps<{
   payload: OrgIntelPayload | null
@@ -37,6 +36,17 @@ const props = defineProps<{
    * people reading is shown and the class words never appear (job #786).
    */
   classless?: boolean
+  /**
+   * WHICH QUESTIONS THIS MOUNT ASKS (job #32 fix-up, 2026-09-16). The node
+   * Insights page shows the JOURNEY alone: the card above it already answers
+   * "are they practising" in Monday weeks and the class list already answers
+   * "who has gone quiet", both off the card's own rows. Answering them a
+   * second time off a different read is how the page came to claim no
+   * practice in fourteen days under a card showing recorded minutes. A
+   * classless organisation has neither card nor class list, so there the
+   * practising question still carries the page (job #786).
+   */
+  questions?: ('practising' | 'quiet' | 'journey')[]
 }>()
 
 const { t } = useI18n()
@@ -52,6 +62,7 @@ const questionText = {
 }
 
 const classLink = (id: string) => (props.member ? `/org/${id}` : `/admin/classes/${id}`)
+const asks = (slug: 'practising' | 'quiet' | 'journey') => !props.questions || props.questions.includes(slug)
 const isClassNode = computed(() => props.payload?.node.kind === 'class')
 const classless = computed(() => !!props.classless && !isClassNode.value)
 
@@ -88,77 +99,15 @@ const practisingAnswer = computed<string | null>(() => {
   const people = p.peopleCount === 0 ? '' : ' ' + fill(t('org.intel.practising.people', '{n} of {total} people practised on their own account, {minutes} minutes between them.'), { n: p.peopleThisWeek, total: p.peopleCount, minutes: p.ownMinutesThisWeek })
   return classes + people
 })
-const practisingSpec = computed<AnyInsightSpec>(() => ({
-  widget: 'time-series',
-  query: { metric: 'orgPhrasesByDay', window: '28d' },
-  frame: 'world',
-  title: t('org.intel.practising.widgetTitle', 'Phrases practised together, by day'),
-  tag: t('org.intel.byDay', 'by day'),
-}))
-const practisingResolved = computed<ResolvedInsight>(() => ({
-  isLoading: props.isLoading,
-  error: props.error,
-  data: {
-    kind: 'time-series',
-    x: (props.payload?.byDay ?? []).map((d) => d.day.slice(5)),
-    series: [{ name: t('org.intel.practising.series', 'phrases practised'), points: (props.payload?.byDay ?? []).map((d) => d.phrases), tone: 'good' }],
-    yLabel: t('org.intel.practising.series', 'phrases practised'),
-  },
-}))
-const practisingRows = computed(() => (props.payload?.classes ?? []).filter((c) => c.phrasesThisWeek > 0 || c.phrasesLastWeek > 0))
-const peopleRows = computed(() => (props.payload?.people ?? []).filter((p) => p.minutesThisWeek > 0 || p.minutesLastWeek > 0))
+// The by-day line and the class rows went with the classes (job #32 fix-up):
+// the only node that asks this question has no classes to draw them for.
 
-// ─── QUIET ──────────────────────────────────────────────────────────────────
-const bucketLabel: Record<QuietBucketId, () => string> = {
-  'this-week': () => t('org.intel.quiet.bucketThisWeek', 'practised this week'),
-  'gone-a-week': () => t('org.intel.quiet.bucketWeek', 'gone a week'),
-  'gone-two-weeks': () => t('org.intel.quiet.bucketTwoWeeks', 'gone two weeks'),
-  'gone-three-weeks': () => t('org.intel.quiet.bucketThreeWeeks', 'gone three weeks'),
-  'gone-a-month': () => t('org.intel.quiet.bucketMonth', 'gone a month or more'),
-  never: () => t('org.intel.quiet.bucketNever', 'never started'),
-}
-const quietAnswer = computed<string | null>(() => {
-  const p = props.payload
-  if (!p) return null
-  if (isClassNode.value) {
-    const c = p.classes[0]
-    if (!c) return null
-    if (!c.lastPractisedAt) return t('org.intel.quiet.classNever', 'This class has never practised together.')
-    return c.daysSincePractice !== null && c.daysSincePractice >= 7
-      ? fill(t('org.intel.quiet.classQuiet', 'This class has gone quiet: last practised together {when}.'), { when: timeAgo(c.lastPractisedAt) })
-      : fill(t('org.intel.quiet.classFine', 'This class last practised together {when}.'), { when: timeAgo(c.lastPractisedAt) })
-  }
-  const { quietCount, neverCount } = p.quiet
-  if (quietCount === 0 && neverCount === 0) return t('org.intel.quiet.none', 'Every class has practised in the last seven days.')
-  const quiet = quietCount === 1 ? t('org.intel.quiet.oneQuiet', '1 class has gone quiet') : fill(t('org.intel.quiet.nQuiet', '{n} classes have gone quiet'), { n: quietCount })
-  const never = neverCount === 1 ? t('org.intel.quiet.oneNever', '1 has never started') : fill(t('org.intel.quiet.nNever', '{n} have never started'), { n: neverCount })
-  return fill(t('org.intel.quiet.answer', '{quiet}, and {never}.'), { quiet, never })
-})
-const quietSpec = computed<AnyInsightSpec>(() => ({
-  widget: 'ranked-bar',
-  query: { metric: 'orgQuietBuckets', window: '28d' },
-  frame: 'world',
-  title: t('org.intel.quiet.widgetTitle', 'How long since each class practised'),
-  tag: t('org.intel.classesWord', 'classes'),
-}))
-const quietResolved = computed<ResolvedInsight>(() => ({
-  isLoading: props.isLoading,
-  error: props.error,
-  data: {
-    kind: 'ranked-bar',
-    bars: (props.payload?.quiet.buckets ?? []).map((b) => ({
-      id: b.id, label: bucketLabel[b.id](), value: b.classes,
-      tone: b.id === 'this-week' ? 'good' : b.id === 'never' ? 'neutral' : b.id === 'gone-a-week' ? 'warn' : 'alarm',
-    })),
-    unit: t('org.intel.classesWord', 'classes'),
-    horizontal: true,
-  },
-}))
-const quietRows = computed(() => (props.payload?.classes ?? []).filter((c) => !c.lastPractisedAt || (c.daysSincePractice ?? 0) >= 7)
-  .sort((a, b) => (b.daysSincePractice ?? Number.POSITIVE_INFINITY) - (a.daysSincePractice ?? Number.POSITIVE_INFINITY)))
-function quietWhen(c: OrgIntelClassRow): string {
-  return c.lastPractisedAt ? timeAgo(c.lastPractisedAt) : t('org.intel.never', 'never')
-}
+// ─── QUIET is not asked here any more (job #32 fix-up, 2026-09-16). The
+// leader's page IS the class list, quietest first, off the card's own rows and
+// the card's own week; asking the same question again off a four-week diary
+// read gave two answers on one screen, and the second one said no practice in
+// fourteen days under a card showing recorded minutes. The server still
+// computes the quiet buckets for any caller that wants them. ───
 
 // ─── JOURNEY ────────────────────────────────────────────────────────────────
 const journeyAnswer = computed<string | null>(() => {
@@ -204,9 +153,13 @@ const journeyResolved = computed<ResolvedInsight>(() => ({
     })),
   },
 }))
-const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
-  .filter((c) => c.position)
-  .sort((a, b) => (b.position!.sentence - a.position!.sentence) || a.name.localeCompare(b.name)))
+// NO "CLASSES, FURTHEST FIRST" (job #32 fix-up, 2026-09-16). That table came
+// from the pre-rebuild page (2026-09-10) and was never in the rebuild's brief:
+// it ordered a school's classes by how far through the course they are, which
+// is the league table the rank pills were cut for. The funnel above it answers
+// the question — where classes stop — without ranking anybody, and the class
+// list on the page itself is ordered quietest first, which is care and not
+// competition.
 </script>
 
 <template>
@@ -215,133 +168,66 @@ const journeyRows = computed(() => [...(props.payload?.classes ?? [])]
 
     <!-- HANDBOOK Which classes practised this week
          section: seeing-progress
+         moment: every-lesson
          roles: leader, school_admin
          place: node-insights
          keywords: practised, this week, last week, phrases, classes, people, minutes, adherence
-         What it's for. Whether your classes are actually doing it: how many
-         practised together in the last seven days against the seven before,
-         how many phrases they practised, and which people practised on their own
-         account and for how long. An organisation with no classes reads
-         only the people line here, asked as how many of your people practised.
-         Where it is. The **Practising** question at the top of any level's
-         insights page.
+         What it's for. Whether the people under an organisation that runs no
+         classes are actually doing it: how many practised on their own account
+         in the last seven days against the seven before, and how many minutes
+         between them — a count, never a name.
+         Where it is. Under **More about this level** on the insights page of an
+         organisation with no classes anywhere below it. A school or a group
+         with classes does not see this question: the card at the top of its
+         page answers it, in school weeks, and the class list under the card
+         says which classes those minutes came from.
          How you do it.
          1. Read the sentence for this week against last week.
-         2. Read the line for how many phrases were practised each day over the
-            last four weeks.
-         3. Read the class rows for who practised, when they last practised
-            together and where in the course they are.
-         4. Read the people rows for own-account minutes.
-         Worth knowing. A class's minutes are time in the app on its own class
-         account, the gaps between phrases included, the same number its class
-         page shows. People's minutes are their own logins.
-         checked: d824eaac.c640230d
+         Worth knowing. People's own-account minutes are counted in the sentence
+         and never listed by name.
+         checked: 41fec0fe.5558a068
     -->
-    <section class="oq" data-walk="insights-org-practising">
+    <section v-if="asks('practising')" class="oq" data-walk="insights-org-practising">
       <p class="oq-question">{{ questionText.practising.value }}</p>
       <div class="oq-answer">
         <span v-if="payload" class="oq-num">{{ classless ? payload.practising.peopleThisWeek : isClassNode ? payload.practising.phrasesThisWeek : payload.practising.classesThisWeek }}</span>
         <p class="oq-sentence">{{ practisingAnswer ?? (isLoading ? t('org.intel.counting', 'Counting…') : '') }}</p>
       </div>
-      <InsightWidget v-if="!classless" :spec="practisingSpec" :resolved="practisingResolved" />
-      <p v-if="!classless" class="oq-note">{{ t('org.intel.practising.classTime', 'A class\'s minutes are time in the app on its own class account, the gaps between phrases included. People\'s minutes are their own logins.') }}</p>
-      <div v-if="payload && !isClassNode && !classless" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.practising.rowsClassesMinutes', 'Classes, by phrases practised this week, with minutes in the app') }}</p>
-        <p v-if="practisingRows.length === 0" class="oq-empty">{{ t('org.intel.practising.rowsEmpty', 'No class has practised together in the last fourteen days.') }}</p>
-        <router-link v-for="c in practisingRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
-          <span class="oq-row-name">{{ c.name }}</span>
-          <span class="oq-row-where">{{ positionWords(c.position) }}</span>
-          <span class="oq-row-when">{{ c.lastPractisedAt ? timeAgo(c.lastPractisedAt) : '' }}</span>
-          <span class="oq-row-min">{{ formatPracticeMinutes(c.minutesThisWeek) }}</span>
-          <span class="oq-row-num">{{ c.phrasesThisWeek }}<span class="oq-row-delta">{{ c.phrasesLastWeek }}</span></span>
-        </router-link>
-      </div>
-      <div v-if="payload && peopleRows.length" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.practising.rowsPeople', 'People on their own account, minutes this week') }}</p>
-        <div v-for="p in peopleRows" :key="p.learnerId" class="oq-row oq-row-static">
-          <span class="oq-row-name">{{ p.name }}</span>
-          <span class="oq-row-when">{{ p.lastPractisedDay ?? '' }}</span>
-          <span class="oq-row-num">{{ p.minutesThisWeek }}<span class="oq-row-delta">{{ p.minutesLastWeek }}</span></span>
-        </div>
-      </div>
-    </section>
-
-    <!-- HANDBOOK Which classes have gone quiet
-         section: seeing-progress
-         roles: leader, school_admin
-         place: node-insights
-         keywords: quiet, gone quiet, never started, stopped, not practising, drop off
-         What it's for. The half you act on: which classes practised before and
-         have stopped, how long ago, and which have never started at all. An
-         organisation with no classes does not see this question.
-         Where it is. The **Quiet** question on any level's insights page,
-         under Practising.
-         How you do it.
-         1. Read the sentence for how many classes have gone quiet and how
-            many have never started.
-         2. Read the bars for how long since each class last practised.
-         3. Open a class row to see where it stopped.
-         Worth knowing. Practised this week counts any sign of practice, a
-         phrase reached in a lesson or the course opened and progress saved. The
-         Practising figure above counts phrases practised only, so it can be lower.
-         checked: 3dbdd778.b6e028a4
-    -->
-    <section v-if="!classless" class="oq" data-walk="insights-org-quiet">
-      <p class="oq-question">{{ questionText.quiet.value }}</p>
-      <div class="oq-answer">
-        <span v-if="payload && !isClassNode" class="oq-num">{{ payload.quiet.quietCount + payload.quiet.neverCount }}</span>
-        <p class="oq-sentence">{{ quietAnswer ?? (isLoading ? t('org.intel.counting', 'Counting…') : '') }}</p>
-      </div>
-      <InsightWidget v-if="!isClassNode" :spec="quietSpec" :resolved="quietResolved" />
-      <div v-if="payload && !isClassNode" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.quiet.rowsTitle', 'Classes with nothing this week, longest gone first') }}</p>
-        <p v-if="quietRows.length === 0" class="oq-empty">{{ t('org.intel.quiet.rowsEmpty', 'Every class has practised this week.') }}</p>
-        <router-link v-for="c in quietRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
-          <span class="oq-row-name">{{ c.name }}</span>
-          <span class="oq-row-where">{{ positionWords(c.position) }}</span>
-          <span class="oq-row-when">{{ quietWhen(c) }}</span>
-        </router-link>
-      </div>
     </section>
 
     <!-- HANDBOOK Where classes are in the course and where they stop
          section: seeing-progress
+         moment: every-lesson
          roles: leader, school_admin
          place: node-insights
          keywords: journey, how far, drop off, stop, sentence, position, funnel, course
          What it's for. Where in the course your classes have got to, shown as
          the last phrase each class played, and the point most of them stop
          before. An organisation with no classes does not see this question.
-         Where it is. The **Journey** question on any level's insights page,
-         under Quiet.
+         Where it is. The **Journey** question under **More about this level** on
+         any level's insights page. It is the only question there, because the
+         card and the class list above it answer the other two.
          How you do it.
          1. Read the sentence for how many classes have started, how far the
             furthest have got and where most stop.
          2. Read the funnel: each step is a sentence of the course, and the
             bar is how many classes have reached it.
-         3. Read the class rows, furthest first, for each class's own position.
          Worth knowing. A position is the phrase the class last played, in
          both languages. A sentence is one of the course's own sentences; the
-         count out of the total says how far along that is.
-         checked: 6d80899e.bbf25315
+         count out of the total says how far along that is. No class is named
+         or ranked here: there is no order of merit to read off it, and the
+         list on the page above is ordered by who has been quiet longest. It
+         reads the same course the card above it reads.
+         checked: 55588148.2f3982df
     -->
-    <section v-if="!classless" class="oq" data-walk="insights-org-journey">
+    <section v-if="!classless && asks('journey')" class="oq" data-walk="insights-org-journey">
       <p class="oq-question">{{ questionText.journey.value }}</p>
       <div class="oq-answer">
         <span v-if="payload && !isClassNode" class="oq-num">{{ payload.journey.stages[0]?.classes ?? 0 }}</span>
         <p class="oq-sentence">{{ journeyAnswer ?? (isLoading ? t('org.intel.counting', 'Counting…') : '') }}</p>
       </div>
       <InsightWidget v-if="!isClassNode" :spec="journeySpec" :resolved="journeyResolved" />
-      <div v-if="payload && !isClassNode" class="oq-rows">
-        <p class="oq-rows-title">{{ t('org.intel.journey.rowsTitle', 'Classes, furthest first') }}</p>
-        <p v-if="journeyRows.length === 0" class="oq-empty">{{ t('org.intel.journey.rowsEmpty', 'No class has a position yet.') }}</p>
-        <router-link v-for="c in journeyRows" :key="c.id" class="oq-row" :to="classLink(c.id)">
-          <span class="oq-row-name">{{ c.name }}</span>
-          <span class="oq-row-where">{{ positionWords(c.position) }}</span>
-          <span class="oq-row-when">{{ sentenceOf(c.position!.sentence) }}</span>
-        </router-link>
-      </div>
-    </section>
+</section>
   </div>
 </template>
 

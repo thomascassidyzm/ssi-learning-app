@@ -105,3 +105,44 @@ describe('NodeInsightsView — rail stability', () => {
     expect(wrapper.text()).not.toContain('Seaside Model School')
   })
 })
+
+/**
+ * A CLASS HAS NO JOURNEY FOLD (Tom, 2026-09-17, shape B). The journey question
+ * is answered on the class's own Overview, as the Course journey card drawn as
+ * the brain. A funnel of one account here would be that number said twice, so
+ * the line is not on the page at all — and nothing is read for it. Above class
+ * level it is untouched, because there the funnel has more than one class in it.
+ */
+describe('NodeInsightsView — the class-level journey fold', () => {
+  function classPayload() {
+    return {
+      kind: 'class',
+      node: { id: 'class-1', name: 'Year 6 Hindi', label: 'class' },
+      ancestors: [{ id: 'school-node', name: 'Seaside Model School', label: 'school', hasSchool: true }],
+      siblings: [],
+      children: [],
+    }
+  }
+
+  it('drops the fold on a class, and never asks the server the journey question', async () => {
+    routeMock.params = { id: 'class-1' }
+    routeMock.path = '/admin/classes/class-1/insights'
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => classPayload() }))
+    vi.stubGlobal('fetch', fetchMock as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-walk="insights-more"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('More about this level')
+    expect(fetchMock.mock.calls.some((args: unknown[]) => String(args[0]).includes('/api/org/intel'))).toBe(false)
+  })
+
+  it('keeps the fold above class level, where a funnel has more than one class in it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => homePayload() })) as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-walk="insights-more"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('More about this level')
+  })
+})

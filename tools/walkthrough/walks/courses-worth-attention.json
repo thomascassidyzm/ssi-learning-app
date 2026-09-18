@@ -1,0 +1,54 @@
+{
+  "id": "courses-worth-attention",
+  "title": "Which courses are worth attention",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "intel"
+  },
+  "keywords": [
+    "courses",
+    "reach",
+    "stickiness",
+    "finishing",
+    "ranking",
+    "practised",
+    "month"
+  ],
+  "steps": [
+    {
+      "anchor": "question-courses",
+      "say": "**Courses**, under What's happening, is one ranking of every course by real people practising it this month, with how many have ever been in it and how many have reached its end.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "eb37f264.2ff24f0d"
+    },
+    {
+      "anchor": "answer",
+      "say": "The sentence says how many courses are alive this month and which had the most people.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "37355d63.3bd3a6c3"
+    },
+    {
+      "anchor": "evidence",
+      "say": "The chart is the courses with anybody in them, most first.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "31f48466.b3eecb5c"
+    },
+    {
+      "anchor": "rows",
+      "say": "The chips show every course, only the alive ones, or the quiet ones somebody once joined; the chip is written into the page address. Each row carries this month, ever, how many stick and how many finished. Reaching the end means nine tenths of the course, and a course with no recorded length shows a dash. Minutes are left off because the stored counters are not reliable. Open a course row to see which bits of it people stumble on.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "One ranking by people this month. Filter with the chips, open a row for its weak points.",
+      "checked": "cbac0e66.28a4d51a"
+    }
+  ]
+}

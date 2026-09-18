@@ -97,6 +97,13 @@ let shellLearnerRow: any = null
 let shellLearnerErr: any = null
 let updateUserByIdCalls: any[] = []
 
+// TOM'S RULING 1 (job #195): a pupil link on a held school mints nothing.
+let enrolmentHeld = false
+vi.mock('../_utils/schoolProof', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../_utils/schoolProof')>()
+  return { ...real, classEnrolmentHeld: vi.fn(async () => enrolmentHeld) }
+})
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (_url: string, key: string) => {
     if (key === 'anon-key') {
@@ -311,6 +318,22 @@ describe('POST /api/auth/possession-redeem', () => {
     beforeEach(() => {
       inviteRow.code = 'CLASS-1'
       inviteRow.code_type = 'student'
+    })
+
+    it('refuses a pupil link on a school that has not proved a mailbox nor been vouched for (ruling 1)', async () => {
+      inviteRow.grants_class_id = 'class-1'
+      enrolmentHeld = true
+      try {
+        const res = makeRes()
+        await handler(makeReq({ code: 'CLASS-1', linkAuth: true, displayName: 'Alys' }), res)
+        expect(res._status).toBe(200)
+        expect(res._json.success).toBe(false)
+        expect(res._json.reason).toBe('enrolment_held')
+        expect(createUserArg).toBeUndefined()
+      } finally {
+        enrolmentHeld = false
+        delete inviteRow.grants_class_id
+      }
     })
 
     it('mints a session from the code alone — no email in the body', async () => {

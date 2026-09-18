@@ -1,17 +1,22 @@
 /**
  * Effective-subscription resolver — FAMILY-PLAN-SPEC.md §3.
  *
- * "Own row first; else the family join." A member of a live SSi Family gets
- * the OWNER's subscription treated as their own for entitlement purposes —
- * with zero fan-out writes, so an owner's lapse/refund/re-buy composes
- * automatically through every call site with no extra plumbing.
+ * "A VALID own row first; else the family join." A member of a live SSi
+ * Family gets the OWNER's subscription treated as their own for entitlement
+ * purposes — with zero fan-out writes, so an owner's lapse/refund/re-buy
+ * composes automatically through every call site with no extra plumbing.
  *
- * Own row takes priority whenever it exists, whatever its status — this
- * preserves today's exact behaviour for every non-family learner (each
- * caller already does its own isActive-style check on the returned row) and
- * matches the additive rule for a member who ALSO holds their own individual
- * Premium (spec §2.4): their own row is what resolves, family membership
- * changes nothing for them technically until they choose to cancel it.
+ * THE UNION RULE (2026-09-17). Effective access is the union of independently
+ * valid sources, and an EXPIRED source contributes nothing and never blocks
+ * another. So the own row short-circuits only while it is CURRENTLY VALID —
+ * active and unexpired — which is exactly the additive rule for a member who
+ * also holds their own individual Premium (spec §2.4). A member whose own
+ * personal subscription has lapsed or been cancelled used to have that dead
+ * row returned in place of their live family cover, and was locked out of a
+ * plan somebody was still paying for. It now falls through to the family
+ * join, and the dead row is returned only when there is no family cover to
+ * fall back on, so the "renew your subscription" surfaces are unchanged for
+ * every learner who is not in a family.
  *
  * Two indexed point-lookups rather than one PostgREST embedded join: there's
  * no direct FK from family_members to subscriptions (both reference
@@ -61,6 +66,12 @@ export interface EffectiveSubscriptionResult {
 }
 
 /**
+ * The fields the OWN-row validity test needs whatever a caller asked for —
+ * without them the resolver cannot tell a live source from a dead one.
+ */
+const VALIDITY_COLUMNS = ['status', 'current_period_end']
+
+/**
  * The fields this resolver needs on the OWNER's row whatever a caller asked
  * for — the plan name and the schedule are what decide whether a member is
  * covered at all, so they are read even when the caller only wanted a status.
@@ -74,20 +85,33 @@ const OWNER_REQUIRED_COLUMNS = [
   'scheduled_plan_at',
 ]
 
-function ownerColumns(columns: string): string {
+function withColumns(columns: string, required: string[]): string {
   if (columns.trim() === '*') return '*'
   const asked = columns.split(',').map((c) => c.trim()).filter(Boolean)
-  for (const needed of OWNER_REQUIRED_COLUMNS) if (!asked.includes(needed)) asked.push(needed)
+  for (const needed of required) if (!asked.includes(needed)) asked.push(needed)
   return asked.join(', ')
+}
+
+const ownerColumns = (columns: string) => withColumns(columns, OWNER_REQUIRED_COLUMNS)
+
+/**
+ * Is this row a source that is contributing access RIGHT NOW? Active status,
+ * and either no period end or one still in the future — the same test every
+ * caller already applies to the row it gets back.
+ */
+function isCurrentlyValid(row: SubscriptionRow | null): boolean {
+  if (!row) return false
+  if (row.status !== 'active') return false
+  return !row.current_period_end || new Date(row.current_period_end) > new Date()
 }
 
 /**
  * Resolve the effective subscription for `learnerId`: their own subscriptions
- * row if one exists (any status — callers apply their own active/expiry
- * check, unchanged); otherwise, if they're a live ('active', not removed)
+ * row when it is active and unexpired; otherwise, if they're a live ('active', not removed)
  * member of a family whose owner currently holds an active, unexpired
  * 'SSi Family' plan — or held one within the last FAMILY_GRACE_DAYS — the
- * owner's row.
+ * owner's row; otherwise their own lapsed row, if they have one, so the
+ * billing surfaces still see it.
  *
  * `columns` lets callers request only the fields they need (matches the
  * existing per-endpoint `.select(...)` shape at each call site) — pass '*'
@@ -100,11 +124,17 @@ export async function resolveEffectiveSubscription(
 ): Promise<EffectiveSubscriptionResult> {
   const { data: own } = await supabase
     .from('subscriptions')
-    .select(columns)
+    .select(withColumns(columns, VALIDITY_COLUMNS))
     .eq('learner_id', learnerId)
     .maybeSingle()
 
-  if (own) return { sub: own as unknown as SubscriptionRow, viaFamily: false, coverEndsAt: null }
+  const ownRow = (own ?? null) as unknown as SubscriptionRow | null
+
+  // A valid own row wins outright. An invalid one is set aside as the
+  // FALLBACK: it still describes this learner's own billing state for the
+  // surfaces that render it, but it must not stand in the way of family cover.
+  if (isCurrentlyValid(ownRow)) return { sub: ownRow, viaFamily: false, coverEndsAt: null }
+  const noFamily = { sub: ownRow, viaFamily: false, coverEndsAt: null }
 
   const { data: membership } = await supabase
     .from('family_members')
@@ -114,7 +144,7 @@ export async function resolveEffectiveSubscription(
     .is('removed_at', null)
     .maybeSingle()
 
-  if (!membership?.owner_learner_id) return { sub: null, viaFamily: false, coverEndsAt: null }
+  if (!membership?.owner_learner_id) return noFamily
 
   // NO plan_name PREDICATE ANY MORE, and that is the whole of the 30-day
   // grace (Tom, 2026-09-08). The query used to require 'SSi Family', so the
@@ -130,11 +160,11 @@ export async function resolveEffectiveSubscription(
     .eq('status', 'active')
     .maybeSingle()
 
-  if (!ownerSub) return { sub: null, viaFamily: false, coverEndsAt: null }
+  if (!ownerSub) return noFamily
 
   const row = ownerSub as any
   if (row.current_period_end && new Date(row.current_period_end).getTime() <= Date.now()) {
-    return { sub: null, viaFamily: false, coverEndsAt: null } // owner's period has lapsed — grants nothing
+    return noFamily // owner's period has lapsed — grants nothing
   }
 
   const sub = ownerSub as unknown as SubscriptionRow
@@ -161,7 +191,7 @@ export async function resolveEffectiveSubscription(
     return { sub, viaFamily: true, coverEndsAt: familyCoverEndsAt(row.scheduled_plan_at) }
   }
 
-  return { sub: null, viaFamily: false, coverEndsAt: null }
+  return noFamily
 }
 
 /**

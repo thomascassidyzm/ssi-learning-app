@@ -275,7 +275,9 @@ export function useSchoolData() {
 
           // Shared with useTeachersData/useStudentsData, which ask for the
           // same payload at the same moment — see schoolRoster.ts.
-          data = ((await fetchSchoolRoster(token)) as { school: any }).school
+          // The totals alone: this composable reads `.school` and nothing else,
+        // and the full roster carries every teacher and pupil by name (job #32).
+        data = ((await fetchSchoolRoster(token, 'school')) as { school: any }).school
         } else {
           const { data: viewData, error: fetchError } = await client
             .from('school_summary')

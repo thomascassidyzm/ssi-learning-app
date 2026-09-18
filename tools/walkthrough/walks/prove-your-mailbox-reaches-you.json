@@ -1,0 +1,37 @@
+{
+  "id": "prove-your-mailbox-reaches-you",
+  "title": "Prove your mailbox reaches you",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "dashboard"
+  },
+  "keywords": [
+    "email",
+    "mailbox",
+    "code",
+    "spam filter",
+    "locked out"
+  ],
+  "steps": [
+    {
+      "anchor": "mailbox-check-send",
+      "say": "This card appears right after you create a class or copy a class join link, for as long as your own address is unproven. Tap **Send me a code**, or nominate a different address if your school one eats our mail.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "ba2308cf.6c7b4999"
+    },
+    {
+      "anchor": "mailbox-check-confirm",
+      "say": "Type the six digits we send and tap **That's the one**.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Close the card instead and it stays closed — it never comes back on a timer.",
+      "checked": "4018a80e.16578820"
+    }
+  ]
+}

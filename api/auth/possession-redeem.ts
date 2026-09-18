@@ -53,6 +53,7 @@ import { randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 import { buildShellClaim, clearedShellClaim, shellClaimMatches } from '../_utils/shellClaim'
 import { buildUnclaimedMint, readSessionId } from '../_utils/unclaimedMint'
+import { classEnrolmentHeld, ENROLMENT_HELD_CODE, ENROLMENT_HELD_MESSAGE } from '../_utils/schoolProof'
 import {
   getClientIp,
   hashIp,
@@ -278,7 +279,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // service-role-only *_code_validation view).
     const { data: inviteRow } = await supabase
       .from('invite_code_validation')
-      .select('id, code, code_type, metadata, max_uses, use_count, expires_at, is_active, grants_school_id')
+      .select('id, code, code_type, metadata, max_uses, use_count, expires_at, is_active, grants_school_id, grants_class_id')
       .eq('code_normalized', strippedCode)
       .eq('is_active', true)
       .maybeSingle()
@@ -373,6 +374,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         },
       })
       return
+    }
+
+    // TOM'S RULING 1 (job #195, 2026-09-18): an unproven school can build but
+    // not enrol. A pupil link on a class whose school came through the
+    // no-code door and has neither proved a mailbox nor been vouched for
+    // mints nothing — the pupil reads the line that says what unblocks it.
+    if (inviteRow.code_type === 'student' && inviteRow.grants_class_id) {
+      if (await classEnrolmentHeld(supabase, inviteRow.grants_class_id as string)) {
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: isLinkAuth ? null : normalizedEmail, ipHash, outcome: 'enrolment_held' })
+        res.status(200).json({ success: false, error: ENROLMENT_HELD_MESSAGE, reason: ENROLMENT_HELD_CODE })
+        return
+      }
     }
 
     if (isLinkAuth && !LINK_AUTH_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {

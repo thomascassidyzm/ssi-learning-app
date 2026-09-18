@@ -277,9 +277,11 @@ onMounted(() => {
 
       <!-- HANDBOOK See what a funded organisation gives its learners
            section: courses-and-content
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: courses, enrolment, free year, organisation, canolfan, granted, sign-up
+           walk: funded-org-courses
            What it's for. Showing the courses an organisation hands out through its own
            sign-up page, which are given to each learner as they join rather than held
            on the organisation itself.

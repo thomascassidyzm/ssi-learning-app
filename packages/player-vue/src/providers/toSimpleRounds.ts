@@ -18,6 +18,13 @@ import { computePauseDuration } from '../playback/computePauseDuration'
 import { DEFAULT_FAST } from '../composables/useAlgorithmConfig'
 import { reportIntroAudioMissing } from '../playback/introAudioTelemetry'
 import { capRoundCycles, cyclePromptIdentity } from '../playback/capConsecutiveRepeats'
+
+/**
+ * Hold after a drained seed-sandwich slot, in ms. LegoAssembly deals its tiles
+ * over 250 ms + 150 ms per extra tile, so this covers a sentence of ~8 tiles
+ * and leaves it on screen long enough to read before the next slot.
+ */
+export const SEED_SANDWICH_LINGER_MS = 1600
 import { apiUrl } from '@/platform/apiBase'
 import {
   playbackSpeedForVoice, voicePaceForSlot, MIN_SPEED,
@@ -395,6 +402,10 @@ function* toSimpleRoundsGen(
         // At-most-one-audio-track cycles: lets SimplePlayer suppress its
         // "no audio, skipping" warnings for the phases left empty by design.
         ...((isBookend || isPod || i.type === 'listening' || isSeedSandwich) ? { singleAudio: true } : {}),
+        // Marks the four slots of one drained seed review so the A-64 cap can
+        // tell a deliberate sandwich from a repeated prompt (see
+        // cyclePromptIdentity).
+        ...(isSeedSandwich ? { seedSandwich: true } : {}),
         // Intro/listening/component_intro/bookends/pods/drained-seed-sandwich:
         // no pause — each sub-cycle carries at most one audio track, chained
         // straight through on 'ended' (no production-recall gap). Other
@@ -405,6 +416,14 @@ function* toSimpleRoundsGen(
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),
+        // The seed sandwich carries no voice2 clip, so VOICE_2 ends in the same
+        // frame it begins — and VOICE_2 is where LegoAssembly starts dealing
+        // the target tiles out one at a time (250 ms plus 150 ms per extra
+        // tile). Without a hold the words begin to appear and are snatched
+        // away: "the basque words begin to appear card by card but then the app
+        // moves on to the next exercise" (mintonman, 2026-09-17). Long enough
+        // to finish dealing a long sentence and still read it.
+        ...(isSeedSandwich ? { lingerMs: SEED_SANDWICH_LINGER_MS } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
@@ -421,10 +440,14 @@ function* toSimpleRoundsGen(
     }
     if (cycles.length === 0) continue
 
+    // Carried from the generator's items; absent on a cached script written
+    // before the stamp existed (consumers then fall back to shape).
+    const revival = roundItems.find(i => typeof i.revival === 'boolean')?.revival
     rounds.push({
       roundNumber: roundNum,
       legoId: primaryLegoKey,
       seedId: primarySeedId,
+      ...(typeof revival === 'boolean' ? { revival } : {}),
       // Canonical LEGO text from intro item — avoids fragile cycle-ID scanning
       ...(introItem ? {
         legoTargetText: introItem.targetText,

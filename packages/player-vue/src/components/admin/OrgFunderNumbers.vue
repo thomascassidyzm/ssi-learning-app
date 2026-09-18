@@ -156,6 +156,7 @@ defineExpose({ load })
 <template>
   <!-- HANDBOOK See and download your funder numbers
        section: seeing-progress
+       moment: setting-up
        roles: leader, admin
        place: node-home
        keywords: funder, report, numbers, minutes, monthly return, csv, download, registered, 16 to 24
@@ -182,13 +183,14 @@ defineExpose({ load })
     </div>
 
     <div class="funder-controls">
-      <label class="funder-month">
+      <label class="funder-month" data-walk="funder-month">
         <span class="funder-month-label">{{ t('org.ui.funder.month', 'Month') }}</span>
         <input v-model="month" type="month" :max="previousMonth()" class="funder-month-input" />
       </label>
       <button
         type="button"
         class="funder-verb"
+        data-walk="funder-download"
         :disabled="downloading || isLoading || !report"
         @click="downloadCsv"
       >

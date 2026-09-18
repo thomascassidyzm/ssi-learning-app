@@ -57,3 +57,37 @@ export function deviceStorageScope(
   if (!learnerId || learnerId === 'demo-learner') return null
   return `:u:${learnerId}`
 }
+
+/** Every device cache the player keys by course + scope (LearningPlayer, useBeltProgress). */
+export const DEVICE_CACHE_KEY_PREFIXES = [
+  'ssi_learning_position_',
+  'ssi_belt_progress_',
+  'ssi_session_history_',
+] as const
+
+/**
+ * The keys a reset or recovery must clear for ONE account on ONE course: the
+ * account-suffixed key #790 introduced AND the legacy unsuffixed key every
+ * pre-#790 build wrote. Never the other accounts' keys on a shared device.
+ *
+ * Job #811: the reset and recovery flows kept deleting only the legacy key
+ * after #790 moved the caches under the account suffix, so a learner who reset
+ * their progress booted straight back to the cached belt and position.
+ */
+export function deviceCacheKeysToClear(courseCode: string, scope: string | null): string[] {
+  const keys: string[] = []
+  for (const prefix of DEVICE_CACHE_KEY_PREFIXES) {
+    keys.push(`${prefix}${courseCode}`)
+    if (scope) keys.push(`${prefix}${courseCode}${scope}`)
+  }
+  return keys
+}
+
+/** Remove every key `deviceCacheKeysToClear` names. Best-effort: storage errors are swallowed. */
+export function clearDeviceCache(courseCode: string, scope: string | null): string[] {
+  const keys = deviceCacheKeysToClear(courseCode, scope)
+  for (const key of keys) {
+    try { localStorage.removeItem(key) } catch { /* best-effort */ }
+  }
+  return keys
+}

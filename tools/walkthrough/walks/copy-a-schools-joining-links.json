@@ -1,0 +1,29 @@
+{
+  "id": "copy-a-schools-joining-links",
+  "title": "Copy a school's joining links",
+  "personas": [
+    "leader"
+  ],
+  "place": {
+    "route": "schools-list"
+  },
+  "keywords": [
+    "link",
+    "links",
+    "invite",
+    "admin",
+    "teacher",
+    "chase"
+  ],
+  "steps": [
+    {
+      "anchor": "schools-list-link-chips",
+      "say": "On any school's row, tap **Admin** to copy its admin link or **Teacher** to copy its teacher link — the chip reads Copied so you know it worked. Paste it into an email or message to whoever needs it.",
+      "advance": {
+        "on": "click"
+      },
+      "terminal": "Tapping a link chip never opens the school — the rest of the row does that. A school still flagged Awaiting admin is one whose admin link nobody has opened yet.",
+      "checked": "e2d62259.a652380c"
+    }
+  ]
+}

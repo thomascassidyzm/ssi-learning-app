@@ -49,6 +49,19 @@ const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 // e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
+// Cohort-size line under the headline: "school average · 32 classes" (job
+// #979 — the average is self-inclusive over every class or school in scope
+// that has STARTED, so its denominator is the same for every viewer and every
+// window; naming it here makes that plain).
+// Prefer the server's own rendering; fall back to assembling it from the raw
+// numbers for a caller that hasn't wired the line yet (e.g. the schools lane).
+const cohortSizeLine = computed(() => {
+  if (props.data.cohortSizeLine) return props.data.cohortSizeLine
+  const { cohortSize, cohortUnit, average } = props.data
+  if (!cohortSize || !cohortUnit) return null
+  return `${average.label} · ${cohortSize} ${cohortUnit}`
+})
+
 // The chart caption comes from the server (windows+measures contract); the
 // hardcoded "Rolling weekly · last 8 weeks" survives only as the fallback for
 // a payload that predates the contract (windowLabel/trendLabel absent).
@@ -76,12 +89,15 @@ const sitsLine = computed(() => {
   return `${head} · ${tail}`
 })
 
-// ── Honest rank: siblings + the entity itself ───────────────────────────────
-// distribution.values are the entity's SIBLINGS (entity excluded); the cohort
-// the entity sits in is siblings + itself. With a tiny cohort a percentile is
-// dishonest ("100th pctl" of 3 classes) — below TINY_COHORT we say "1st of 3".
+// ── Honest rank: the cohort the entity sits in, counted once ────────────────
+// distribution.values are siblings-only on the lanes that predate the
+// self-inclusive ruling, and already include the entity on the node lane
+// (cohortIncludesEntity) — so the total is values.length, plus one only when
+// the entity is NOT among them. With a tiny cohort a percentile is dishonest
+// ("100th pctl" of 3 classes) — below TINY_COHORT we say "1st of 3".
 const TINY_COHORT = 10
-const cohortTotal = computed(() => props.data.distribution.values.length + 1)
+const cohortTotal = computed(() =>
+  props.data.distribution.values.length + (props.data.cohortIncludesEntity ? 0 : 1))
 const rank = computed(() =>
   1 + props.data.distribution.values.filter((v) => v > props.data.distribution.entityValue).length)
 const useOrdinal = computed(() => cohortTotal.value < TINY_COHORT)
@@ -220,6 +236,7 @@ const cohortTicks = computed<number[]>(() => {
           <span class="rc-stat-caption">
             <span class="rc-cap-you">{{ subject }}</span> v {{ captionRest }}
           </span>
+          <span v-if="cohortSizeLine" class="rc-stat-cohort-size">{{ cohortSizeLine }}</span>
         </div>
 
         <div class="rc-head-delta">
@@ -413,6 +430,12 @@ const cohortTicks = computed<number[]>(() => {
   color: var(--ink-muted);
 }
 .rc-cap-you { color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1); }
+.rc-stat-cohort-size {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
 
 .rc-head-delta {
   display: flex;

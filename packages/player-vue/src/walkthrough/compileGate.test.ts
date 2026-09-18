@@ -28,13 +28,21 @@ import {
   HANDBOOK_SECTIONS,
   PERSONAS,
   runGates,
+  gateClipCoverage,
+  routeViewsFrom,
   comparePack,
+  gateWalkClaimers,
+  routeTableFrom,
+  resolveRoute,
+  placeUrlsFrom,
+  claimsPlace,
 } from '../../../../tools/walkthrough/lib.mjs'
 import {
   parseHandbookBlocks, fingerprintCapability, stampChecked, declarationSource,
   proseFingerprint, checkedCode, checkedProse, anchorFingerprint, stepProseFingerprint,
 } from '../../../../tools/walkthrough/handbookSource.mjs'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 // A walk is a CLIP and nothing else since 2026-09-07 — the prose moved into
 // the .vue source, beside the capability it describes.
@@ -230,6 +238,16 @@ describe('the real pack (live drift gate)', () => {
     const res = spawnSync(process.execPath, [cli, '--check'], { encoding: 'utf8' })
     expect(res.status, res.stderr || res.stdout).toBe(0)
   })
+  it('compile.mjs --build (the Vercel path) EXITS NON-ZERO on a coverage gap — gate failures are never advisory (#860)', () => {
+    const cli = join(process.cwd(), '..', '..', 'tools', 'walkthrough', 'compile.mjs')
+    const dir = mkdtempSync(join(tmpdir(), 'cov-'))
+    const gap = join(dir, 'coverage.json')
+    writeFileSync(gap, JSON.stringify({ capabilities: { obvious: {}, missing: {} }, pages: { obvious: {}, missing: {} } }))
+    const res = spawnSync(process.execPath, [cli, '--build'], { encoding: 'utf8', env: { ...process.env, WALKTHROUGH_COVERAGE_JSON: gap } })
+    expect(res.status, res.stderr || res.stdout).toBe(1)
+    expect(res.stderr).toContain('CLIPS:')
+    expect(res.stderr).not.toContain('building anyway')
+  })
 })
 
 
@@ -246,6 +264,7 @@ describe('the real pack (live drift gate)', () => {
 const BLOCK = `
   <!-- HANDBOOK Bring your first teacher in
        section: getting-people-in
+       moment: setting-up
        roles: admin, leader, school_admin
        place: node-home
        keywords: teacher, invite
@@ -273,6 +292,7 @@ describe('parseHandbookBlocks (the prose, read out of the code)', () => {
     const e = entries[0]
     expect(e.title).toBe('Bring your first teacher in')
     expect(e.section).toBe('getting-people-in')
+    expect(e.moment).toBe('setting-up')
     expect(e.personas).toEqual(['admin', 'leader', 'school_admin'])
     expect(e.place).toBe('node-home')
     expect(e.anchor).toBe('verb-invite-person')
@@ -304,6 +324,14 @@ describe('validateHandbookEntry (no silent blanks)', () => {
   })
   it('FAILS placeholder text — a blank with words in it', () => {
     expect(validateHandbookEntry(entry({ what: 'TODO write this' })).length).toBe(1)
+  })
+  // MOMENT (job #5, 2026-09-16). The page groups by WHEN you reach for a
+  // capability before it groups by what it is about, so an entry with no
+  // moment would fall out of the primary grouping without a word.
+  it('FAILS an entry with no moment, or a moment the runtime does not know', () => {
+    expect(validateHandbookEntry(entry({ moment: '' })).length).toBe(1)
+    expect(validateHandbookEntry(entry({ moment: 'whenever' })).length).toBe(1)
+    expect(validateHandbookEntry(entry({ moment: 'every-lesson' }))).toEqual([])
   })
   it('fails an unknown section or role, and parentheses', () => {
     expect(validateHandbookEntry(entry({ section: 'making-tea' })).length).toBe(1)
@@ -679,5 +707,186 @@ describe('both anchor namespaces (data-walk and data-intel)', () => {
     expect(warnings[0]).toContain('still landing')
     // …and a data-walk anchor is still a hard failure.
     expect(gateHandbookCoverage([{ ...loose, attr: 'data-walk' }], [], []).failures).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// GATE 13 — CLIP COVERAGE "AS WE GO" (job #854, Tom 2026-09-15: "the handbook
+// is STILL just a bunch of prose in most cases … we should be building the
+// clips for everything else as we go along"). A capability is clipped,
+// declared obvious, or on the backlog; a routed page carries an anchor or is
+// declared. The registry cannot carry paid debt.
+// ---------------------------------------------------------------------------
+describe('gateClipCoverage (every capability clipped, obvious, or on the backlog)', () => {
+  const entry = (anchor: string, over: Record<string, unknown> = {}) => ({
+    path: 'F.vue', line: 3, title: `Cap ${anchor}`, anchor, walk: null, ...over,
+  })
+  const walk = { id: 'w1', steps: [{ anchor: 'a-clipped' }] }
+  const empty = { capabilities: { obvious: {}, missing: {} }, pages: { obvious: {}, missing: {} } }
+
+  it('FAILS a capability with no walk and no coverage line, naming file:line and the anchor', () => {
+    const { failures } = gateClipCoverage({ entries: [entry('a-bare')], walks: [walk], coverage: empty })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('F.vue:3')
+    expect(failures[0]).toContain('a-bare')
+  })
+  it('passes a capability a walk steps on, one that names the walk which steps it, one declared obvious, one on the backlog', () => {
+    const coverage = {
+      capabilities: { obvious: { 'a-obvious': 'One button, labelled with what it does.' }, missing: { 'a-missing': 'Backlog, no clip yet.' } },
+      pages: { obvious: {}, missing: {} },
+    }
+    const entries = [entry('a-clipped'), entry('a-clipped', { walk: 'w1', line: 9 }), entry('a-obvious'), entry('a-missing')]
+    expect(gateClipCoverage({ entries, walks: [walk], coverage }).failures).toEqual([])
+  })
+  it('FAILS a registry line whose capability has since gained a walk, or whose anchor is gone', () => {
+    const coverage = { capabilities: { obvious: {}, missing: { 'a-clipped': 'paid', 'a-gone': 'x' } }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-clipped')], walks: [walk], coverage })
+    expect(failures.some((f: string) => f.includes('a-clipped') && f.includes('debt is paid'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('a-gone') && f.includes('no longer a capability'))).toBe(true)
+  })
+  it('FAILS a capability that NAMES a walk which never steps on its anchor, or a walk that does not exist (#860)', () => {
+    const { failures } = gateClipCoverage({ entries: [entry('a-named', { walk: 'w1' }), entry('a-ghost', { walk: 'no-such' })], walks: [walk], coverage: empty })
+    expect(failures.some((f: string) => f.includes('a-named') && f.includes('never steps on a-named'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('a-ghost') && f.includes('does not exist'))).toBe(true)
+    expect(failures).toHaveLength(2)
+  })
+  it('FAILS a backlog line for a capability that names a walk AND is stepped by one — stale debt is never masked by naming (#860)', () => {
+    const coverage = { capabilities: { obvious: {}, missing: { 'a-clipped': 'stale' } }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-clipped', { walk: 'w1' })], walks: [walk], coverage })
+    expect(failures.some((f: string) => f.includes('a-clipped') && f.includes('debt is paid'))).toBe(true)
+  })
+  it('routeViewsFrom reads double-quoted route and child imports too (#860)', () => {
+    const r2 = 'const A = () => import("@/views/admin/AdminMessages.vue")'
+    const f2 = [
+      { path: 'packages/player-vue/src/views/admin/AdminMessages.vue', src: 'import Bar from "@/components/schools/Bar.vue"' },
+      { path: 'packages/player-vue/src/components/schools/Bar.vue', src: '<button data-walk="bar-go" />' },
+    ]
+    const views = routeViewsFrom(r2, f2)
+    expect(views.map((v) => v.path)).toEqual(['packages/player-vue/src/views/admin/AdminMessages.vue'])
+    expect(views[0].children[0].path).toBe('packages/player-vue/src/components/schools/Bar.vue')
+  })
+  it('FAILS an obvious line with no real sentence behind it', () => {
+    const coverage = { capabilities: { obvious: { 'a-x': 'yes' }, missing: {} }, pages: { obvious: {}, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [entry('a-x')], walks: [], coverage })
+    expect(failures.some((f: string) => f.includes('needs a sentence'))).toBe(true)
+  })
+
+  const router = "const A = () => import('@/views/admin/AdminMessages.vue')\n{ component: () => import('@/views/schools/ClassDetail.vue') }"
+  const files = [
+    { path: 'packages/player-vue/src/views/admin/AdminMessages.vue', src: '<template><textarea /></template>' },
+    { path: 'packages/player-vue/src/views/schools/ClassDetail.vue', src: "<script setup>import Bar from '@/components/schools/Bar.vue'</script><template><Bar /></template>" },
+    { path: 'packages/player-vue/src/components/schools/Bar.vue', src: '<template><button data-walk="bar-go">Go</button></template>' },
+  ]
+  it('routeViewsFrom reads the router\'s view imports and one level of their own .vue imports', () => {
+    const views = routeViewsFrom(router, files)
+    expect(views.map((v) => v.path)).toEqual([
+      'packages/player-vue/src/views/admin/AdminMessages.vue',
+      'packages/player-vue/src/views/schools/ClassDetail.vue',
+    ])
+    expect(views[1].children[0].path).toBe('packages/player-vue/src/components/schools/Bar.vue')
+  })
+  it('FAILS a routed page with no anchor on it or on what it imports; a page anchored through a child passes', () => {
+    const routeViews = routeViewsFrom(router, files)
+    const { failures } = gateClipCoverage({ entries: [], walks: [], coverage: empty, routeViews })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('AdminMessages.vue')
+    const declared = { ...empty, pages: { obvious: {}, missing: { 'packages/player-vue/src/views/admin/AdminMessages.vue': 'no clip yet' } } }
+    expect(gateClipCoverage({ entries: [], walks: [], coverage: declared, routeViews }).failures).toEqual([])
+  })
+  it('FAILS a pages line for a page that now carries an anchor, or that the router no longer imports', () => {
+    const routeViews = routeViewsFrom(router, files)
+    const coverage = { ...empty, pages: { obvious: { 'packages/player-vue/src/views/schools/ClassDetail.vue': 'x', 'packages/player-vue/src/views/Old.vue': 'x' }, missing: {} } }
+    const { failures } = gateClipCoverage({ entries: [], walks: [], coverage, routeViews })
+    expect(failures.some((f: string) => f.includes('ClassDetail.vue') && f.includes('now carries an anchor'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('Old.vue') && f.includes('no longer imports'))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Gate 14 (job #881): a walk's place must have a claimer mounted on the page
+// the Handbook's Show me navigates to. Two workers (#862, #872) found five
+// schools routes where the tap navigated and nothing ever started.
+// ---------------------------------------------------------------------------
+describe('gateWalkClaimers (every walk place has a claimer on its page)', () => {
+  const HANDBOOK = `export const PLACE_LINKS: Record<string, PlaceLink> = {
+  'node-home': (node) => (node ? \`/org/\${node}\` : null),
+  'class-detail': () => '/schools/classes',
+  teachers: () => '/schools/teachers',
+  intel: () => '/intel',
+}`
+  const ROUTER = `const Teachers = () => import('@/views/schools/TeachersView.vue')
+const NodeHome = () => import('@/views/admin/NodeHomeView.vue')
+const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
+const INTEL_VIEWS: Record<string, () => Promise<unknown>> = { pulse: () => import('@/views/intel/PulseView.vue') }
+const routes: RouteRecordRaw[] = [
+  { path: '/schools', component: () => import('@/containers/SchoolsContainer.vue'), children: [
+    { path: 'teachers', name: 'teachers', component: Teachers },
+    { path: 'classes', component: () => import('@/views/schools/TeacherDashboard.vue') },
+    { path: 'classes/:id', component: ClassDetail },
+  ] },
+  { path: '/org', children: [ { path: ':id', component: NodeHome } ] },
+  { path: '/intel', children: [
+    { path: '', redirect: '/intel/pulse' },
+    ...QUESTIONS.map((q) => ({ path: q.slug, component: q.built ? INTEL_VIEWS[q.slug] : NotYetBuiltView })),
+  ] },
+]`
+  const file = (path: string, src: string) => ({ path: `packages/player-vue/src/${path}`, src })
+  const claimer = (place: string) => `<script setup>import WalkOffer from '@/components/admin/WalkOffer.vue'</script><template><WalkOffer persona="teacher" place="${place}" /></template>`
+  const WALK_OFFER = file('components/admin/WalkOffer.vue', "<script setup>import { claimDeferredWalk } from '@/walkthrough/useWalkthrough'\nwatch(x, ([persona, place, kind]) => { claimDeferredWalk(persona, place, kind) })</script>")
+  const w = (id: string, route: string) => ({ id, personas: ['teacher'], place: { route }, steps: [] })
+
+  it('reads the router into a flat table and resolves a URL to the page rendered there, following redirects and dynamic children', () => {
+    const table = routeTableFrom(ROUTER)
+    expect(resolveRoute(table, '/schools/teachers')?.components).toEqual(['@/views/schools/TeachersView.vue'])
+    expect(resolveRoute(table, '/schools/classes/abc')?.components).toEqual(['@/views/schools/ClassDetail.vue'])
+    expect(resolveRoute(table, '/org/x')?.components).toEqual(['@/views/admin/NodeHomeView.vue'])
+    expect(resolveRoute(table, '/intel')?.components).toEqual(['@/views/intel/PulseView.vue'])
+    expect(placeUrlsFrom(HANDBOOK)).toEqual({ 'node-home': '/org/:param', 'class-detail': '/schools/classes', teachers: '/schools/teachers', intel: '/intel' })
+  })
+
+  it('FAILS a walk whose place page mounts no claimer, naming the place, the URL, the view and the walk', () => {
+    const files = [file('views/schools/TeachersView.vue', '<template><button data-walk="verb-add-teacher" /></template>'), WALK_OFFER]
+    const { failures } = gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files })
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('"teachers"')
+    expect(failures[0]).toContain('/schools/teachers')
+    expect(failures[0]).toContain('TeachersView.vue')
+    expect(failures[0]).toContain('add-teacher')
+  })
+
+  it('passes when the page, or a .vue it imports, mounts WalkOffer or HowThisWorks naming that place', () => {
+    const files = [
+      file('views/schools/TeachersView.vue', "<script setup>import Head from '@/components/schools/Head.vue'</script><template><Head /></template>"),
+      file('components/schools/Head.vue', claimer('teachers')),
+      WALK_OFFER,
+    ]
+    expect(gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files }).failures).toEqual([])
+  })
+
+  it('FAILS when the mounted claimer names a DIFFERENT place — the claimer component\'s own dynamic call is never evidence', () => {
+    const files = [file('views/schools/TeachersView.vue', claimer('classes')), WALK_OFFER]
+    const { failures } = gateWalkClaimers({ walks: [w('add-teacher', 'teachers')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files })
+    expect(failures).toHaveLength(1)
+  })
+
+  it('accepts a claim one hop beneath the link — class-detail links to the class list and is claimed by the class page under it', () => {
+    const files = [
+      file('views/schools/TeacherDashboard.vue', '<template><div /></template>'),
+      file('views/schools/ClassDetail.vue', "<script setup>import HowThisWorks from '@/components/admin/HowThisWorks.vue'</script><template><HowThisWorks kind=\"class\" place=\"class-detail\" /></template>"),
+      file('components/admin/HowThisWorks.vue', 'x'),
+    ]
+    expect(gateWalkClaimers({ walks: [w('share-a-class', 'class-detail')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: files }).failures).toEqual([])
+  })
+
+  it('HowThisWorks with no place attribute claims node-home, its default', () => {
+    expect(claimsPlace("import HowThisWorks from '@/components/admin/HowThisWorks.vue'\n<HowThisWorks :persona=\"p\" :kind=\"k\" />", 'node-home')).toBe(true)
+    expect(claimsPlace("import HowThisWorks from '@/components/admin/HowThisWorks.vue'\n<HowThisWorks :persona=\"p\" :kind=\"k\" />", 'teachers')).toBe(false)
+    expect(claimsPlace("import { claimDeferredWalk } from '@/walkthrough/useWalkthrough'\nclaimDeferredWalk(persona, 'library', k)", 'library')).toBe(true)
+  })
+
+  it('FAILS a place with no PLACE_LINKS entry, and one whose URL the router renders with no component', () => {
+    const { failures } = gateWalkClaimers({ walks: [w('a', 'settings'), w('b', 'node-home')], handbookSrc: HANDBOOK, routerSrc: ROUTER, vueFiles: [] })
+    expect(failures.some((f: string) => f.includes('"settings"') && f.includes('no PLACE_LINKS'))).toBe(true)
+    expect(failures.some((f: string) => f.includes('"node-home"'))).toBe(true)
   })
 })

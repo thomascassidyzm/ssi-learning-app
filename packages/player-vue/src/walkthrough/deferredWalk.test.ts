@@ -11,7 +11,10 @@ import {
 } from './useWalkthrough'
 import pack from './pack.json'
 
-const walk = (pack as any).walks.find((w: any) => w.place.route === 'class-detail')
+// A walk on a place with no node kind, so claiming it needs persona and place
+// only. The class walks moved to the class node home in job #999 and carry a
+// kind, which is a different handshake — this test is about the queue.
+const walk = (pack as any).walks.find((w: any) => w.place.route === 'classes')
 const { activeWalk, stopWalk } = useWalkthrough()
 
 describe('deferred walk', () => {
@@ -20,7 +23,7 @@ describe('deferred walk', () => {
 
   it('refuses an id the pack does not carry', () => {
     expect(deferWalk('no-such-walk')).toBe(false)
-    expect(claimDeferredWalk('teacher', 'class-detail')).toBe(false)
+    expect(claimDeferredWalk('teacher', 'classes')).toBe(false)
   })
 
   it('waits through a mount that does not offer it, then starts on the one that does', () => {

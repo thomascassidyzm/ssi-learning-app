@@ -7,8 +7,8 @@ This is your organisation, one page per level. It's groups all the way down: a g
 more groups — each with its own leader — or learners directly. The map on the left is the whole
 tree; tap any name to look closer, and the page stays put.
 
-The numbers are always **everyone below this level**, counted once. **Minutes in the app this
-week** is the one to watch — it's your organisation actually using the language, from pressing
+The numbers are always **everyone below this level**, counted once. **Minutes in the app in
+total** is the one to watch — it's your organisation actually using the language, from pressing
 play to stopping, and the same minute wherever you read it.
 
 You can grow it from right here. **Invite a person** makes a personal link that IS their login —

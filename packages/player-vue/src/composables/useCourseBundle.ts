@@ -44,8 +44,14 @@ const DB_NAME = 'ssi-bundle-cache'
  * debut order would silently differ from a freshly-fetched one. Bumping the
  * IndexedDB version drops the store on upgrade: one refetch per learner per
  * course (~300KB gzipped), once.
+ *
+ * 3 (2026-09-15, job #838) — #793/#804 stamped each seed's clip duration into
+ * the bundle so the seed-clip gap is timed off the real clip rather than the
+ * 2.5s fallback. Neither bumped a content or shape version, so a returning
+ * learner kept the unstamped v2 record and heard ~7.8s gaps. Same lever: drop
+ * the store, one refetch, done.
  */
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE = 'bundles'
 
 /** Bundle fetches are boot-adjacent; never let one hang a session. */
@@ -256,6 +262,17 @@ export function identityOf(bundle: CourseBundle): BundleIdentity {
 // INDEXEDDB
 // ---------------------------------------------------------------------------
 
+/**
+ * How long an open request may sit unanswered before we give up on the cache
+ * for this call (#853, armed at open time since #858). A version bump (#838) cannot complete while another tab
+ * still holds a connection at the old version; an older build never closes
+ * its connection, so without this the new tab's open request hangs and the
+ * bundle never loads. Giving up resolves null, which every caller already
+ * treats as "no cache": the bundle is fetched from the network and the learner
+ * plays. The upgrade completes on its own the moment the old tab goes away.
+ */
+const OPEN_BLOCKED_TIMEOUT_MS = 1500
+
 function openDb(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
     if (typeof indexedDB === 'undefined') return resolve(null)
@@ -265,6 +282,25 @@ function openDb(): Promise<IDBDatabase | null> {
     } catch {
       return resolve(null)
     }
+    let settled = false
+    // Armed at open time, not on onblocked: only the FIRST request queued
+    // behind a blocked upgrade ever receives onblocked. A second open (course
+    // B after course A) queues silently behind it and would hang until the old
+    // tab closed. Cleared on success or error, so an unblocked open never sees
+    // it fire.
+    const blockedTimer = setTimeout(() => settle(null), OPEN_BLOCKED_TIMEOUT_MS)
+    const settle = (db: IDBDatabase | null) => {
+      clearTimeout(blockedTimer)
+      if (settled) {
+        // A late success after we already gave up: the upgrade has completed,
+        // so release this connection rather than leave a stray one holding
+        // the version for the NEXT bump. The next call reopens cheaply.
+        db?.close()
+        return
+      }
+      settled = true
+      resolve(db)
+    }
     req.onupgradeneeded = () => {
       const db = req.result
       // Drop and recreate rather than migrate: a bundle is a derived artifact
@@ -273,8 +309,16 @@ function openDb(): Promise<IDBDatabase | null> {
       if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE)
       db.createObjectStore(STORE, { keyPath: 'courseCode' })
     }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => resolve(null)
+    req.onsuccess = () => {
+      const db = req.result
+      // Another tab (a newer build) wants to upgrade: step aside at once so its
+      // open request is never blocked by us. Every read/write here reopens on
+      // demand, so a closed connection costs the next call one open and nothing
+      // else; a transaction already in flight on it completes first.
+      db.onversionchange = () => db.close()
+      settle(db)
+    }
+    req.onerror = () => settle(null)
   })
 }
 

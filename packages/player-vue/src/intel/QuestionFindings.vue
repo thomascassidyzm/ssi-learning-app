@@ -51,6 +51,7 @@ const ageLine = computed<string | null>(() => {
 <template>
   <!-- HANDBOOK What the nightly findings say about this question
        section: seeing-progress
+       moment: every-lesson
        roles: admin
        place: intel
        keywords: findings, discovery, nightly, claude, silent, stale, cards

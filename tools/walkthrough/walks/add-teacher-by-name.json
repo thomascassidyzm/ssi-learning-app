@@ -1,0 +1,37 @@
+{
+  "id": "add-teacher-by-name",
+  "title": "Add a teacher by name",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "teachers"
+  },
+  "keywords": [
+    "add",
+    "teacher",
+    "name",
+    "code",
+    "seat",
+    "new staff"
+  ],
+  "steps": [
+    {
+      "anchor": "teacher-named-seat",
+      "say": "Tap **Add by name** when you know exactly who is joining but can't rely on email reaching them.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "d8405c6e.b13092b7"
+    },
+    {
+      "anchor": "teacher-named-seat",
+      "say": "Type their name and tap **Create code**. That mints their access code on the spot — read it out, write it down, or paste it wherever you already reach them. They use it once at saysomethingin.app/join.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "They appear on your list straight away under Not yet given classes, so you can tick their classes before they've even signed in.",
+      "checked": "d8405c6e.1a7ea7a8"
+    }
+  ]
+}

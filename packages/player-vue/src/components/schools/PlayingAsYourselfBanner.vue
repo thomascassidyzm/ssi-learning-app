@@ -89,6 +89,7 @@ onBeforeUnmount(() => { ro?.disconnect(); publish(0) })
 <template>
   <!-- HANDBOOK Told when you are playing as yourself
        section: running-classes
+       moment: something-wrong
        roles: teacher, school_admin
        place: library
        keywords: playing as yourself, own account, play as class, warning, banner, player

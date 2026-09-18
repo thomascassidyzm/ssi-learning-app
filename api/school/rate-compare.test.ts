@@ -58,7 +58,26 @@ function makeChainable(table: string) {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
-    rpc: () => Promise.resolve({ data: rpcRows, error: rpcError }),
+    rpc: (fn: string, args: any) => {
+      // `class_first_play` decides cohort membership (the ONE rule, _utils/
+      // rateCompare.ts cohortFor): a class nobody has ever pressed play on is
+      // in no denominator. The double answers from the same session fixtures
+      // the rest of the file uses — first session per class, null when it has
+      // none, which IS the never-started case.
+      if (fn === 'class_first_play') {
+        const ids = (args?.p_class_ids ?? []) as string[]
+        return Promise.resolve({
+          data: ids.map((id) => {
+            const times = (rpcRows ?? [])
+              .filter((r: any) => r.class_id === id)
+              .map((r: any) => new Date(r.started_at).getTime())
+            return { class_id: id, first_play: times.length ? new Date(Math.min(...times)).toISOString() : null }
+          }),
+          error: null,
+        })
+      }
+      return Promise.resolve({ data: rpcRows, error: rpcError })
+    },
   }),
 }))
 
@@ -75,6 +94,15 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 }
 
 let handler: typeof import('./rate-compare').default
+
+/**
+ * "Just now" — a minute ago, never `new Date()`. The cohort cutoff is
+ * EXCLUSIVE (cohortFor reads `first < cutoff`, matching the exclusive week end
+ * every minute sum uses), so a fixture stamped in the same millisecond as the
+ * handler's own clock passes or fails on scheduler luck. A minute makes no
+ * difference to the pace maths, whose span is floored at a day.
+ */
+const justNow = (): string => new Date(Date.now() - 60_000).toISOString()
 
 // Session row for one class, `pace` cohort-classes each get a distinct end_ord so their
 // paces differ slightly (avoids ties masking real averaging bugs).
@@ -129,26 +157,58 @@ describe('GET /api/school/rate-compare — class entity', () => {
     expect(res.body.kFloor).toBe(1)
   })
 
-  it('returns insufficientData under the k-floor even when class ids exist but have no session activity', async () => {
-    rpcRows = [sessRow('class-1', 10, new Date().toISOString())]
+  // Flipped on Tom's ruling 2026-09-16 — cohort membership is STRUCTURAL,
+  // not activity-gated: peer classes that exist but have not practised are
+  // members at their true value, 0. The floor now gates on whether peers
+  // EXIST, so a quiet window no longer blanks the comparison.
+  it('a never-started peer cannot halve the average — the school lane runs the SAME cohort rule', async () => {
+    // Job #983: this lane still divided by every resolved peer, started or
+    // not, after the node lane had moved to `cohortFor`. Two definitions of
+    // one cohort is the bug Tom named — "do not grow a second definition".
+    // Live on 2026-09-16, 67 of 127 active cym_s_for_eng classes had never
+    // played, so the old rule read a school as roughly half as busy as it was.
+    const now = justNow()
+    rpcRows = [sessRow('class-1', 20, now), sessRow('cohort-0', 20, now)]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
     await handler(req, res)
-    expect(res.body.insufficientData).toBe(true)
+    expect(res.body.insufficientData).toBe(false)
+    // class-1 and cohort-0 only; the five never-started classes are not zeros.
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.average.value).toBe(res.body.entity.value)
+    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(0)
+  })
+
+  it('a peer that STARTED and went quiet counts at 0; one that never started is not there at all', async () => {
+    // The ONE cohort rule (Tom via Watson, 2026-09-16, _utils/rateCompare.ts
+    // cohortFor): cohort-0 played 200 days ago and has been quiet since — a
+    // true zero, still in the denominator. The other five have never been
+    // played at all, so they are in no denominator anywhere.
+    const longAgo = new Date(Date.now() - 200 * 86_400_000).toISOString()
+    rpcRows = [sessRow('class-1', 10, justNow()), sessRow('cohort-0', 1, longAgo)]
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(2)
+    expect(res.body.distribution.values.filter((v: number) => v === 0)).toHaveLength(1)
   })
 
   it('computes a real entity-vs-average comparison once the k-floor is met', async () => {
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [sessRow('class-1', 20, now), ...Array.from({ length: 5 }, (_, i) => sessRow(`cohort-${i}`, 10 + i, now))]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5)
+    // The 5 peers that have played + the entity itself: the average is
+    // self-inclusive (Tom, 2026-09-16), and the sixth peer, which nobody has
+    // ever pressed play on, is in no denominator (his refinement, same day).
+    expect(res.body.cohortSize).toBe(6)
     expect(res.body.entity.label).toBe('Rang a Cúig')
     expect(res.body.average.label).toBe('School average')
-    expect(res.body.distribution.values).toHaveLength(5)
+    expect(res.body.distribution.values).toHaveLength(6)
     // Never leaks another class's identity — only the aggregate label + numbers.
     expect(JSON.stringify(res.body)).not.toContain('cohort-0')
   })
@@ -220,7 +280,7 @@ describe('GET /api/school/rate-compare — school entity', () => {
         { id: `peer-${i}-b`, class_name: 'B', course_code: 'gle_for_eng', school_id: `peer-sch-${i}`, is_active: true },
       ]).flat(),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => [sessRow(`peer-${i}-a`, 10 + i, now), sessRow(`peer-${i}-b`, 10 + i, now)]).flat(),
@@ -230,7 +290,7 @@ describe('GET /api/school/rate-compare — school entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5) // 5 peer SCHOOLS, not 10 peer classes
+    expect(res.body.cohortSize).toBe(6) // 5 peer SCHOOLS + the entity, not 10 peer classes
     expect(res.body.entity.label).toBe('Coláiste Éinde')
     expect(res.body.average.label).toBe('Global average · this course')
     expect(JSON.stringify(res.body)).not.toContain('peer-sch-0')
@@ -246,7 +306,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
         id: `other-course-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
       })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`other-course-${i}`, 10 + i, now)),
@@ -255,7 +315,10 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const sameCourseReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global' })
     const sameCourseRes = makeRes()
     await handler(sameCourseReq, sameCourseRes)
-    // Only the 6 gle_for_eng cohort-* classes exist on this course besides class-1, none have session rows here -> insufficient.
+    // The 6 gle_for_eng cohort-* classes exist on this course besides class-1,
+    // but nobody has ever played one, so they are in no denominator — and the
+    // other-course classes are out by course. That leaves class-1 alone on this
+    // course: an honest empty state, not a comparison with six phantom zeros.
     expect(sameCourseRes.body.insufficientData).toBe(true)
 
     const allCoursesReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
@@ -263,7 +326,9 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     await handler(allCoursesReq, allCoursesRes)
     expect(allCoursesRes.statusCode).toBe(200)
     expect(allCoursesRes.body.insufficientData).toBe(false)
-    expect(allCoursesRes.body.cohortSize).toBe(5) // the 5 other-course-* classes clear k-floor
+    // The 5 other-course-* peers that HAVE played, plus the entity. The 6
+    // never-started cohort-* classes are in no denominator.
+    expect(allCoursesRes.body.cohortSize).toBe(6)
     expect(allCoursesRes.body.average.label).toBe('Global average · all courses')
   })
 
@@ -273,14 +338,16 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
         id: `few-other-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
       })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [sessRow('class-1', 30, now), ...Array.from({ length: 3 }, (_, i) => sessRow(`few-other-${i}`, 10 + i, now))]
     const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
     const res = makeRes()
     await handler(req, res)
-    // 3 active peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15).
+    // Peer CLASSES clear an entity floor of 1 (Tom, 2026-09-15). The 3 peers
+    // that have played, plus the entity: the 6 never-started cohort-* classes
+    // are in no denominator (Tom's refinement, 2026-09-16).
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(3)
+    expect(res.body.cohortSize).toBe(4)
   })
 
   it('school-vs-global_all_courses aggregates each peer school across ALL its courses, not just the selected one', async () => {
@@ -293,7 +360,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     // 4 more peer schools WITH the selected course — 5 total in the cohort.
     DB.schools.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-sch-${i + 1}`, school_name: `Peer ${i + 1}`, group_id: null })))
     DB.classes.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-${i + 1}-class`, class_name: 'X', course_code: 'gle_for_eng', school_id: `peer-sch-${i + 1}`, is_active: true })))
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now),
       sessRow('peer-0-other-course', 12, now),
@@ -304,7 +371,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5) // peer-sch-0 (off-course) counts here, unlike compare_to=global
+    expect(res.body.cohortSize).toBe(6) // peer-sch-0 (off-course) counts here + the entity, unlike compare_to=global
   })
 
   it('group-vs-global_all_courses still excludes ancestor/descendant subtrees, using any-course peer classIds', async () => {
@@ -322,7 +389,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
       ...Array.from({ length: 5 }, (_, i) => ({ id: `far-class-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: `far-sch-${i}`, is_active: true })),
     )
     scope = { learnerId: 'l1', role: 'govt_admin', classIds: DB.classes.map((c) => c.id), learnerIds: [], studentsByClass: {}, schoolIds: ['sch-1'], groupId: 'grp-wales' }
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`far-class-${i}`, 10 + i, now)),
@@ -331,7 +398,7 @@ describe('GET /api/school/rate-compare — global_all_courses (offered alongside
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.cohortSize).toBe(5) // only the 5 unrelated "far" groups, picked up despite being off-course
+    expect(res.body.cohortSize).toBe(6) // the 5 unrelated "far" groups + the entity, picked up despite being off-course
     expect(res.body.average.label).toBe('Global average · all courses')
   })
 })
@@ -379,7 +446,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     DB.classes.push(
       ...Array.from({ length: 5 }, (_, i) => ({ id: `sib-class-${i}`, class_name: 'X', course_code: 'gle_for_eng', school_id: `sib-sch-${i}`, is_active: true })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`sib-class-${i}`, 10 + i, now)),
@@ -389,7 +456,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(200)
     expect(res.body.insufficientData).toBe(false)
-    expect(res.body.cohortSize).toBe(5)
+    expect(res.body.cohortSize).toBe(6) // 5 sibling groups + the entity
     expect(res.body.entity.label).toBe('Wales')
     expect(res.body.average.label).toBe('Regional average')
     expect(JSON.stringify(res.body)).not.toContain('grp-sib-0')
@@ -409,7 +476,7 @@ describe('GET /api/school/rate-compare — group entity', () => {
     DB.classes.push(
       ...Array.from({ length: 5 }, (_, i) => ({ id: `far-class-${i}`, class_name: 'X', course_code: 'gle_for_eng', school_id: `far-sch-${i}`, is_active: true })),
     )
-    const now = new Date().toISOString()
+    const now = justNow()
     rpcRows = [
       sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
       ...Array.from({ length: 5 }, (_, i) => sessRow(`far-class-${i}`, 10 + i, now)),
@@ -418,6 +485,6 @@ describe('GET /api/school/rate-compare — group entity', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.cohortSize).toBe(5) // only the 5 unrelated "far" groups — never grp-uk or grp-cardiff
+    expect(res.body.cohortSize).toBe(6) // the 5 unrelated "far" groups + the entity — never grp-uk or grp-cardiff
   })
 })

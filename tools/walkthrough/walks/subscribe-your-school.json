@@ -1,0 +1,47 @@
+{
+  "id": "subscribe-your-school",
+  "title": "Subscribe your school and change its seats",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "upgrade"
+  },
+  "keywords": [
+    "subscribe",
+    "pay",
+    "upgrade",
+    "seats",
+    "teacher seats",
+    "trial",
+    "monthly",
+    "annual"
+  ],
+  "steps": [
+    {
+      "anchor": "upgrade-seats-actual",
+      "say": "This line always tells the truth about how many teachers have joined against how many seats you're paying for — nothing is ever blocked, it just shows you the gap so you can put it right.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "0b6a0666.f6eeff86"
+    },
+    {
+      "anchor": "upgrade-subscribe-school",
+      "say": "Choose Monthly or Annual, set the number of teacher seats with the stepper — it opens at the number of teachers who've actually joined — then tap **Subscribe** and fill in the card details on the panel that opens. Seats are teacher seats; your students don't each need one.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "af2d759c.3dbaba58"
+    },
+    {
+      "anchor": "upgrade-update-seats",
+      "say": "Once you're subscribed, this same spot becomes **Update to N seats** — step it up or down any time staff join or leave, changed against your existing subscription with no second charge.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's a trial turned into a paid school, with the same page covering it for as long as your staff numbers change.",
+      "checked": "55b6d557.79f0e87b"
+    }
+  ]
+}

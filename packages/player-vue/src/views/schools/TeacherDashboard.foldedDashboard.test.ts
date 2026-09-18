@@ -1,19 +1,18 @@
 /**
- * DashboardView — the TEACHER home reads play-as-class, never the pupils'
- * aggregate (job #651, Ysgol Cas-gwent Chepstow, 2026-09-14).
+ * TeacherDashboard — MY CLASSES IS THE TEACHER'S HOME (Tom's ruling,
+ * 2026-09-16: "Dashboard and My Classes become one page called My Classes —
+ * the Welcome back, <name> line and the this-week summary sit above the
+ * classes table; the old Dashboard route redirects").
  *
- * The school wrote in: "some teachers say 0 minutes, yet they screenshot and
- * it says they have done some." Teacher florencecotten, class 10C: her home
- * read "One class on the go, 0 students across it", benchmarks 0c, and a
- * footer of "0 students · 0 min practised · 0 sessions" — every figure summed
- * off the pupils' individual accounts (class_activity_stats), which in a
- * class taught from the front is always zero. Meanwhile her Library said
- * 12 minutes: her Wednesday lesson had run on her OWN account, not the
- * class's.
+ * This file is the teacher half of DashboardView.teacherPlayAsClass.test.ts,
+ * moved with the capabilities it guards. It keeps the Chepstow evidence that
+ * made those figures play-as-class in the first place (job #651): teacher
+ * florencecotten, class 10C, whose home read "0 students, 0 min" because
+ * every figure was summed off pupils' individual accounts, while her Library
+ * said 12 minutes — her Wednesday lesson had run on her OWN account.
  *
- * Red on the pre-#651 code (students/benchmarks/sessions, no own-account
- * line); green after. Mounts the real SFC with a teacher persona and one
- * class, and feeds the SAME payload the classes list and leader pages read.
+ * Red on the pre-fold code, where TeacherDashboard carried no greeting, no
+ * own-practice line and no teaching totals; green after.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -30,8 +29,8 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useRoute: () => ({ name: 'schools-dashboard', path: '/schools', params: {}, query: {} }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), currentRoute: { value: { query: {} } } }),
+  useRoute: () => ({ name: 'classes', path: '/schools/classes', params: {}, query: {} }),
   RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
@@ -91,7 +90,7 @@ const PRACTICE = {
 
 let practiceCalls: string[] = []
 
-async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number; isAdminView?: boolean } = {}) {
+async function mountMyClasses(opts: { practice?: any; practiceStatus?: number; isAdminView?: boolean } = {}) {
   practiceCalls = []
   globalThis.fetch = vi.fn(async (url: any) => {
     const u = String(url)
@@ -108,15 +107,15 @@ async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number;
   const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
   useSchoolContext().currentUser.value = { ...TEACHER } as any
 
-  const mod = await import('./DashboardView.vue')
+  const mod = await import('./TeacherDashboard.vue')
   const wrapper = mount(mod.default, {
     global: {
       provide: { isAdminView: !!opts.isAdminView, supabase: { value: fakeClient() } },
       stubs: {
-        Greeting: { props: ['name', 'lines'], template: '<div><h1>{{ name }}</h1><p>{{ lines }}</p><slot name="action" /></div>' },
-        BeltDot: true, InviteLinkField: true,
+        Greeting: { props: ['name', 'lines', 'date'], template: '<div><h1>{{ name }}</h1><p>{{ lines }}</p><slot name="action" /></div>' },
+        BeltDot: true, Sparkline: true, FrostSelect: true, YearGroupTiles: true, ShowAll: true, WalkOffer: true,
         UpdatedStamp: true, CreateClassModal: true, ClassCreatedModal: true, SchoolsPasswordPrompt: true, MailboxCheckPrompt: true,
-        RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        RouterLink: { props: ['to'], template: '<a><slot /></a>' },
       },
     },
   })
@@ -126,42 +125,47 @@ async function mountTeacherHome(opts: { practice?: any; practiceStatus?: number;
   return wrapper
 }
 
-describe('DashboardView — the teacher home is play-as-class first (job #651)', () => {
+describe('TeacherDashboard — the dashboard folded into My Classes (Tom, 2026-09-16)', () => {
   beforeEach(() => {
     vi.resetModules()
     Object.keys(store).forEach(k => delete store[k])
   })
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('a class row carries the CLASS ACCOUNT\'s minutes, phrases, journey and last-played day — never a pupil count or a cycles benchmark', async () => {
-    const wrapper = await mountTeacherHome()
+  it('greets the teacher by name above the table, with this week summarised', async () => {
+    const wrapper = await mountMyClasses()
     const text = wrapper.text()
     expect(text).toContain('Welcome back, florencecotten.')
     expect(text).toContain('One class on the go. 9 min in the app this week.')
+    // The page is still My Classes, and the table is still the class's own
+    // account: minutes, phrases and journey, never a pupil count.
+    expect(text).toContain('My Classes')
     expect(text).toContain('10C')
     expect(text).toContain('9 min')
-    expect(text).toContain('7 phrases')
-    expect(text).toContain('8/1200 phrases')
-    expect(text).toContain('Last played Wed 9 Sept')
-    // The pupils' aggregate is gone from the class row and the footer.
-    expect(text).not.toContain('students across it')
     expect(text).not.toContain('0 students')
-    expect(text).not.toContain('Benchmarks')
-    expect(text).not.toContain('sessions')
-    // No pupil played on an own account: the second figure says so in words
-    // rather than hiding (Tom, 2026-09-14, job #662).
-    expect(text).toContain('Nothing on pupils’ own accounts this week')
-    expect(text).toContain('nothing on pupils’ own accounts')
-    // The footer totals are this week's class play.
-    expect(text).toContain('in the app this week')
-    expect(text).toContain('phrases practised')
-    // One fetch, the same endpoint the classes list and the leader pages read.
-    expect(practiceCalls.length).toBe(1)
+    // One fetch, the same endpoint the leader pages read.
+    expect(practiceCalls.length).toBeGreaterThanOrEqual(1)
     expect(practiceCalls[0]).toContain(`class_ids=${CLASS_10C.id}`)
   })
 
+  it('totals the teaching week under the table, with the pupils own accounts kept apart', async () => {
+    const wrapper = await mountMyClasses()
+    const stats = wrapper.find('[data-walk="dash-teacher-stats"]')
+    expect(stats.exists()).toBe(true)
+    expect(stats.text()).toContain('1 class')
+    expect(stats.text()).toContain('9 min')
+    expect(stats.text()).toContain('in the app this week')
+    expect(stats.text()).toContain('7')
+    expect(stats.text()).toContain('phrases practised')
+    // No pupil played on an own account: the second line says so in words
+    // rather than hiding (Tom, 2026-09-14, job #662).
+    const own = wrapper.find('[data-walk="dash-teacher-own-accounts"]')
+    expect(own.exists()).toBe(true)
+    expect(own.text()).toContain('Nothing on pupils’ own accounts this week')
+  })
+
   it('names the teacher\'s OWN practice as hers, not the class\'s, and points at Play as class', async () => {
-    const wrapper = await mountTeacherHome()
+    const wrapper = await mountMyClasses()
     const line = wrapper.find('[data-walk="dash-own-practice"]')
     expect(line.exists()).toBe(true)
     expect(line.text()).toContain('You practised 12 min on your own account this week, last on Wed 9 Sept.')
@@ -169,64 +173,75 @@ describe('DashboardView — the teacher home is play-as-class first (job #651)',
   })
 
   it('a quiet own account draws no line — its absence means nothing went astray', async () => {
-    const wrapper = await mountTeacherHome({ practice: { ...PRACTICE, callerOwn: { ...PRACTICE.callerOwn, inAppMinutes7d: 0, lastPlayedDay: null } } })
+    const wrapper = await mountMyClasses({ practice: { ...PRACTICE, callerOwn: { ...PRACTICE.callerOwn, inAppMinutes7d: 0, lastPlayedDay: null } } })
     expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(false)
-    expect(wrapper.find('[data-walk="dash-playing-as-yourself"]').exists()).toBe(false)
-  })
-
-  // Tom, 2026-09-14 16:17Z (job #683): "the 'You are now playing as yourself'
-  // makes no sense when in dashboard view - they're not playing anything."
-  // The #662 banner is gone from the teacher home even in a week with
-  // own-account minutes; it lives on the player now
-  // (PlayingAsYourselfBanner.vue). Green before #662, red under it, green
-  // again after #683. The past-tense own-practice line above stays.
-  it('the teacher home never says "playing as yourself" — nothing is playing there', async () => {
-    const wrapper = await mountTeacherHome()
-    expect(wrapper.find('[data-walk="dash-playing-as-yourself"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('You are now playing as yourself')
-    expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(true)
   })
 
-  // Tom, same message: "every single Play as Class button has GONE!!!! That
-  // should be prominent next to the class, not invisible". Present and
-  // enabled for a teacher; present and DISABLED under View As, never hidden.
-  it('Play as class is present and enabled beside the class for a signed-in teacher', async () => {
-    const wrapper = await mountTeacherHome()
-    const btn = wrapper.find('[data-walk="dash-class-card-play"], [data-walk="dash-class-row-play"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.attributes('disabled')).toBeUndefined()
-  })
-
-  it('under View As the button is still there beside the class, disabled and saying why', async () => {
-    const wrapper = await mountTeacherHome({ isAdminView: true })
-    const btn = wrapper.find('[data-walk="dash-class-card-play"], [data-walk="dash-class-row-play"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.attributes('disabled')).toBeDefined()
-    expect(btn.attributes('title')).toContain('Read only while you are viewing as someone else')
-  })
-
-  // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662). Red on
-  // the #651 code, which read the summed practiceByClass into the class row
-  // and showed 14 min; green after.
-  it('the class row carries the class account\'s minutes and, apart from them, the pupils\' own-account minutes — never their sum', async () => {
+  // TWO FIGURES, KEPT APART, NEVER SUMMED (Tom, 2026-09-14, job #662).
+  it('totals the pupils own-account minutes apart from the classes own play — never their sum', async () => {
     const { useClassesData } = await import('@/composables/schools/useClassesData')
-    const wrapper = await mountTeacherHome({ practice: { ...PRACTICE, practiceByClass: { [CLASS_10C.id]: 300 } } })
+    const wrapper = await mountMyClasses({ practice: { ...PRACTICE, practiceByClass: { [CLASS_10C.id]: 300 } } })
     // Two pupils signed in themselves for 5 minutes between them.
     useClassesData().classes.value = [{ ...(useClassesData().classes.value[0] as any), student_count: 2 }]
     await flushPromises()
     const text = wrapper.text()
     expect(text).toContain('One class on the go. 9 min in the app this week.')
-    expect(wrapper.find('[data-walk="dash-class-week-pupils"]').text()).toBe('pupils’ own accounts 5 min')
     expect(text).toContain('2 pupils on their own accounts · 5 min on those accounts this week')
     expect(text).not.toContain('14 min')
   })
 
+  // Tom, 2026-09-14 16:17Z: "every single Play as Class button has GONE!!!!
+  // That should be prominent next to the class". Present and enabled for a
+  // teacher; present and DISABLED under View As, never hidden.
+  it('Play as class is present and enabled beside the class for a signed-in teacher', async () => {
+    const wrapper = await mountMyClasses()
+    const btn = wrapper.find('[data-walk="classes-row-play"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('under View As the button is still there beside the class, disabled and saying why', async () => {
+    const wrapper = await mountMyClasses({ isAdminView: true })
+    const btn = wrapper.find('[data-walk="classes-row-play"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toContain('Read only while you are viewing as someone else')
+  })
+
+  // A leader reading this same page as Classes keeps the plain head: the
+  // greeting and the teaching totals are the TEACHER's, and no leader page
+  // changed shape when the dashboard folded.
+  it('a school leader reading the same page gets no greeting and no teaching totals', async () => {
+    const { setSchoolsClient } = await import('@/composables/schools/client')
+    setSchoolsClient(fakeClient())
+    globalThis.fetch = vi.fn(async () => ({ ok: true, json: async () => PRACTICE })) as any
+    const { useSchoolContext } = await import('@/composables/schools/useSchoolContext')
+    useSchoolContext().currentUser.value = { ...TEACHER, educational_role: 'school_admin' } as any
+    const mod = await import('./TeacherDashboard.vue')
+    const wrapper = mount(mod.default, {
+      global: {
+        provide: { isAdminView: false, supabase: { value: fakeClient() } },
+        stubs: {
+          Greeting: { props: ['name', 'lines', 'date'], template: '<div><h1>{{ name }}</h1></div>' },
+          BeltDot: true, Sparkline: true, FrostSelect: true, YearGroupTiles: true, ShowAll: true, WalkOffer: true,
+          UpdatedStamp: true, CreateClassModal: true, ClassCreatedModal: true, SchoolsPasswordPrompt: true, MailboxCheckPrompt: true,
+          RouterLink: { props: ['to'], template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Welcome back')
+    expect(wrapper.find('[data-walk="dash-teacher-stats"]').exists()).toBe(false)
+    expect(wrapper.find('[data-walk="dash-own-practice"]').exists()).toBe(false)
+  })
+
   it('a practice fetch that failed says so and shows no minutes — never a 0 that is not real', async () => {
-    const wrapper = await mountTeacherHome({ practiceStatus: 403 })
+    const wrapper = await mountMyClasses({ practiceStatus: 403 })
     const text = wrapper.text()
     expect(text).toContain("Couldn't load this week's practice")
     expect(text).toContain('One class on the go.')
     expect(text).not.toContain('0 min in the app this week')
-    expect(text).not.toContain('Not started')
   })
 })

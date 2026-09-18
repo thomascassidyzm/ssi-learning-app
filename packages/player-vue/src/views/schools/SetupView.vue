@@ -45,11 +45,14 @@ import { getLanguageName, t } from '@/composables/useI18n'
 import { courseShortName } from '@ssi/core'
 import FrostSelect from '@/components/FrostSelect.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import WalkOffer from '@/components/admin/WalkOffer.vue'
+import { viewerPersona } from '@/walkthrough/handbook'
 import { preselectedCourseCode } from './setupCoursePreselect'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
+const explainerPersona = computed(() => viewerPersona(currentUser.value?.platform_role ?? null, currentUser.value?.educational_role ?? null))
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
 const { availableCourses: effectiveCourseGrants, schoolTrialCourse, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
@@ -408,6 +411,7 @@ onMounted(() => {
 
 <template>
   <main class="setup-screen" :class="{ 'is-visible': isVisible }">
+    <WalkOffer :persona="explainerPersona" place="setup" />
     <nav class="breadcrumb">
       <router-link to="/schools/settings">{{ t('schools.setup.breadcrumbSettings', 'Settings') }}</router-link>
       <span class="breadcrumb-sep">/</span>
@@ -427,7 +431,7 @@ onMounted(() => {
     </header>
 
     <div class="setup-layout">
-      <aside class="schools-card step-rail">
+      <aside class="schools-card step-rail" data-walk="setup-step-rail">
         <button
           v-for="s in STEPS"
           :key="s.n"
@@ -461,6 +465,7 @@ onMounted(() => {
               <span class="field-label">{{ t('schools.setup.schoolNameLabel', 'School name') }}</span>
               <!-- HANDBOOK Name your school
                    section: your-school
+                   moment: setting-up
                    roles: school_admin
                    place: setup
                    keywords: school, name, rename, title, setup, step 1, first
@@ -510,6 +515,7 @@ onMounted(() => {
 
           <!-- HANDBOOK Hand out your staff links
                section: getting-people-in
+               moment: setting-up
                roles: school_admin
                place: setup
                keywords: invite, teacher, staff, admin, link, join, colleague, setup, step 2
@@ -574,9 +580,11 @@ onMounted(() => {
 
           <!-- HANDBOOK Choose which courses your school uses
                section: courses-and-content
+               moment: setting-up
                roles: school_admin
                place: setup
                keywords: course, courses, language, languages, choose, pick, catalogue, setup, step 3
+               walk: setup-choose-courses
                What it's for. Narrowing the full list of courses your school can
                teach down to the handful you actually intend to use, so that choosing
                a course for a class is a short list rather than a long one.
@@ -675,9 +683,11 @@ onMounted(() => {
               />
               <!-- HANDBOOK Give a class its course
                    section: courses-and-content
+                   moment: setting-up
                    roles: school_admin
                    place: setup
                    keywords: course, class, assign, choose, language, which, search, picker
+                   walk: setup-give-class-course
                    What it's for. Picking the language a class is learning. This
                    is how a course reaches learners at all — a course does not
                    belong to a person, it belongs to a class, and everybody in
@@ -725,6 +735,7 @@ onMounted(() => {
             </div>
             <!-- HANDBOOK Create your first classes
                  section: running-classes
+                 moment: setting-up
                  roles: school_admin
                  place: setup
                  keywords: class, classes, create, new, first, setup, step 4, group
@@ -771,6 +782,7 @@ onMounted(() => {
           <div class="step-nav-right">
             <!-- HANDBOOK Work through setup at your own pace
                  section: your-school
+                 moment: setting-up
                  roles: school_admin
                  place: setup
                  keywords: setup, wizard, first, start, onboarding, steps, later, finish, resume, save

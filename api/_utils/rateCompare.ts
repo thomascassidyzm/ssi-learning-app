@@ -15,6 +15,13 @@
 
 export interface ScopedSessionRow {
   class_id: string
+  /**
+   * WHO played (job #989). 'class' = the class's own account, whole-class play
+   * from the front — Tom's X. 'pupil' = a pupil's own account on that class —
+   * Tom's Y. Absent on the legacy RPC rows, which are class-account play by
+   * construction, so `?? 'class'` is the read everywhere.
+   */
+  actor?: 'class' | 'pupil'
   course_code: string | null
   start_lego_id: string | null
   end_lego_id: string | null
@@ -100,10 +107,21 @@ export function windowPaceForClass(
 /**
  * Aggregate pace for an ENTITY that spans multiple classes (a school = its
  * classes, a group = its subtree's classes) — mean of each member class's
- * own window pace, over members that have data in the window. For a
- * single-class set this is identical to windowPaceForClass (mean of one).
- * Same primitive doubles as a COHORT member's value when the cohort being
- * compared against is itself made of schools or groups, not bare classes.
+ * own window pace, over EVERY member class. For a single-class set this is
+ * identical to windowPaceForClass (mean of one). Same primitive doubles as a
+ * COHORT member's value when the cohort being compared against is itself
+ * made of schools or groups, not bare classes.
+ *
+ * EVERY MEMBER COUNTS, ACTIVE OR NOT (Tom's ruling 2026-09-16: "a set member
+ * should ALWAYS be included in the average, not excluded"). A class that did
+ * not practise in the window advanced 0 LEGOs, so its true pace is 0 and it
+ * is averaged in at 0 — it is never dropped from the denominator. Before
+ * this, a school's own rate was the mean over whichever of its classes
+ * happened to practise, so the same school read differently window to window
+ * for reasons that had nothing to do with how fast it was going.
+ *
+ * `hasData` still means "somebody in this set practised" — it gates the
+ * furthest-LEGO context line, never the arithmetic.
  */
 export function aggregateWindowPace(
   rows: ScopedSessionRow[],
@@ -111,10 +129,12 @@ export function aggregateWindowPace(
   days: number,
   now: Date,
 ): WindowPace {
-  const active = classIds.map((id) => windowPaceForClass(rows, id, days, now)).filter((w) => w.hasData)
-  if (active.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
-  const pace = round1(active.reduce((s, w) => s + w.pace, 0) / active.length)
-  const legosAdvanced = Math.round(active.reduce((s, w) => s + w.legosAdvanced, 0) / active.length)
+  const all = classIds.map((id) => windowPaceForClass(rows, id, days, now))
+  const active = all.filter((w) => w.hasData)
+  if (all.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
+  const pace = round1(all.reduce((s, w) => s + w.pace, 0) / all.length)
+  const legosAdvanced = Math.round(all.reduce((s, w) => s + w.legosAdvanced, 0) / all.length)
+  if (active.length === 0) return { pace, legosAdvanced, hasData: false, furthestLegoId: null, furthestOrd: 0 }
   const furthest = active.reduce((best, w) => (w.furthestOrd > best.furthestOrd ? w : best), active[0])
   return { pace, legosAdvanced, hasData: true, furthestLegoId: furthest.furthestLegoId, furthestOrd: furthest.furthestOrd }
 }
@@ -146,7 +166,13 @@ export function periodTrendForClass(
   periodDays: number,
   now: Date,
 ): number[] {
-  if (!rows.some((r) => r.class_id === classId)) return []
+  // A class with no rows at all advanced 0 in every period — return that
+  // honestly rather than an empty array, so it is averaged into the dashed
+  // comparison series at 0 instead of silently dropping out of it (Tom's
+  // ruling 2026-09-16: a set member is always in the average). An empty
+  // return here used to make the dashed line disagree with the headline
+  // average, which included the same member at 0.
+  if (!rows.some((r) => r.class_id === classId)) return new Array(Math.max(periods, 0)).fill(0)
   const nowMs = now.getTime()
   const periodMs = periodDays * MS_PER_DAY
   const cum: number[] = []
@@ -164,7 +190,7 @@ export function weeklyTrendForClass(rows: ScopedSessionRow[], classId: string, w
   return periodTrendForClass(rows, classId, weeks, 7, now)
 }
 
-/** Same generalization as aggregateWindowPace, for the trend line — mean-trend across member classes, at any period granularity. */
+/** Same generalization as aggregateWindowPace, for the trend line — mean-trend across EVERY member class (a dormant one contributes zeros, never nothing), at any period granularity. */
 export function aggregatePeriodTrend(
   rows: ScopedSessionRow[],
   classIds: string[],
@@ -384,4 +410,230 @@ export function coverageLabel(legoId: string | null): string {
   const m = /^S(\d+)L(\d+)$/.exec(legoId.trim())
   if (!m) return legoId
   return `S${Number(m[1])} · L${Number(m[2])}`
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE WEEK CARD (job #989, Tom 2026-09-16)
+//
+// Three numbers, in a school WEEK: "Play-as-class time = X, individual
+// students time = Y, total effective learning time = X + Y", and progress as
+// NEW PHRASES this week. No ratio, ever — the class's three numbers sit
+// beside the school's same three and the reader does their own comparing
+// (RBF's point, endorsed: a computed ratio decides for them, and decides
+// wrongly whenever the denominator is small).
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface WeekNumbers {
+  /** Play-as-class minutes — the class account's own in-app time. */
+  classMinutes: number
+  /** Individual pupils' minutes — their own accounts, never summed into X. */
+  pupilMinutes: number
+  /** Total effective learning time: X + Y. */
+  totalMinutes: number
+  /** Phrases first reached inside the window — the class cursor's advance. */
+  newPhrases: number
+  hasData: boolean
+}
+
+function actorOf(r: ScopedSessionRow): 'class' | 'pupil' {
+  return r.actor ?? 'class'
+}
+
+/** Minutes played by one actor kind, for a set of classes, inside [startMs, endMs). */
+export function rangeMinutesByActor(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  actor: 'class' | 'pupil',
+  startMs: number,
+  endMs: number,
+): { minutes: number; hasData: boolean } {
+  const idSet = new Set(classIds)
+  let seconds = 0
+  let any = false
+  for (const r of rows) {
+    if (!idSet.has(r.class_id)) continue
+    if (actorOf(r) !== actor) continue
+    const t = new Date(r.started_at).getTime()
+    if (t < startMs || t >= endMs) continue
+    seconds += r.duration_seconds ?? 0
+    any = true
+  }
+  return { minutes: round1(seconds / 60), hasData: any }
+}
+
+/**
+ * NEW PHRASES in the window — the CURSOR ADVANCE, not a count of what was
+ * played: the furthest position reached by the end of the window minus the
+ * furthest reached before it started, floored at 0. Re-treading old ground is
+ * practice, not progress, so it counts zero here; a week spent consolidating
+ * reads 0 new phrases and a healthy pile of minutes, which is the true shape
+ * of that week.
+ *
+ * Read off the CLASS account's own journey (actor 'class'). A pupil racing
+ * ahead on their own account does not move the class's cursor — see the
+ * report's gap note.
+ */
+export function newPhrasesInRange(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  startMs: number,
+  endMs: number,
+): number {
+  const idSet = new Set(classIds)
+  let total = 0
+  for (const classId of idSet) {
+    let before = 0
+    let through = 0
+    for (const r of rows) {
+      if (r.class_id !== classId || actorOf(r) !== 'class') continue
+      const t = new Date(r.started_at).getTime()
+      if (t >= endMs) continue
+      const ord = Math.max(r.end_ord ?? 0, r.start_ord ?? 0)
+      if (ord > through) through = ord
+      if (t < startMs && ord > before) before = ord
+    }
+    if (through > 0) total += Math.max(through - before, 0)
+  }
+  return total
+}
+
+/** The three numbers for one entity (a set of classes) in one week. */
+export function weekNumbersForClassIds(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  startMs: number,
+  endMs: number,
+): WeekNumbers {
+  const x = rangeMinutesByActor(rows, classIds, 'class', startMs, endMs)
+  const y = rangeMinutesByActor(rows, classIds, 'pupil', startMs, endMs)
+  return {
+    classMinutes: x.minutes,
+    pupilMinutes: y.minutes,
+    totalMinutes: round1(x.minutes + y.minutes),
+    newPhrases: newPhrasesInRange(rows, classIds, startMs, endMs),
+    hasData: x.hasData || y.hasData,
+  }
+}
+
+/**
+ * COHORT FOR A WEEK — the ONE definition of who the average divides by
+ * (Tom via Watson, 2026-09-16). Every candidate class whose FIRST SESSION is
+ * on or before `weekEndMs`, the viewed class included on the same terms as any
+ * other. Three properties fall out of it, and all three are the point:
+ *
+ *   · a class that has NEVER played is in no denominator, in any week;
+ *   · a STARTED class that was quiet counts at its true value, which for a sum
+ *     is 0 — being quiet is a fact about the week, not grounds for exclusion
+ *     (job #982's rule, preserved exactly);
+ *   · the set only ever GROWS, and never retroactively: a class that first
+ *     played in week 8 is absent from weeks 1-7 rather than a zero in them, so
+ *     yesterday's bars say the same thing tomorrow.
+ *
+ * It is viewer-independent by construction — nothing here reads who is asking.
+ * The card, the weekly bars and the school series all call THIS; a second
+ * definition anywhere is a bug, not an optimisation.
+ *
+ * `weekEndMs` is EXCLUSIVE, exactly as the session sums are (rangeMinutesByActor
+ * counts `t >= startMs && t < endMs`). A class whose very first play lands on
+ * the stroke of Monday 00:00 belongs to the week that is starting, not to the
+ * one that just closed: with `<=` it joined the PRECEDING week's denominator
+ * while contributing no minutes to it, quietly dragging that week's average
+ * down (job #989 fix-up).
+ */
+export function cohortFor(
+  candidateClassIds: string[],
+  firstPlayByClass: Map<string, number | null>,
+  weekEndMs: number,
+): string[] {
+  return candidateClassIds.filter((id) => {
+    const first = firstPlayByClass.get(id)
+    return typeof first === 'number' && first < weekEndMs
+  })
+}
+
+/**
+ * The COHORT's three numbers — the mean over the cohort as `cohortFor` defines
+ * it. Job #979b's self-inclusion is kept: the viewed class is one of the
+ * members, so the average reads the same whoever opens it. A cohort of zero
+ * members has no numbers at all rather than a zero that reads like a fact —
+ * that is ABSENCE, and the card and the bars both render it as nothing.
+ */
+export function meanWeekNumbers(members: WeekNumbers[]): WeekNumbers {
+  if (members.length === 0) {
+    return { classMinutes: 0, pupilMinutes: 0, totalMinutes: 0, newPhrases: 0, hasData: false }
+  }
+  const mean = (pick: (w: WeekNumbers) => number): number =>
+    round1(members.reduce((s, w) => s + pick(w), 0) / members.length)
+  return {
+    classMinutes: mean((w) => w.classMinutes),
+    pupilMinutes: mean((w) => w.pupilMinutes),
+    totalMinutes: mean((w) => w.totalMinutes),
+    newPhrases: mean((w) => w.newPhrases),
+    hasData: members.some((w) => w.hasData),
+  }
+}
+
+/**
+ * Weekly bars — total effective minutes (X + Y) per week bucket, oldest first.
+ *
+ * TWO DIFFERENT NOTHINGS, and telling them apart is the whole job:
+ *   · 0 — this cohort existed that week and did not play. A real bar of zero
+ *     height, and a real fact about the week. Never interpolated across: a
+ *     school that took half term off did take half term off.
+ *   · null — ABSENCE. Nobody in the cohort had started playing yet, so there
+ *     is no number to draw and no zero to imply one. The chart leaves a gap.
+ *
+ * `cohortAt` is `cohortFor` bound to the candidates; pass it and each bucket
+ * is drawn over the cohort as it stood THAT week. Omit it and the bars are the
+ * given classes throughout, which is what the entity's own series wants once
+ * its own absence has been decided by the caller.
+ */
+export function weeklyMinutesBars(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  buckets: { startMs: number; endMs: number }[],
+  cohortAt?: (weekEndMs: number) => string[],
+): (number | null)[] {
+  return buckets.map((b) => {
+    const ids = cohortAt ? cohortAt(b.endMs) : classIds
+    if (ids.length === 0) return null
+    const x = rangeMinutesByActor(rows, ids, 'class', b.startMs, b.endMs)
+    const y = rangeMinutesByActor(rows, ids, 'pupil', b.startMs, b.endMs)
+    return round1(x.minutes + y.minutes)
+  })
+}
+
+/**
+ * Weekly NEW-PHRASES bars — the cursor advance per week bucket, oldest first,
+ * the phrases twin of weeklyMinutesBars (job #26, the display lab). SAME
+ * buckets, SAME `cohortAt` started-by-that-week rule, SAME two nothings: a
+ * `null` is a week nobody in the cohort had started, a `0` is a started week
+ * spent consolidating. Each bucket is `newPhrasesInRange` over the cohort as
+ * it stood that week, so the phrases bar for the current week and the
+ * `newPhrases` number above it are one function and cannot disagree.
+ */
+export function weeklyPhrasesBars(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  buckets: { startMs: number; endMs: number }[],
+  cohortAt?: (weekEndMs: number) => string[],
+): (number | null)[] {
+  return buckets.map((b) => {
+    const ids = cohortAt ? cohortAt(b.endMs) : classIds
+    if (ids.length === 0) return null
+    return newPhrasesInRange(rows, ids, b.startMs, b.endMs)
+  })
+}
+
+/** Element-wise mean of bar series, absence-aware: a bucket every series is absent from stays absent. */
+export function meanBars(series: (number | null)[][]): (number | null)[] {
+  if (series.length === 0) return []
+  const len = Math.max(...series.map((s) => s.length))
+  const out: (number | null)[] = []
+  for (let i = 0; i < len; i++) {
+    const present = series.map((s) => s[i]).filter((v): v is number => typeof v === 'number')
+    out.push(present.length === 0 ? null : round1(present.reduce((a, b) => a + b, 0) / present.length))
+  }
+  return out
 }

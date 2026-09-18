@@ -280,9 +280,11 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
          thousands of px tall, and a walk ring must fit in a viewport. -->
     <!-- HANDBOOK Ways in — who can get in, and how to change it
          section: getting-people-in
+         moment: something-wrong
          roles: admin, leader, school_admin
          place: node-home
-         keywords: ways in, links, revoke, re-mint, access, ledger, shareable
+         parts: ways-in-show-all
+         keywords: ways in, links, revoke, re-mint, access, ledger, shareable, show all, fold, fewer
          walk: ways-in
          What it's for. The ledger of every way into this part of the tree — who has a live
          link, what it lets them do, and how to change your mind.
@@ -307,23 +309,6 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
       <span v-if="!isLoading" class="ways-in-count">{{ visible.length === 1 ? t('org.ui.waysInLedger.oneLink', '1 link') : t('org.ui.waysInLedger.nLinks', '{n} links').replace('{n}', String(visible.length)) }}</span>
     </div>
 
-    <!-- HANDBOOK Open the folded ledger
-         section: getting-people-in
-         roles: admin, leader, school_admin
-         place: node-home
-         keywords: show all, fold, ledger, links, ways in, fewer
-         What it's for. Turning the one-row-per-role summary of your links into the
-         full ledger, where every link has its own row and its own verbs.
-         Where it is. The **Ways in** section, the **Show all** line under the role
-         rows. It only appears when there are more than three links.
-         How you do it.
-         1. Scroll to **Ways in** on the node's home page.
-         2. Tap **Show all**.
-         3. The ledger opens with its filter chips and every link's row.
-         4. Tap **Show fewer** at the bottom to fold it back.
-         Worth knowing. Nothing is ever hidden for good: every link is one tap away.
-         checked: e23cb244.81cd02f3
-    -->
     <template v-if="folded">
       <ul class="ways-in-groups">
         <li v-for="g in groups" :key="g.role" class="ways-in-group" :data-role="g.role">
@@ -388,6 +373,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             <button v-if="l.status === 'active'" type="button" class="row-verb" :class="{ 'is-copied': copiedCode === l.code }" data-walk="ways-in-copy" @click="copyLink(l)">{{ copiedCode === l.code ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copy', 'Copy') }}</button>
             <!-- HANDBOOK Hand out a sign-up link for one course
                  section: getting-people-in
+                 moment: setting-up
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: dialect, course, link, enrol, north, south, welsh, cohort
@@ -421,6 +407,7 @@ async function patch(l: LedgerLink, action: 'revoke' | 'reactivate' | 'rotate' |
             >{{ copiedDialect === `${l.code}:${d.course}` ? t('org.ui.waysInLedger.copied', 'Copied!') : t('org.ui.waysInLedger.copyCourse', 'Copy {course}').replace('{course}', d.name) }}</button>
             <!-- HANDBOOK Email someone their invite again
                  section: getting-people-in
+                 moment: something-wrong
                  roles: admin, leader, school_admin
                  place: node-home
                  keywords: resend, email, invite, again, lost, ways in

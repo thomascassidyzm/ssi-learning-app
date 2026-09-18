@@ -132,7 +132,9 @@ type EventName =
   | 'round_completed'
   | 'session_complete'
   | 'audio_failed' // Browser needs a fresh user gesture to play audio (iOS autoplay).
+  | 'audio_started' // A real clip ACTUALLY began sounding (see AudioStartedEvent).
   | 'interrupted' // Something OUTSIDE the app paused our element (see AudioInterruptedEvent).
+  | 'self_paused' // The engine took itself to isPlaying=false (interruption / silent run) — the conductor mirrors it.
   | 'no_playable_content' // A jump found nothing playable from here on (see jumpToRound).
 type EventCallback = (data?: unknown) => void
 
@@ -158,6 +160,41 @@ export interface AudioInterruptedEvent {
   hidden: boolean
 }
 
+/**
+ * A real audio clip ACTUALLY began playing — `HTMLMediaElement.play()`'s promise
+ * resolved, which the spec defines as "playback has successfully started".
+ *
+ * WHY THIS EXISTS (job #65, 2026-09-17). `audio_play` telemetry used to be
+ * logged from `phase_changed`, i.e. on phase ENTRY, before the element had been
+ * handed a src let alone sounded. So the log recorded a clip the learner never
+ * heard whenever the play attempt failed: one of the 83 plays in 9b/KW LJ's
+ * busiest lesson was logged at 13:29:43.036 and `audio_failed` 1 ms later. Every
+ * "advance without hearing" path in this engine already reports itself
+ * (`audio_failed` attempt=2, the stall watchdog, the sub-audible 'ended'), but
+ * the positive record was still optimistic, so the two could disagree and only
+ * the optimistic one was counted.
+ *
+ * Emitted ONLY for the three audio-bearing phases' real clips. The silent
+ * pause and linger clips go through startPausePhase / startLinger and never
+ * reach playAudio, exactly as before — they were never logged and still are not.
+ * A successful RETRY emits it (the clip did sound, on the second attempt); a
+ * failed one does not.
+ */
+export interface AudioStartedEvent {
+  /** Phase whose clip started. Carried explicitly rather than read from state
+   *  at handler time, so a late handler can never mislabel the row. */
+  phase: Phase
+  /** The cycle the clip belongs to — the payload's whole context. */
+  cycle: Cycle | null
+  /** The URL actually handed to the element (post-resolution, so possibly a
+   *  blob: URL). Telemetry logs the cycle's ORIGINAL url for row-shape
+   *  continuity; this is here for diagnostics. */
+  url: string
+  /** 2 on the retry attempt, 1 on the first — so "it sounded, but only after a
+   *  retry" is visible rather than indistinguishable from a clean play. */
+  attempt: 1 | 2
+}
+
 export interface AudioFailedEvent {
   /**
    * - 'needs-gesture': iOS Safari revoked the audio unlock (backgrounded
@@ -172,8 +209,14 @@ export interface AudioFailedEvent {
    *   SKIP, not a halt — the player plays what it has and moves on, loudly
    *   logged (see skipFailedClip and the ruling block below). Telemetry
    *   shape is unchanged so admin diagnostics keep grouping on it.
+   * - 'silent-run': CONSECUTIVE_SKIP_ALARM clips in a row went unheard (a
+   *   whole cycle of nothing). The player STOPS advancing and lands paused —
+   *   the skip loop is otherwise unbounded and races the cursor through the
+   *   course at machine speed with nothing audible (forum, 2026-09-13:
+   *   "skipped ahead about 3% of the black belt in about 10 minutes"). The
+   *   learner's tap replays the cycle with a fresh skip budget.
    */
-  reason: 'needs-gesture' | 'play-error'
+  reason: 'needs-gesture' | 'play-error' | 'silent-run'
   /**
    * Cycle role the failure occurred on — lets diagnostics see whether
    * blob-URL races skew toward target voices (the bigger files that
@@ -356,6 +399,28 @@ function silentClipForMs(ms: number): string {
  * item they could not hear any part of.
  */
 const CONSECUTIVE_SKIP_ALARM = 3
+
+/**
+ * Consecutive unheard clips at which the player STOPS advancing and waits for
+ * a tap (see advancePastUnheardClip). One past the alarm, deliberately: three
+ * is one hollow CYCLE, and a single item with all three clips dead is the
+ * exact case the plays-what-it-has ruling exists for (Aran's German "with
+ * you", 2026-08-06) — it is walked through, loudly. The FOURTH unheard clip
+ * means the hollow cycle was followed by more silence: that is a dead block,
+ * not a puncture, and walking on is manufacturing progress. Because resume()
+ * refunds the budget, each tap in a dead block steps exactly one cycle.
+ */
+const SILENT_RUN_STOP = CONSECUTIVE_SKIP_ALARM + 1
+
+/**
+ * A clip whose whole media duration is under this is not something a learner
+ * can have heard — a mastering blip (sub-5ms fragments were found in a Welsh
+ * pod on 2026-09-13) or an empty decode. Its 'ended' is real, so the cycle
+ * still advances, but it COUNTS as unheard so a run of them trips the same
+ * silent-run stop as a run of failures. Fifty milliseconds is well under any
+ * spoken syllable and well over any codec padding.
+ */
+const MIN_AUDIBLE_CLIP_MS = 50
 
 /**
  * How long after one of OUR OWN stops of the audio element a `pause` event is
@@ -624,45 +689,59 @@ export class SimplePlayer {
     this.noteInterruption()
   }
 
+  /**
+   * An outside pause IS a pause (Tom, 2026-09-14 — forum reports of the app
+   * "determinedly" playing on after the car's bluetooth dropped, and of
+   * "enormous progress" the learner never made).
+   *
+   * Until this ruling the engine only RECORDED the interruption and left every
+   * timer armed. That is what kept the session moving with nobody listening:
+   *   - during a voice clip the stall watchdog saw 10s of no progress, SKIPPED
+   *     the clip and play()ed the next one — on the phone's own speaker now
+   *     that the headset was gone, or into silence with the ring switch on;
+   *   - during the silent PAUSE clip the trim timer fired on schedule and
+   *     started voice1 exactly the same way;
+   *   - and while the audio session stayed lost, every clip "stalled" in turn,
+   *     so the cursor advanced one clip per ten seconds with nothing audible.
+   * Then the foreground recovery timer un-paused whatever was left.
+   *
+   * Now: the machine FREEZES (no watchdog, no trim timer, no linger timer may
+   * advance it), lands in isPlaying=false exactly as a learner pause would,
+   * and waits for the learner's own tap. Standard mobile behaviour for a lost
+   * audio route, and the only version that cannot manufacture progress. The
+   * price is one tap after a WhatsApp voice note or a phone call — the case
+   * the 2026-08-09 auto-resume was built for — which is the trade Tom chose.
+   */
   private noteInterruption(): void {
     if (this.interrupted) return
     this.interrupted = true
     const duringSilentClip = this.pauseClipActive || this.lingerClipActive
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden'
     console.warn(
-      `[SimplePlayer] Audio stopped by something outside the app (audio-session interruption) — ` +
-      `phase=${this.state.phase} silentClip=${duringSilentClip} hidden=${hidden}. ` +
-      `Awaiting a conductor-driven resume.`,
+      `[SimplePlayer] Audio stopped by something outside the app (audio-session interruption / ` +
+      `route loss) — phase=${this.state.phase} silentClip=${duringSilentClip} hidden=${hidden}. ` +
+      `Pausing here; the learner's tap resumes.`,
     )
+    this.haltInPlace()
     this.emit('interrupted', { phase: this.state.phase, duringSilentClip, hidden } satisfies AudioInterruptedEvent)
-  }
-
-  /** True while an outside interruption is recorded and unrecovered. */
-  get hasPendingInterruption(): boolean {
-    return this.interrupted
+    this.emit('self_paused', { reason: 'interrupted' })
   }
 
   /**
-   * Recover from a recorded outside interruption by replaying the current
-   * cycle from PROMPT — the same reasoning as resume(): whatever the learner
-   * was mid-way through is gone from their head, so they get the whole cycle.
-   *
-   * No-ops unless an interruption is actually pending AND the session still
-   * believes it is playing, so a learner who deliberately paused is never
-   * un-paused, and a second call can never double-play (the flag is cleared
-   * before the restart, and stopForReposition's generation bump makes any
-   * in-flight audio work from before the interruption inert).
-   *
-   * Called ONLY by PlayerConductor.resumeAfterInterruption.
+   * Take the engine to isPlaying=false without touching its POSITION, so the
+   * learner's next tap (resume) replays the current cycle from the prompt.
+   * Every timer that could advance the machine is disarmed; the generation
+   * bump makes any in-flight play() promise or late 'ended' inert. Shared by
+   * the interruption path and the silent-run guard — the two ways the engine
+   * pauses ITSELF rather than on a transition the conductor asked for.
    */
-  resumeFromInterruption(): void {
-    if (!this.interrupted) return
-    this.interrupted = false
-    if (!this.state.isPlaying) return
-    if (this.state.phase === 'idle') return
-    console.log('[SimplePlayer] Recovering from audio interruption — replaying the current cycle from prompt')
-    this.stopForReposition()
-    this.startPhase('prompt')
+  private haltInPlace(): void {
+    ++this.playGeneration
+    this.clearPauseTimer()
+    this.clearSafetyTimer()
+    this.clearLingerTimer()
+    try { this.stopAudioElement() } catch { /* element may already be paused/torn down */ }
+    this.updateState({ isPlaying: false })
   }
 
   /**
@@ -814,7 +893,13 @@ export class SimplePlayer {
       rate = this.targetRateFor(this.currentCycle, targetSlot)
     }
     this.audio.playbackRate = rate
-    this.audio.play().catch((err) => {
+    this.audio.play().then(() => {
+      // The retry sounded — the learner DID hear this clip, one attempt late.
+      if (gen !== this.playGeneration) return
+      this.emit('audio_started', {
+        phase: this.state.phase, cycle: this.currentCycle, url, attempt: 2,
+      } satisfies AudioStartedEvent)
+    }).catch((err) => {
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] retry play() rejected:', err?.message)
       if (isGestureRequiredError(err)) {
@@ -863,7 +948,43 @@ export class SimplePlayer {
     // Retry budget is per clip — the next clip gets its own.
     this.retryAttempted = false
     this.retryUrl = null
+    this.advancePastUnheardClip()
+  }
+
+  /**
+   * The one door every "advance without the learner having heard the clip"
+   * path goes through — the failed-retry skip, the stall watchdog, the phase
+   * watchdog, the no-URL skip and the sub-audible 'ended'. Each caller has
+   * already counted its clip in `consecutiveSkips` and reported it.
+   *
+   * THE FLOOR (Tom, 2026-09-14): "never advance on a clip shorter than N ms
+   * without a real ended event." A hollow cycle is a puncture and the session
+   * carries on, per the standing plays-what-it-has ruling. Past SILENT_RUN_STOP
+   * continuing is not "playing what we have" — it is walking the cursor
+   * through the course with nothing audible. So the run stops HERE, loudly,
+   * and waits for a tap: resume() refunds the budget and replays the cycle.
+   */
+  private advancePastUnheardClip(): void {
+    if (this.consecutiveSkips >= SILENT_RUN_STOP) {
+      this.haltSilentRun()
+      return
+    }
     this.onAudioEnded()
+  }
+
+  private haltSilentRun(): void {
+    const cycle = this.currentCycle
+    console.error(
+      `[SimplePlayer] ${this.consecutiveSkips} clips in a row went unheard — STOPPING here rather ` +
+      `than advancing through silence. phase=${this.state.phase} legoId=${cycle?.legoId} ` +
+      `cycleId=${cycle?.id}. The learner's tap replays this cycle.`,
+    )
+    this.haltInPlace()
+    this.emit('audio_failed', {
+      ...this.buildFailedContext(undefined, 2, 'silent-run'),
+      reason: 'silent-run',
+    } satisfies AudioFailedEvent)
+    this.emit('self_paused', { reason: 'silent-run' })
   }
 
   // Event emitter
@@ -1282,6 +1403,11 @@ export class SimplePlayer {
 
   resume(): void {
     if (this.state.isPlaying) return
+    // The learner's own tap: whatever paused us from outside is over, and the
+    // silent-run guard gets a fresh budget — otherwise a session halted on
+    // three unheard clips would re-halt on the very next one.
+    this.interrupted = false
+    this.consecutiveSkips = 0
     this.updateState({ isPlaying: true })
 
     // Always restart the current cycle from prompt. If the learner has
@@ -1591,9 +1717,12 @@ export class SimplePlayer {
             // learner should have heard. Console-only made it invisible to
             // everyone but whoever happened to have devtools open; it now
             // reports itself like every other unplayable clip.
+            this.consecutiveSkips++
             this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
+            this.advancePastUnheardClip()
+          } else {
+            this.onAudioEnded()
           }
-          this.onAudioEnded()
         }
         break
       case 'pause':
@@ -1614,9 +1743,12 @@ export class SimplePlayer {
             // learner should have heard. Console-only made it invisible to
             // everyone but whoever happened to have devtools open; it now
             // reports itself like every other unplayable clip.
+            this.consecutiveSkips++
             this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
+            this.advancePastUnheardClip()
+          } else {
+            this.onAudioEnded()
           }
-          this.onAudioEnded()
         }
         break
       case 'voice2':
@@ -1640,9 +1772,12 @@ export class SimplePlayer {
             // learner should have heard. Console-only made it invisible to
             // everyone but whoever happened to have devtools open; it now
             // reports itself like every other unplayable clip.
+            this.consecutiveSkips++
             this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'no-audio-url'))
+            this.advancePastUnheardClip()
+          } else {
+            this.onAudioEnded()
           }
-          this.onAudioEnded()
         }
         break
     }
@@ -1717,8 +1852,9 @@ export class SimplePlayer {
         `${PHASE_START_TIMEOUT_MS}ms (audio URL resolution hung) — SKIPPING this clip and continuing. ` +
         `legoId=${cycle?.legoId} cycleId=${cycle?.id} known="${cycle?.known?.text}" target="${cycle?.target?.text}"`,
       )
+      this.consecutiveSkips++
       this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'phase-watchdog-resolve-hang'))
-      this.onAudioEnded()
+      this.advancePastUnheardClip()
     }, PHASE_START_TIMEOUT_MS)
   }
 
@@ -1856,7 +1992,16 @@ export class SimplePlayer {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
     this.audio.playbackRate = rate
-    this.audio.play().catch((err) => {
+    this.audio.play().then(() => {
+      // THE CLIP IS SOUNDING. Not "the phase was entered" — this is where the
+      // audio_play row belongs (see AudioStartedEvent). Generation-guarded, so
+      // a resolve that lands after a skip/jump superseded it is dropped rather
+      // than logged against the cycle now on screen.
+      if (gen !== this.playGeneration) return
+      this.emit('audio_started', {
+        phase: this.state.phase, cycle: this.currentCycle, url, attempt: 1,
+      } satisfies AudioStartedEvent)
+    }).catch((err) => {
       // Ignore rejections from superseded play() calls (e.g. "interrupted by new load")
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] play() rejected:', err.message)
@@ -1908,8 +2053,9 @@ export class SimplePlayer {
         `legoId=${cycle?.legoId} cycleId=${cycle?.id} known="${cycle?.known?.text}" ` +
         `target="${cycle?.target?.text}"`,
       )
+      this.consecutiveSkips++
       this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'stall-watchdog-no-progress'))
-      this.onAudioEnded()
+      this.advancePastUnheardClip()
     }, 10_000)
   }
 
@@ -2060,6 +2206,26 @@ export class SimplePlayer {
     if (this.lingerClipActive) {
       this.endLinger()
       return
+    }
+
+    // A real 'ended' on a clip too short to have been heard is counted like a
+    // skip (see MIN_AUDIBLE_CLIP_MS). Only the audio-bearing phases — the
+    // silent clips were handled above and never reach here.
+    if (this.state.phase === 'prompt' || this.state.phase === 'voice1' || this.state.phase === 'voice2') {
+      const seconds = this.audio.duration
+      if (Number.isFinite(seconds) && seconds >= 0 && seconds * 1000 < MIN_AUDIBLE_CLIP_MS) {
+        const cycle = this.currentCycle
+        this.consecutiveSkips++
+        console.warn(
+          `[SimplePlayer] Clip ended after ${Math.round(seconds * 1000)}ms — too short to hear. ` +
+          `phase=${this.state.phase} legoId=${cycle?.legoId} cycleId=${cycle?.id} (unheard run: ${this.consecutiveSkips})`,
+        )
+        this.emit('audio_failed', this.buildFailedContext(undefined, 2, 'sub-audible-clip'))
+        if (this.consecutiveSkips >= SILENT_RUN_STOP) {
+          this.haltSilentRun()
+          return
+        }
+      }
     }
 
     const nextPhase = this.getNextPhase()

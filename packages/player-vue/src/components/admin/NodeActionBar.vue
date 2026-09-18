@@ -594,6 +594,7 @@ function closeDelete(): void {
       <!-- Class mode: one verb, and it says what it does. -->
       <!-- HANDBOOK Add a student to a class
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: student, invite, class, learner, join, link
@@ -617,9 +618,11 @@ function closeDelete(): void {
       <template v-else>
       <!-- HANDBOOK Bring your first person in
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
-           keywords: invite, person, link, join, leader, learner
+           parts: invite-form-role
+           keywords: invite, person, link, join, leader, learner, role, teacher, permissions
            walk: invite-first-person
            What it's for. Bringing anyone into this part of the tree — a leader, a
            teacher or a learner — with a personal link that is their login.
@@ -628,16 +631,20 @@ function closeDelete(): void {
            How you do it.
            1. Open the group, school or organisation you want them to belong to.
            2. Tap **Invite a person**.
-           3. Pick the role they arrive as.
+           3. Pick the role they arrive as from the dropdown on the left of the form. Teacher
+              sees their own classes, group leader sees everything below their node, learner
+              just learns.
            4. Type their name and submit.
            5. Copy the minted link and send it.
-           Worth knowing. Nothing is created until you submit. Every link you mint lands
-           in **Ways in**.
+           Worth knowing. Nothing is created until you submit. The place matters as much as
+           the role: a group leader invited on a group leads that group and everything under
+           it. Every link you mint lands in **Ways in**.
            checked: 2886d113.52963dcb
       -->
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'person' }" data-walk="verb-invite-person" @click="toggle('person')">{{ t('org.ui.nodeActionBar.inviteAPerson', 'Invite a person') }}</button>
       <!-- HANDBOOK Make a link anyone can use
            section: getting-people-in
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: shareable, link, join, open, role, bulk
@@ -662,6 +669,7 @@ function closeDelete(): void {
       <button type="button" class="verb" :class="{ 'is-open': openForm === 'group' }" @click="toggle('group')">{{ t('org.ui.nodeActionBar.addAGroup', 'Add a group') }}</button>
       <!-- HANDBOOK Add a school under a group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: school, add, create, group, structure
@@ -686,6 +694,7 @@ function closeDelete(): void {
       <!-- HANDBOOK Add a class to a group
            parts: add-class-name, add-class-submit
            section: running-classes
+           moment: setting-up
            roles: admin, leader, school_admin
            place: node-home
            keywords: class, add, group, org, leader
@@ -709,6 +718,7 @@ function closeDelete(): void {
       <button v-if="!neutral" type="button" class="verb" :class="{ 'is-open': openForm === 'class' }" data-walk="verb-add-class" @click="toggle('class')">{{ t('org.ui.nodeActionBar.addAClass', 'Add a class') }}</button>
       <!-- HANDBOOK Set up a demo organisation
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: demo, sales, pilot, mint, trial, prospect
@@ -730,9 +740,11 @@ function closeDelete(): void {
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'demo' }" data-walk="verb-mint-demo" @click="toggle('demo')">{{ t('org.ui.nodeActionBar.mintADemoOrg', 'Mint a demo org') }}</button>
       <!-- HANDBOOK Choose which courses a school can use
            section: courses-and-content
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: courses, entitlement, trial, paid, access, catalogue
+           walk: org-choose-courses
            What it's for. Setting what a school or group is allowed to learn: the whole
            catalogue when they are paid up, or a named course or two while they are
            trialling.
@@ -751,6 +763,7 @@ function closeDelete(): void {
       <button v-if="!member" type="button" class="verb" :class="{ 'is-open': openForm === 'courses' }" data-walk="verb-courses" @click="toggle('courses')">{{ t('org.ui.nodeActionBar.courses', 'Courses') }}</button>
       <!-- HANDBOOK Rename a school or group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: rename, name, change, school, group
@@ -774,6 +787,7 @@ function closeDelete(): void {
       </button>
       <!-- HANDBOOK Delete a school or group
            section: your-school
+           moment: setting-up
            roles: admin
            place: node-home
            keywords: delete, remove, school, group, close
@@ -800,27 +814,6 @@ function closeDelete(): void {
     <!-- Inline forms (one at a time) -->
     <div v-if="openForm === 'person'" class="verb-form-block">
       <div class="verb-form">
-        <!-- HANDBOOK Choose what role someone arrives as
-             section: getting-people-in
-             roles: admin, leader, school_admin
-             place: node-home
-             keywords: role, teacher, leader, learner, invite, permissions
-             What it's for. The role you pick on an invite is the role the person lands
-             in, and it travels with the link rather than being set afterwards. Teacher
-             sees their own classes, group leader sees everything below their node,
-             learner just learns.
-             Where it is. Any node's home page, **Invite a person**, the role dropdown
-             on the left of the form.
-             How you do it.
-             1. Tap **Invite a person** on the node you want them to belong to.
-             2. Open the role dropdown.
-             3. Pick the role they should hold in this place.
-             4. Fill in their name and submit.
-             Worth knowing. The place matters as much as the role — a group leader
-             invited on a group leads that group and everything under it, so invite
-             people on the node whose shape you actually mean.
-             checked: 27dfbb12.215b02bb
-        -->
         <FrostSelect v-if="!classMode" v-model="personRole" class="frost-pick" data-walk="invite-form-role" :options="roleOptions" :aria-label="t('org.ui.nodeActionBar.roleAriaLabel', 'Role')" />
         <input v-model="personName" type="text" class="frost-input" :placeholder="classMode ? t('org.ui.nodeActionBar.studentsName', 'Student\'s name') : t('org.ui.nodeActionBar.theirName', 'Their name')" @keyup.enter="submitPerson" />
         <input v-model="personEmail" type="email" class="frost-input" :placeholder="t('org.ui.nodeActionBar.theirEmailWeSend', 'Their email — we\'ll send the invite')" />

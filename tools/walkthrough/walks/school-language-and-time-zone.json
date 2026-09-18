@@ -1,0 +1,39 @@
+{
+  "id": "school-language-and-time-zone",
+  "title": "Set your language and time zone",
+  "personas": [
+    "school_admin",
+    "teacher"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "language",
+    "welsh",
+    "cymraeg",
+    "time zone",
+    "timezone",
+    "localisation",
+    "interface"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-tab-locale",
+      "say": "Tap **Localisation** to choose the language the dashboard speaks to you in, and the time zone your dates and times are read against.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "6cdbf39e.1bcce322"
+    },
+    {
+      "anchor": "settings-localisation-save",
+      "say": "Pick your interface language and time zone, then tap **Save changes**. This is remembered on the device you set it on — teachers and students each choose their own, so it doesn't change what anybody else sees.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the whole thing — one language, one time zone, always changeable, always in the same place.",
+      "checked": "95625660.44b7c113"
+    }
+  ]
+}

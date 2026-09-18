@@ -1,0 +1,58 @@
+{
+  "id": "structure-a-group",
+  "title": "Add, rename and delete schools and groups",
+  "personas": [
+    "admin"
+  ],
+  "place": {
+    "route": "node-home",
+    "kinds": [
+      "group"
+    ]
+  },
+  "keywords": [
+    "school",
+    "group",
+    "add",
+    "create",
+    "rename",
+    "delete",
+    "demo",
+    "structure"
+  ],
+  "steps": [
+    {
+      "anchor": "verb-add-school",
+      "say": "**Add a school** creates a school inside this group, with its own home page, its own staff and its own learners. This verb only shows on a plain group — a school can't contain another school.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "5ed1155c.9aca417e"
+    },
+    {
+      "anchor": "verb-mint-demo",
+      "say": "**Mint a demo org** stands up a whole organisation with plausible people and activity already in it, for showing somebody what the product looks like once it's running.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "090dae2a.67a5a2b0"
+    },
+    {
+      "anchor": "verb-rename",
+      "say": "**Rename** changes what this school or group is called everywhere it appears. Nothing else moves — the same people, classes and links carry on under the new name.",
+      "advance": {
+        "on": "click"
+      },
+      "checked": "2aa3a351.bc195829"
+    },
+    {
+      "anchor": "verb-delete",
+      "say": "**Delete** is the one verb here that takes everything below it with it. You're shown what goes — classes, people and links — and asked to type the name back before it confirms whenever there's real activity underneath.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "Everything here works the same way — open the school or group, and its verbs sit in a row along the top.",
+      "checked": "8ae01301.11369e1d"
+    }
+  ]
+}

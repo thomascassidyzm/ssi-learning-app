@@ -28,8 +28,8 @@ const { t } = useI18n()
  * "Using the app" is HOW_THIS_WORKS_LEARNER wearing a non-duplicating label,
  * since this panel is itself called How this works.
  */
-import { ref, computed, nextTick } from 'vue'
-import { walksFor, searchWalks, walkTopic, startWalk } from '@/walkthrough/useWalkthrough'
+import { ref, computed, nextTick, watch } from 'vue'
+import { walksFor, searchWalks, walkTopic, startWalk, claimDeferredWalk, type WalkPersona } from '@/walkthrough/useWalkthrough'
 import { shouldThrob, markSeen } from '@/explainer/learnerThrob'
 import HowThisWorksLearner from '@/components/me/HowThisWorksLearner.vue'
 import WhyThisWorks from '@/components/me/WhyThisWorks.vue'
@@ -41,9 +41,23 @@ const props = withDefaults(defineProps<{
   viewerId?: string
   /** Guests are offered the sign-in walk; signed-in learners are not. */
   isGuest?: boolean
-}>(), { viewerId: 'anon', isGuest: false })
+  /** The viewer's own persona, as the Handbook resolves it — a teacher's
+   *  Handbook walk at the Library ("Playing as yourself") is claimed at
+   *  'teacher', while the panel itself stays the learner's. */
+  persona?: WalkPersona
+}>(), { viewerId: 'anon', isGuest: false, persona: 'learner' })
 
 const kind = computed(() => (props.isGuest ? 'guest' : 'signed-in'))
+
+// A walk asked for from the Handbook starts here, at the Library, once this
+// mount knows who is standing on it (job #881) — the same claim HowThisWorks
+// and WalkOffer make on the dashboard places. The tap was theirs; nothing
+// ever auto-plays.
+watch(
+  [() => props.persona, kind],
+  ([persona, k]) => { claimDeferredWalk(persona, 'library', k) },
+  { immediate: true },
+)
 
 // Offer filtering rides the engine's own persona × place × kind, so which
 // walks a learner sees is a fact about the pack, never a list held here.

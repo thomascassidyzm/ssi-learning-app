@@ -1,0 +1,46 @@
+{
+  "id": "school-identity-list",
+  "title": "Which addresses look like your school",
+  "personas": [
+    "school_admin"
+  ],
+  "place": {
+    "route": "settings"
+  },
+  "keywords": [
+    "domain",
+    "address",
+    "identity",
+    "claim",
+    "allow",
+    "remove",
+    "supply"
+  ],
+  "steps": [
+    {
+      "anchor": "settings-identity-add-domain",
+      "say": "Type the part of your school's email after the @, such as example.sch.uk, and tap **Add domain**. Nobody is let in or kept out by this — it only sorts your Not yet given classes list, so an arrival from a domain you don't recognise rises to the top.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "54dabd91.b537be49"
+    },
+    {
+      "anchor": "settings-identity-add-address",
+      "say": "For one named person on a personal address — a supply teacher, a colleague without a school email — type their address here and tap **Add address** instead.",
+      "advance": {
+        "on": "next"
+      },
+      "checked": "973f0817.74a10b1b"
+    },
+    {
+      "anchor": "settings-identity-remove",
+      "say": "**Remove** beside any entry takes it off the list. Nothing is revoked — the person just stops being sorted to the top as unfamiliar.",
+      "advance": {
+        "on": "next"
+      },
+      "terminal": "That's the whole list — it changes ordering, never access. Giving somebody a class is what actually brings them into your school.",
+      "checked": "9945a0f3.7ff7f088"
+    }
+  ]
+}
