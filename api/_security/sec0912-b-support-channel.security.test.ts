@@ -31,6 +31,12 @@
  *   api/groups/groupsErrorLeakage.security.test.ts, recurring in new code
  *   because nothing gates it. CHARACTERIZATION.
  *
+ * EXTENDED 2026-09-18 (job #220) with the PLATFORM INBOX branch: an ssi_admin
+ * may now READ and ANSWER every school's and org's thread from Admin →
+ * Support. The assertions below pin the three things that could go wrong with
+ * it — the school's own isolation, the admin gate on the new routes, and the
+ * View-As guard on the write — and pin that no new browser grant came with it.
+ *
  * Also here, as SECURE ASSERTIONS on things this audit checked and cleared:
  * the population endpoint's integers-only shape, the client envelope's
  * allowlist, the admin-only gate on all three routes, and the absence of any
@@ -223,5 +229,76 @@ describe('SEC0912-B — checked and clear (secure assertions)', () => {
       expect(src).toMatch(/cronAuth\.ok/)
     }
     expect(read('api/_utils/cronAuth.ts')).toContain('timingSafeEqual')
+  })
+})
+
+describe('SEC0912-B — the platform inbox (job #220) spans schools for an ssi_admin, and for nobody else', () => {
+  const SHARED = 'api/support/_shared.ts'
+  const UTIL = 'api/_utils/platformSupport.ts'
+  const LIST = 'api/admin/support/index.ts'
+  const REPLY = 'api/admin/support/reply.ts'
+
+  it('ISOLATION HOLDS: the school-side scope still resolves ONE school or ONE group, and knows nothing of ssi_admin', () => {
+    const shared = read(SHARED)
+    expect(shared).toContain("scope.role === 'school_admin' && scope.schoolIds.length === 1")
+    expect(shared).toContain("scope.role === 'govt_admin' && scope.groupId")
+    // No platform branch was bolted onto the school's own door: an ssi_admin
+    // still 403s on api/support/*, which is what keeps a school seeing only
+    // its own thread through its own scope.
+    const resolver = shared.slice(shared.indexOf('export async function resolveSupportScope'))
+    expect(resolver.slice(0, resolver.indexOf('\n}'))).not.toContain('ssi_admin')
+    for (const route of ['api/support/thread.ts', 'api/support/messages.ts', 'api/support/population.ts']) {
+      expect(read(route)).toContain('resolveSupportScope')
+      expect(read(route)).not.toContain('verifyAdmin')
+    }
+  })
+
+  it('the cross-school read is reachable ONLY behind verifyAdmin, never from a school session', () => {
+    for (const route of [LIST, REPLY]) {
+      const src = read(route)
+      expect(src).toContain('resolveAdminCaller')
+      expect(src).not.toContain('resolveVisibleScope')
+      expect(src).not.toContain('resolveSupportScope')
+    }
+    // resolveAdminCaller IS verifyAdmin plus the service client, and nothing else.
+    expect(read('api/admin/messages/_shared.ts')).toContain('verifyAdmin')
+  })
+
+  it('THE ONE GUARD: the reply is authored from the verified admin uid, and a View-As write is refused', () => {
+    const src = read(REPLY)
+    expect(src).toContain('refuseViewAsWrite')
+    // The author comes from the caller, never from the request body.
+    expect(src).toMatch(/senderUserId: caller\.userId/)
+    expect(src).not.toMatch(/senderUserId: b\./)
+    const util = read(UTIL)
+    expect(util).toContain("author_user_id: input.senderUserId")
+    expect(util).toContain("author_via: 'jwt'")
+    // And nothing in the write path can be handed an author by the client.
+    expect(util).not.toMatch(/author_user_id: b\./)
+  })
+
+  it('it publishes NOTHING new to the browser: no migration, no grant, no widened column list', () => {
+    // The whole feature is server-side reads under the service role.
+    expect(read(UTIL)).not.toMatch(/GRANT|REVOKE/)
+    expect(read(LIST)).not.toMatch(/GRANT|REVOKE/)
+    // The school's own browser grant is still the column-scoped one 20260912a set.
+    const schema = read('supabase/schema.sql')
+    expect(schema).not.toMatch(/GRANT SELECT ON TABLE public\.support_messages TO authenticated/)
+    // The envelope is read for the answerer — under the service role, in an
+    // admin-gated route — and still never granted to `authenticated`.
+    expect(read(UTIL)).toContain('envelope')
+    const cols = [...schema.matchAll(/GRANT SELECT\((\w+)\) ON TABLE public\.support_messages TO authenticated;/g)].map((x) => x[1])
+    expect(cols).not.toContain('envelope')
+  })
+
+  it('a learner-owned thread is not reachable through the schools channel', () => {
+    const util = read(UTIL)
+    expect(util).toContain('if (!thread.school_id && !thread.group_id) return null')
+  })
+
+  it('the new routes do not return raw database error text (B-02 not reintroduced)', () => {
+    for (const route of [LIST, REPLY]) {
+      expect(read(route)).not.toMatch(/error: err instanceof Error \? err\.message/)
+    }
   })
 })

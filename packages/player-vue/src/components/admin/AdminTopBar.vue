@@ -104,7 +104,7 @@ const toolGroups: NavMenuGroup[] = [
   {
     label: 'Tools',
     items: [
-      { label: 'Support', to: '/admin/support', desc: 'Every report sent from inside the app, and the reply', iconPaths: ICONS.notes, match: (p) => p.startsWith('/admin/support') },
+      { label: 'Support', to: '/admin/support', desc: 'Every report sent from inside the app, and every school thread', iconPaths: ICONS.notes, match: (p) => p.startsWith('/admin/support') },
       { label: 'Messages', to: '/admin/messages', desc: 'Tell learners what has gone live — by course, one learner, or everyone', iconPaths: ICONS.notes, match: (p) => p.startsWith('/admin/messages') },
       { label: 'Release notes', to: '/admin/release-notes', desc: "Curate the What's New panel in Settings", iconPaths: ICONS.notes, match: (p) => p.startsWith('/admin/release-notes') },
       { label: 'Invites audit', to: '/admin/invites', desc: 'Every code ever minted — make new ones from a node in Structure', iconPaths: ICONS.access, match: (p) => p.startsWith('/admin/invites') },
