@@ -920,7 +920,9 @@ describe('GET /api/groups/:id/rate-compare — the SCHOOL WEEK is the window (jo
     // while the caption underneath it still said "schools".
     expect(res.body.week.entity.totalMinutes).toBe(60)
     expect(res.body.week.cohort.size).toBe(2)
-    expect(res.body.week.cohort.sizeLabel).toBe('2 schools')
+    // The caption names the denominator AND the rule that chose it
+    // (Tom, 2026-09-18) — the noun is still the unit, schools at school level.
+    expect(res.body.week.cohort.sizeLabel).toBe('2 schools that practised this week')
     expect(res.body.week.cohort.totalMinutes).toBe(45)
     // One denominator for the whole page, at every level.
     expect(res.body.cohortSize).toBe(2)
@@ -1314,11 +1316,21 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     expect(trend.slice(0, -1).every((v: number) => v === 0)).toBe(true)
   })
 
-  it('the same rule under a WEEK window: the dashed weekly bars are a mean over every member, dormant ones at zero (job #989)', async () => {
+  /**
+   * FLIPPED DELIBERATELY, 2026-09-18 (job #207). This test used to assert the
+   * opposite — that a dormant member was averaged in at zero — under Tom's
+   * ruling of 2026-09-16. He overruled it on production, reading Chepstow: a
+   * class that did not use the app in the window is EXCLUDED from the average,
+   * because dividing 11.7 minutes by the 33 classes that have ever started
+   * described a school nobody was looking at. The sibling test above keeps the
+   * old behaviour on the legacy ?days= rate lane, which is a different
+   * question on surfaces that are not the school week card.
+   */
+  it('a member that did NOT practise in the week is out of the average entirely (Tom, 2026-09-18)', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     // c1 and c2 each play half an hour this week; c3 STARTED 150 days ago and
-    // has been silent since. The bars are total learning time, so this week's
-    // bar is mean(30, 30, 0) = 20 — dropping the dormant c3 would read 30.
+    // has been silent since. The denominator is the two that practised, so
+    // this week's bar is mean(30, 30) = 30 — averaging c3 in at zero read 20.
     SESSION_ROWS = [
       // daysAgo(0), not `new Date()`: the week's end is EXCLUSIVE (cohortFor
       // and the minute sums both read `< endMs`), and for THIS week that end
@@ -1331,10 +1343,74 @@ describe('GET /api/groups/:id/rate-compare — self-inclusive averaging (Tom, 20
     const res = makeRes()
     await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
     expect(res.statusCode).toBe(200)
-    expect(res.body.week.cohort.size).toBe(3)
+    expect(res.body.week.cohort.size).toBe(2)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 classes that practised this week')
     const bars: number[] = res.body.week.bars.cohort
     expect(bars).toHaveLength(12)
-    expect(bars[bars.length - 1]).toBe(20)
+    expect(bars[bars.length - 1]).toBe(30)
+    // and the card's number and its newest bar are still one function
+    expect(res.body.week.cohort.totalMinutes).toBe(30)
+  })
+
+  /**
+   * THE CHEPSTOW SHAPE, which is why the rule changed (Tom on production,
+   * 2026-09-18). A whole-class school: many classes started, few practised
+   * this week. Red on the old denominator, which read 0.4 of a minute and
+   * printed "0m" beside a class showing 8.
+   */
+  it('divides by the classes that practised, not by every class that has ever started', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // c1 practises 30 min this week; c2 practises 6 min; c3 started long ago
+    // and was quiet. Practising denominator: mean(30, 6) = 18.
+    // Started denominator: mean(30, 6, 0) = 12 — a third lower, and the more
+    // classes a school has, the further from the truth it gets.
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 1, duration_seconds: 360, started_at: daysAgo(0) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort.size).toBe(2)
+    expect(res.body.week.cohort.totalMinutes).toBe(18)
+    expect(res.body.week.cohort.sizeLabel).toBe('2 classes that practised this week')
+  })
+
+  it('a session of zero seconds is not practice, and never joins the denominator', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 0, started_at: daysAgo(0) },
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
+    expect(res.body.week.cohort.size).toBe(2)
+    expect(res.body.week.cohort.totalMinutes).toBe(30)
+  })
+
+  /**
+   * SOVEREIGNTY UNDER THE NEW DENOMINATOR: an average of one is not an
+   * average. If the entity is the only unit that practised, the two columns
+   * would be the same number twice; if it is not, the "average" IS one named
+   * peer's exact week. Either way the column goes and the card says why.
+   */
+  it('says nothing to compare against rather than averaging the entity with itself', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    SESSION_ROWS = [
+      { class_id: 'c1', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 6, duration_seconds: 1800, started_at: daysAgo(0) },
+      { class_id: 'c2', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S1L01', start_ord: 0, end_ord: 3, duration_seconds: 900, started_at: daysAgo(150) },
+      { class_id: 'c3', course_code: 'hin_for_eng', start_lego_id: 'S0L01', end_lego_id: 'S0L01', start_ord: 0, end_ord: 0, duration_seconds: 600, started_at: daysAgo(150) },
+    ]
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'this_week', tz: 'Europe/London' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.week.cohort).toBeNull()
+    expect(res.body.week.cohortNote).toBe('Nothing to compare against: only this class practised this week.')
+    // the entity's own week still stands, and so do the twelve bars
+    expect(res.body.week.entity.totalMinutes).toBe(30)
+    expect(res.body.week.bars.cohort.some((v: number | null) => typeof v === 'number')).toBe(true)
   })
 })
 
@@ -1367,7 +1443,7 @@ describe('GET /api/groups/:id/rate-compare — year/department tags, the leader\
     expect(res.body.applied.compare_to).toBe('tag:year')
     // c1 + c6 only — c7 is Year 5, and it is in the school rung, not this one
     expect(res.body.cohortSize).toBe(2)
-    expect(res.body.week.cohort.sizeLabel).toBe('2 classes')
+    expect(res.body.week.cohort.sizeLabel).toBe('2 classes that practised this week')
   })
 
   it('a confirmed year with NO confirmed sibling is absence — no rung, and the default walks on to the school', async () => {
