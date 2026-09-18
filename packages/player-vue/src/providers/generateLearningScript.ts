@@ -379,6 +379,30 @@ async function fetchAllPracticePhrases(
 const WALK_SLICE_BUDGET_MS = 40
 
 /**
+ * A sub-cycle of the drained SEED-PHASE sandwich (target → known → target →
+ * target, offset ≥144 — see emitSeedSandwich).
+ *
+ * WHY THIS PREDICATE EXISTS (mintonman's second Basque report, 2026-09-17).
+ * All four sub-cycles display the SAME seed sentence on both sides, because
+ * all four are the same sentence — that is the whole point of the sandwich.
+ * So the two duplicate passes further down read them as one prompt repeated
+ * four times: the consecutive-duplicate removal threw three away outright,
+ * INCLUDING the only English clip, and the A-64 cap would have re-interleaved
+ * whatever survived. What reached the learner was a single Basque clip with
+ * English on screen — "only the basque is spoken (with English displayed)".
+ * Confirmed in one Basque learner's telemetry: exactly one `audio_play` per
+ * seed review, always role target1, never `known`, with the cycle counter
+ * stepping by four.
+ *
+ * The sandwich is comprehensible input. It has no mic pause and asks for no
+ * production, so "the same PROMPT twice" does not describe it any more than it
+ * describes a listening cup or a pod play, both of which are already exempt.
+ */
+export function isSeedSandwichItem(item: Pick<ScriptItem, 'type' | 'reviewItemKind'>): boolean {
+  return item.type === 'spaced_rep' && item.reviewItemKind === 'seed'
+}
+
+/**
  * Prompt identity for the A-64 consecutive-repeat cap: what the learner
  * actually hears as "the same thing again".
  *
@@ -391,6 +415,10 @@ const WALK_SLICE_BUDGET_MS = 40
  * is the honest answer — it is the same clip.
  */
 export function scriptItemIdentity(item: ScriptItem): string {
+  // The sandwich's four slots are one unit, not four repeats (see above).
+  // Each slot gets its own identity so the cap can neither drop one nor pull
+  // another review in between them.
+  if (isSeedSandwichItem(item)) return `seedsandwich:${item.uuid}`
   const norm = (text: string | null | undefined): string =>
     text ? text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '') : ''
   const known = norm(item.knownText)
@@ -1958,7 +1986,11 @@ export async function generateLearningScript(
 
   for (const item of items) {
     await yieldTick()
-    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') {
+    // Exempt: types whose repetition is the design, not an accident. The
+    // drained seed sandwich joins them — its four slots are deliberately the
+    // same sentence, and dropping three of them is what reached mintonman as
+    // a lone Basque clip (see isSeedSandwichItem).
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro' || isSeedSandwichItem(item)) {
       dedupedItems.push(item)
       continue
     }

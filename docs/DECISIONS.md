@@ -1,3 +1,45 @@
+## 2026-09-18 — The drained seed review was shipping one clip in four (job #149)
+
+mintonman's SECOND Basque report describes an exercise where only the Basque is spoken with English
+displayed, the four-state phase strip is missing altogether, and the Basque words begin to deal out
+card by card before the app moves to the next exercise. Job #644 had seen the first version of this
+report and called it by design — the drained seed sandwich, no framing clip, flagged for a product
+call. **That judgement was wrong, and the second report is what shows it.** The behaviour was not the
+design; it was the design with three quarters of it thrown away.
+
+**What the design is.** At spaced-rep offset >= 144 a review stops being a use-phrase and becomes the
+whole parent sentence, played as a four-clip comprehensible-input sandwich: target, then known, then
+target, then target (Tom + Aran, 2026-07-14). No mic pause, no production ask — the learner listens.
+
+**What shipped.** All four slots carry the same sentence on both the known and target sides, because
+all four ARE the same sentence. `generateLearningScript`'s consecutive-duplicate pass — which exempts
+intros, debuts, listening cups, pods and bookends, but had never heard of the sandwich — dropped
+slots 2, 3 and 4 outright, and the only English clip with them. The A-64 consecutive-prompt cap
+downstream would have re-interleaved anything that survived. So the whole review reached the learner
+as ONE Basque clip, English on screen, and then the next exercise. In thirty days of telemetry there
+are 311 seed-review plays across ten courses and not one is the English clip.
+
+**It is not a content gap.** Every one of eus_for_eng's 668 seeds carries its known clip. The player
+was discarding it. (Basque does have 178 audio-less LEGOs, from #644 — a real content gap, and a
+different one from this.)
+
+**The ruling applied.** The A-64 law is about the same PROMPT repeating. The sandwich has no prompt:
+it asks for nothing, times nothing, and repeats on purpose. It therefore sits outside the law exactly
+as a listening cup and a pod play already do. Its slots are exempt from the duplicate pass and each
+carries its own identity through the cap, so all four survive, contiguous and in `t-k-t-t` order.
+
+**The tiles.** Each slot also gains a 1.6 s linger. A sandwich slot has no voice2 clip, so VOICE_2
+ended in the frame it began — and VOICE_2 is where `LegoAssembly` starts dealing the target tiles at
+250 ms plus 150 ms each. The words began to appear and were snatched away, which is the second half
+of what mintonman describes.
+
+**What stays.** The missing four-state phase strip is correct and deliberate: `showPhaseStrip`
+requires a non-zero pause, and this cycle has no mic stage, so a four-state bar would be a lie about
+what the learner is being asked to do. It read as a glitch because the cycle had been stripped to a
+single silent-looking play. With all four clips back — Basque, English, Basque, Basque, each holding
+its text — it reads as the listening review it is. If it still reads oddly to learners, framing it is
+a product call for Tom, not a code one.
+
 ## 2026-09-17 — A cycle id names the phrase it plays (job #128)
 
 #126 found the Course journey card all but empty on the deepest real learner — 10 arcs and "5
