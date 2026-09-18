@@ -37,6 +37,12 @@
  * it — the school's own isolation, the admin gate on the new routes, and the
  * View-As guard on the write — and pin that no new browser grant came with it.
  *
+ * EXTENDED AGAIN 2026-09-18 (job #221): a learner's own reply thread
+ * (job #821) is now listed and answerable in the same place, deliberately —
+ * see the test below that replaces the old "not reachable" assertion. The
+ * gate is unchanged (still ssi_admin only, still no browser grant); what's
+ * new is named-never-by-email and de-duped against her own bug_report row.
+ *
  * Also here, as SECURE ASSERTIONS on things this audit checked and cleared:
  * the population endpoint's integers-only shape, the client envelope's
  * allowlist, the admin-only gate on all three routes, and the absence of any
@@ -291,9 +297,19 @@ describe('SEC0912-B — the platform inbox (job #220) spans schools for an ssi_a
     expect(cols).not.toContain('envelope')
   })
 
-  it('a learner-owned thread is not reachable through the schools channel', () => {
+  it('EXTENDED 2026-09-18 (job #221): a learner-owned thread is now listed too, but only behind the same ssi_admin gate, and de-duped against her own report', () => {
     const util = read(UTIL)
-    expect(util).toContain('if (!thread.school_id && !thread.group_id) return null')
+    // Deliberately widened from "not reachable" to "reachable, on purpose, ssi_admin only":
+    // a learner's reply to an admin_message opens the channel for her too (job #821), and
+    // Tom asked for one list of everything waiting. The gate that matters is unchanged —
+    // both routes above still resolve only through resolveAdminCaller / verifyAdmin, never
+    // resolveSupportScope, so a school session still cannot reach a learner's thread either.
+    expect(util).toContain('!thread.school_id && !thread.group_id && !thread.learner_user_id')
+    // Never named by anything that could be her email.
+    expect(util).not.toMatch(/learner.*\.email/i)
+    // The same conversation is never shown twice: a learner thread already surfaced via her
+    // own bug_report/tester_feedback reply is excluded from the list.
+    expect(util).toContain('repliedReportOriginIds')
   })
 
   it('the new routes do not return raw database error text (B-02 not reintroduced)', () => {
