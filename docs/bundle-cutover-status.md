@@ -7,7 +7,8 @@ looked shelved for six weeks. Its own status line still says *"No code in this
 document has been written"*; that has been false since 2026-08-16. **This file
 is the current truth; the design doc is the map of intent.**
 
-Last updated: 2026-08-29.
+Last updated: 2026-09-18 (phase table corrected against the code; the
+SEED-PHASE review tier deleted on Tom's ruling — see "Two rulings" below).
 
 ## Why it exists, in one paragraph
 
@@ -30,12 +31,12 @@ replaces all three, fed by one entitlement-gated door, `GET /api/courses/:code/b
 |---|---|---|---|
 | 1 | Promote the generator to `@ssi/core`; `GENERATOR_VERSION`; re-export shims | **DONE** | `eec98f09` |
 | 2 | Enrich the bundle: `scriptShape` + `scriptShapeVersion`, `course_seeds` text+audio, `?head=1` version probe | **DONE** | `eec98f09` |
-| 3 | Generator parity: shape injection, SEED-PHASE reviews (≥144), round shape, golden-master harness | **DONE** | `95bd4a1e` |
+| 3 | Generator parity: shape injection, SEED-PHASE reviews (≥144), round shape, golden-master harness | **DONE**, and since superseded twice — the two selection algorithms were merged into one shared module (`phraseSelection.ts`) rather than policed by a diff, and the SEED-PHASE tier itself was DELETED on 2026-09-18 | `95bd4a1e`, `522bcfe56`, this ruling |
 | 4 | Client bundle store `useCourseBundle` (auth header, IndexedDB, head probe, previewOnly-aware key) | **DONE** | this branch |
 | 5 | Cut the bootstrap over (kills path b usage), per-course flag | **DONE — 15 courses flagged, main loop AND INF PLAY** | `53b4a00d`, `9d27521e` |
 | 5b | `gloss_segments` in the bundle; parity widened to 16 courses; INF PLAY cut over | **DONE** | `e1dd52bb`, `eb82448f`, `464ba654`, `9d27521e` |
-| 6 | Cut the full walk over (kills path a usage) | not started | |
-| 7 | Repoint stragglers, delete, `REVOKE` on the content tables | not started | |
+| 6 | Cut the full walk over (kills path a usage) | **DONE for the 15 flagged courses — and has been since 29 August**, 83 minutes after this document was last written. `fullScriptFromBundle()` at `LearningPlayer.vue:601` builds the whole course from the bundle in memory and returns `null` on anything going wrong, so the walk stays as the fallback | `461d81af1`, perf repair `37327b510`, fix `522bcfe56`; `providers/bundleFullScript.ts`; `docs/bundle-cutover-step6-verified-2026-08-29.md` |
+| 7 | Repoint stragglers, delete the walk, `REVOKE` anon on the content tables | **NOT DONE** — correctly reported. Two script paths are still live at once, which is the thing that bit twice in the week to 2026-09-18 | |
 
 **Turbo tagging (design step 3, item 3) is MOOT** — Turbo was retired in
 `d5548fdc` ("two learning modes — easy and fast, turbo retired"). Verified
@@ -55,12 +56,15 @@ node --experimental-strip-types tools/bundle-cutover/parity-cycles.mjs --wire   
 Result on 2026-08-29, 4 courses × 3 positions, both modes:
 **10/12 byte-identical, 2/12 supersets, 0 drift.**
 
-The two supersets differ in exactly one way, and it is intentional: the
-generator emits **SEED-PHASE reviews** (spaced-rep offsets ≥144 play the full
-parent seed sentence), which `cycles.ts` documents under "KNOWN GAPS vs the
-walk" as something it cannot do. The generator is *ahead* of the endpoint
-there and matches the walk, which is the source of truth. Nothing the endpoint
-emits is ever missing from the generator's output.
+The two supersets differed in exactly one way: the generator emitted
+**SEED-PHASE reviews** (spaced-rep offsets ≥144, the full parent seed
+sentence), which `cycles.ts` documents under "KNOWN GAPS vs the walk" as
+something it cannot do.
+
+**Re-run 2026-09-18, after the tier was deleted: 12/12 byte-identical, 0
+supersets, 0 drift.** Both generators and the endpoint now stop at the same
+final offset, 89, so there is nothing left for the harness's
+`SUPERSET_SEED_PHASE_ONLY` verdict to describe.
 
 The harness earned its keep immediately: it caught a cycle-id collision (a USE
 row promoted into a build slot and replayed in the consolidation tail produced
@@ -116,7 +120,7 @@ added, and the raw results are committed under `docs/bundle-cutover-parity/`:
 
 | Harness | Coverage | Result |
 |---|---|---|
-| `parity-cycles.mjs` (generator + wire) | 16 courses × 3 positions × 2 modes | 39 identical, 6 superset (seed-phase only), 3 no-audio, **0 drift** |
+| `parity-cycles.mjs` (generator + wire) | 16 courses × 3 positions × 2 modes | 39 identical, 6 superset (seed-phase only), 3 no-audio, **0 drift** — the seed-phase supersets are gone as of 2026-09-18 |
 | `parity-cycles.mjs --wire`, anonymous | 6 premium courses × 3 positions, free-preview window | 18 identical, **0 drift** |
 | `parity-infplay.mjs` | 16 courses × 3 entry rounds, both producers sampled | 3 identical, 42 superset (every extra attributed), 3 no-audio, **0 drift**, 0 lost reviews, 0 illegal draws |
 
@@ -394,9 +398,44 @@ telemetry composable.
 3. **`/infplay-cycles` has a 10,000-row phrase cap** that makes the tail of
    `spa_for_eng` (10,072 USE rows) invisible to it. Not worth fixing in an
    endpoint being retired; recorded because it explains real parity extras.
-4. **Soak.** Design §5 step 5 asks for a week with every entry mode exercised
-   (fresh, resume, belt-skip, INF-PLAY entry, preview/anonymous, try-link)
-   before `ALL`. Nothing here has gone past `dev` (Tom, 2026-08-29: dev only).
+4. **Soak — ANSWERED BY SHIPPING.** This said "nothing here has gone past
+   `dev`". That stopped being true weeks ago: steps 5, 5b and 6 rode the
+   ordinary weekly train to production, and on 2026-09-18 `origin/dev`,
+   `origin/staging` and `origin/main` were all the same commit. The soak
+   happened; nobody marked the moment.
+
+## Two rulings, 2026-09-18 — delivery-side
+
+**1. The SEED-PHASE review tier is deleted, on both paths.** Tom: *"Delete the
+additional SEED once it's dropped out of the Spaced Rep. Because the cups
+handle it."* Spaced rep now stops at offset **89** everywhere — the walk, the
+shared generator and `/cycles` all agree, which is what turned the last two
+parity supersets into IDENTICAL. Nothing is emitted for a drained seed beyond
+that: not the walk's four-slot t→k→t→t sandwich, not the bundle's three-clip
+production exercise, and not a fallback use-phrase at those offsets either.
+A drained seed reaches the learner through the cups listening interlude
+(`useLayer1Scheduler`, runtime, path-agnostic) and nothing else.
+
+The ceiling is enforced in code (`REVIEW_OFFSET_CEILING` + `reviewOffsets()`
+in `@ssi/core`), not by shortening a config array, because the live
+`algorithm_config.script_shape` row and every already-baked bundle still carry
+the long Fibonacci tail. Seed GRADUATION went with it — it existed only to
+keep a drained seed drawing whole-sentence reviews, and with reviews stopping
+at 89 a graduated seed can no longer be due for anything. Two course-wide walk
+queries went with graduation: `course_seeds` (its only consumer was the seed
+review) and the LEGO catalogue (the last bare `.limit(10000)` on that path).
+
+This also settles the open question `997faff61` raised and could not answer —
+whether a drained review should be input or production. It is neither.
+
+**2. Pod cadence is per mode.** Tom: *"The PODS (layer 2 listening exercises)
+need to come more often on EASY MODE. Every 2x ROUNDS in EASY MODE and every 4x
+ROUNDS in FAST mode."* `ModeConfig.podRoundInterval` ships 2 on Easy and 4 on
+Fast and beats the global `algorithm_config.pods.roundInterval` (5), which
+stays as the fallback. It touches neither script path — pods are a runtime
+scheduler (`usePodLapScheduler`), and the cadence is a work DEBT, not a
+position rule, so it survives replays and belt skips. Cups are unchanged: one
+per round, `seedsPerCup` untouched.
 
 ## The next phase, concretely
 

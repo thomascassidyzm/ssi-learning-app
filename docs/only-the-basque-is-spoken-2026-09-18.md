@@ -1,3 +1,13 @@
+> **SUPERSEDED THE SAME DAY (2026-09-18).** Tom then ruled the whole SEED-PHASE
+> review tier out of existence — *"Delete the additional SEED once it's dropped
+> out of the Spaced Rep. Because the cups handle it."* — so the sandwich this
+> document diagnoses and repairs no longer exists on either path, and neither
+> does the bundle's three-clip version of the same review. The fix described
+> below, its tests and its e2e probe are deleted. Spaced rep now stops at
+> offset 89 everywhere. See `docs/DECISIONS.md`, 2026-09-18, job #232. What
+> stands here is the DIAGNOSIS: the telemetry, the mechanism, and the finding
+> that two paths were serving two different answers to the same question.
+
 # Only the Basque is spoken — mintonman's second report, and what was actually happening (job #149)
 
 Traced from the learner seat backwards on 2026-09-18, against the live database, one Basque
