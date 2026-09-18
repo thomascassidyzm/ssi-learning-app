@@ -27,6 +27,9 @@ import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeMapRailSkeleton from '@/components/admin/NodeMapRailSkeleton.vue'
 import { useSchoolsRail } from '@/composables/schools/useSchoolsRail'
 import { sendSignInCode } from '../auth/sendSignInCode'
+import { friendlyVerifyCodeError, resendCountdownLabel, SUPERSESSION_NOTICE } from '../auth/codeSupersession'
+import { useResendCooldown } from '../composables/useResendCooldown'
+import SchoolsPasswordPrompt from '@/components/schools/SchoolsPasswordPrompt.vue'
 // Seat purchase is web-only (platform/paymentRoute). In a store build the
 // constant folds to false, this branch is dropped, and UpgradeView is not in
 // the bundle at all — the wall below explains the lock without offering a
@@ -132,12 +135,20 @@ const loginOtp = ref('')
 const loginStep = ref<'email' | 'otp'>('email')
 const loginError = ref('')
 const isLoginLoading = ref(false)
-// Email verification is not a door. This screen used to offer exactly one way
-// in — "send me a code" — which is a wall for every teacher behind Hwb or a
-// Microsoft education tenant, because that code is quarantined and never
-// arrives. A password needs no inbox at all, so it sits here as a peer route.
-const usePassword = ref(false)
+// PASSWORD FIRST, CODE AS THE FALLBACK (Tom, 2026-09-18). The teachers
+// failing today got in once by a code and never set a password, so every
+// return visit dropped them back onto the code path and the Resend trap
+// (job #186: one head, eight code requests, five failed verifies). This
+// screen used to lead with "send me a code", which is a wall for every
+// teacher behind Hwb or a Microsoft education tenant; a password needs no
+// inbox at all, so it is now the front door and the code is the way in for
+// anyone who has not set one yet.
+const usePassword = ref(true)
 const loginPassword = ref('')
+// Resend cools down after every send and says why: only the newest code
+// works, and asking again cancels the one on its way (auth/codeSupersession.ts).
+const resendCooldown = useResendCooldown()
+const resendCount = ref(0)
 // School gateways swallow OTP mail silently: nothing bounces, nothing a
 // teacher can whitelist. Reveal the fallback after a wait, or immediately on
 // resend — that click already IS the signal something is wrong.
@@ -259,7 +270,9 @@ async function handlePasswordSignIn() {
       password: loginPassword.value,
     })
     if (error) {
-      loginError.value = error.message || 'That email and password did not match.'
+      // GoTrue says "Invalid login credentials" for a wrong password AND for
+      // an account that never set one. The second is the common case here.
+      loginError.value = 'That email and password did not match. If you have never set a password, email yourself a code instead — the button is just below.'
       return
     }
     // useAuth's onAuthStateChange picks it up from here, same as the OTP path.
@@ -281,7 +294,9 @@ async function handleSendOtp() {
       loginError.value = error.message || 'Unable to send code'
       return
     }
+    if (loginStep.value === 'otp') resendCount.value += 1
     loginStep.value = 'otp'
+    resendCooldown.start()
     armDeliveryHint()
   } catch (err: any) {
     loginError.value = err.message || 'Unable to send code'
@@ -311,7 +326,7 @@ async function handleVerifyOtp() {
         return
       }
       loginCodeAudit.failed(loginEmail.value, error.message)
-      loginError.value = error.message || 'Invalid code'
+      loginError.value = friendlyVerifyCodeError(error.message, { resends: resendCount.value })
       return
     }
     // Auth state change will be picked up by useAuth's onAuthStateChange listener
@@ -328,11 +343,14 @@ function handleBackToEmail() {
   loginStep.value = 'email'
   loginOtp.value = ''
   loginError.value = ''
+  resendCount.value = 0
+  resendCooldown.reset()
   showDeliveryHint.value = false
   if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
 }
 
 function handleResendCode() {
+  if (!resendCooldown.canResend.value) return
   showDeliveryHint.value = true
   void handleSendOtp()
 }
@@ -611,7 +629,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
             <p class="form-lede">
               {{ usePassword
                 ? `Enter the email your ${placeWord} registered with us, and your password.`
-                : `Enter the email address your ${placeWord} registered with us. We'll send a single-use code.` }}
+                : `Enter the email address your ${placeWord} registered with us. We'll send a single-use code — only the newest code you are sent will work.` }}
             </p>
 
             <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
@@ -659,7 +677,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
                 class="form-secondary"
                 @click="usePassword = !usePassword; loginError = ''; loginPassword = ''"
               >
-                {{ usePassword ? 'Email me a code instead' : 'Use a password instead' }}
+                {{ usePassword ? 'No password yet? Email me a code instead' : 'Use a password instead' }}
               </button>
             </div>
 
@@ -690,7 +708,7 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
           >
             <h2 class="arsenal form-title">Check your email</h2>
             <p class="form-lede">
-              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It expires in about an hour.
+              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It can take a few minutes on a school mail system — use the newest one.
             </p>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
@@ -724,15 +742,18 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
               <button
                 type="button"
                 class="form-secondary"
-                :disabled="isLoginLoading"
+                :disabled="isLoginLoading || !resendCooldown.canResend.value"
                 @click="handleResendCode"
               >
-                Resend code
+                {{ resendCountdownLabel(resendCooldown.secondsLeft.value) }}
               </button>
               <button type="button" class="form-secondary" @click="handleBackToEmail">
                 Use a different email
               </button>
             </div>
+            <!-- The consequence, stated before the tap (job #188): a second
+                 request cancels the code already on its way. -->
+            <p class="form-footnote">{{ SUPERSESSION_NOTICE }}</p>
 
             <!-- Never a dead end: name the routes that need no inbox. -->
             <div v-if="showDeliveryHint && orgLane" class="form-alert form-alert--info" role="status">
@@ -884,6 +905,12 @@ const { pullDistance, isPulling } = usePullToRefresh(containerEl)
       <!-- Unproven mailbox, for a leader who came through the no-code door
            (job #188). Non-blocking: takes the six digits whenever they land. -->
       <MailboxBanner />
+
+      <!-- A password is the default first step on entry (Tom, 2026-09-18):
+           it is the one way back in that needs no inbox, and the teachers
+           failing today are the ones who never set one. Opens itself once,
+           on first entry; "Not now" is durable. -->
+      <SchoolsPasswordPrompt auto-open />
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <SchoolsErrorBoundary>
