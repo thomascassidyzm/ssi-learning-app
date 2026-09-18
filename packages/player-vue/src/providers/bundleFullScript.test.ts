@@ -18,7 +18,11 @@ function audio(id: string, ms = 1500) {
   return { id, durationMs: ms, tier: 'ephemeral' as const }
 }
 
-function makeBundle(legoCount = 6, usesPerLego = 4, opts: { silentLego?: number } = {}): CourseBundle {
+function makeBundle(
+  legoCount = 6,
+  usesPerLego = 4,
+  opts: { silentLego?: number; decompose?: boolean } = {},
+): CourseBundle {
   const legos = []
   const phrases = []
   const roundMap = []
@@ -52,6 +56,15 @@ function makeBundle(legoCount = 6, usesPerLego = 4, opts: { silentLego?: number 
         role: 'use' as const,
         knownText: `known-${phraseId}`,
         targetText: `target-${phraseId}`,
+        ...(opts.decompose
+          ? {
+              decomposition: [
+                { legoId, target: `target-${legoId}`, known: `known-${legoId}`, isGhost: false },
+                { legoId: null, target: 'yn', known: '', isGhost: true },
+                { legoId: 'S0001L01', target: 'target-S0001L01', known: 'known-S0001L01', isGhost: false },
+              ],
+            }
+          : {}),
         audio: silent
           ? {}
           : {
@@ -154,6 +167,34 @@ describe('bundleFullScript', () => {
     expect(Math.min(...tail.map((r) => r.roundNumber))).toBe(7)
     // No two rounds share a number.
     expect(new Set(rounds.map((r) => r.roundNumber)).size).toBe(rounds.length)
+  })
+
+  // Job #158: the authored decomposition is the ONLY source of
+  // `componentLegoIds`, and those ids are what the player co-fires into
+  // `learner_lego_pairings`. The core generator used to drop it between the
+  // phrase and the cycle, so every bundle-course learner wrote zero pairs
+  // while the tiles on screen still looked right (they render from
+  // `displayTiling`). This is the round-level regression.
+  it('carries phrase decomposition through to componentLegoIds on the round cycle', () => {
+    const bundle = makeBundle(3, 2, { decompose: true })
+    const { rounds } = bundleFullScript(bundle, { infinitePlayLookahead: 0 })
+    const phraseCycles = rounds
+      .flatMap((r) => r.cycles)
+      .filter((c) => c.type === 'build' || c.type === 'use' || c.type === 'spaced_rep')
+    expect(phraseCycles.length).toBeGreaterThan(0)
+    // Every phrase-sourced cycle carries the non-ghost lego ids, in order,
+    // and the ghost token is dropped.
+    for (const c of phraseCycles) {
+      expect(c.componentLegoIds).toEqual([c.legoId, 'S0001L01'])
+    }
+    // More than one id is the whole point — buildPairs() of a single id is [].
+    expect(phraseCycles.some((c) => (c.componentLegoIds?.length ?? 0) >= 2)).toBe(true)
+  })
+
+  it('leaves componentLegoIds undefined when the phrase has no decomposition', () => {
+    const bundle = makeBundle(3, 2)
+    const { rounds } = bundleFullScript(bundle, { infinitePlayLookahead: 0 })
+    expect(rounds.flatMap((r) => r.cycles).every((c) => c.componentLegoIds === undefined)).toBe(true)
   })
 
   it('emits no revival tail from a preview bundle', () => {

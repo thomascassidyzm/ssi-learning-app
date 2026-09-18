@@ -734,6 +734,7 @@ function buildPhraseCycle(
       pauseConfig,
     ),
     displayTiling: phrase.displayTiling,
+    decomposition: phrase.decomposition,
   })
 }
 
@@ -818,6 +819,7 @@ function buildInfPlayCycle(
       pauseConfig,
     ),
     displayTiling: phrase.displayTiling,
+    decomposition: phrase.decomposition,
   })
 }
 
@@ -844,6 +846,20 @@ interface BaseCycleOpts {
   glossSegments?: Array<{ span: number; known: string }>
   /** Authored display tiles — phrase-sourced cycles only. */
   displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
+  /**
+   * Authoritative content-level tiling (course_practice_phrases.decomposition),
+   * phrase-sourced cycles only. Load-bearing beyond display: the round adapter
+   * derives `componentLegoIds` from it, and those ids are what the player
+   * co-fires into `learner_lego_pairings`. Dropping it here silently killed
+   * every pair on every bundle course (job #158).
+   */
+  decomposition?: Array<{
+    legoId: string | null
+    target: string
+    known: string
+    isGhost: boolean
+    isSalient?: boolean
+  }>
 }
 
 function baseCycle(o: BaseCycleOpts): Cycle {
@@ -868,6 +884,7 @@ function baseCycle(o: BaseCycleOpts): Cycle {
     ...(o.components && o.components.length > 0 ? { components: o.components } : {}),
     ...(o.glossSegments && o.glossSegments.length > 0 ? { glossSegments: o.glossSegments } : {}),
     ...(o.displayTiling && o.displayTiling.length > 0 ? { displayTiling: o.displayTiling } : {}),
+    ...(o.decomposition && o.decomposition.length > 0 ? { decomposition: o.decomposition } : {}),
   }
   // `seedId` lives on Round, not Cycle — but the round consumer reads
   // `lego.seedId` from `legoIndex`, so we don't need to stash it on

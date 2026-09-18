@@ -1,18 +1,28 @@
-// Job #155 — does real Play-as-class on staging write LEGO co-fire rows to
-// learner_lego_pairings through /api/school/class-progress (job #52 fix), or
-// does the flush silently fail?
+// Class co-fire probe — does real Play-as-class write LEGO co-fire rows to
+// learner_lego_pairings through /api/school/class-progress?
+//
+// Born as the job #155 diagnostic that found the bundle-path co-fire death
+// (the core script generator dropped each phrase's decomposition, so cycles
+// carried one lego id, buildPairs() of one id is [], and every bundle-course
+// learner wrote zero pairs); kept as the standing end-to-end check that the
+// whole chain — cycle → componentLegoIds → tally → flush → RPC → rows — is
+// alive on a deployed build.
 //
 // Signs in as the real ZZ Test teacher, plays the Y7 Welsh class until at
 // least a couple of multi-lego cycles have fired, taps pause (the flush
 // trigger), waits, then navigates away (the unmount flush). Captures every
-// /api/school/class-progress request+response and every console.warn from
+// /api/school/class-progress request+response and every console warning from
 // usePairingsTelemetry/class-progress, and reads learner_lego_pairings back
 // from the live DB before and after.
 //
+// The use-phrase check can legitimately FAIL on a short run: the class sits
+// early in the course and a two-minute window rarely reaches a use phrase.
+// Pairs written from BUILD cycles are the verdict.
+//
 //   LD_LIBRARY_PATH=/home/tomcassidy/.pwlibs/root/usr/lib/x86_64-linux-gnu:/home/tomcassidy/.ssi-sentinel-libs \
 //   CHROME_BIN=/home/tomcassidy/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome \
-//   TMPDIR=/home/tomcassidy/.tmpbig/p155 \
-//   node e2e/_155-class-cofire-flush-probe.mjs
+//   TMPDIR=/home/tomcassidy/.tmpbig/p155fix OUT=/home/tomcassidy/.tmpbig/p155fix \
+//   BASE_URL=https://staging.saysomethingin.app node e2e/class-cofire-flush-probe.mjs
 import { chromium } from '@playwright/test'
 import fs from 'node:fs'
 
@@ -23,7 +33,7 @@ const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'applic
 const EMAIL = 'thomas.cassidy+chepstowtest-cover@gmail.com'
 const CLASS_ID = 'ea59ef42-ab29-46d0-a956-a4fdbe5e1d09'
 const CLASS_LEARNER = 'de95dd05-e6cf-454e-89d1-7ac8e4f4b940'
-const OUT = process.env.OUT || '/home/tomcassidy/.tmpbig/p155'
+const OUT = process.env.OUT || '/home/tomcassidy/.tmpbig/p155fix'
 fs.mkdirSync(OUT, { recursive: true })
 
 const log = (...a) => console.log(...a)
