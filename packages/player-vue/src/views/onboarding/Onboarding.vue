@@ -12,6 +12,8 @@ import { readLastKnownIdentity, writeLastKnownIdentity } from '@/composables/las
 import { readDuplicateWarning } from '@/utils/duplicateNameWarning'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import { friendlySendCodeError } from '@/auth/sendCodeMessage'
+import { friendlyVerifyCodeError, resendCountdownLabel, SUPERSESSION_NOTICE } from '@/auth/codeSupersession'
+import { useResendCooldown } from '@/composables/useResendCooldown'
 import {
   TRACKS,
   coursesForTrack,
@@ -411,6 +413,9 @@ const showDeliveryHint = ref(false)
 let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
 onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 
+// Resend cools down after every send and names the consequence (job #188).
+const resendCooldown = useResendCooldown()
+const resendCount = ref(0)
 const otpVerified = ref(false)
 // The exact address whose OTP verified. otpVerified alone is not enough: after
 // a verify-then-provision-failure the user can click "Change email" and type a
@@ -583,6 +588,8 @@ function changeEmail() {
   error.value = ''
   requiresCheckout.value = false
   returningAccount.value = false
+  resendCount.value = 0
+  resendCooldown.reset()
 }
 
 // THE SCHOOL DOOR NEEDS NO CODE TO GET IN (job #188, Tom 2026-09-18: "The
@@ -650,6 +657,7 @@ async function sendCode() {
     return
   }
   const isResend = step.value === 'otp'
+  if (isResend && !resendCooldown.canResend.value) return
   busy.value = true
   error.value = ''
   requiresCheckout.value = false
@@ -665,6 +673,8 @@ async function sendCode() {
       return
     }
     step.value = 'otp'
+    if (isResend) resendCount.value += 1
+    resendCooldown.start()
     if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
     if (isResend) {
       showDeliveryHint.value = true
@@ -817,10 +827,7 @@ async function verify() {
           // invalid" reads as a verdict on the person. On a school mail
           // estate the usual truth is a late or superseded code, and the
           // way on — a fresh code, or a different address — is right below.
-          error.value = t(
-            'onboarding.codeDidNotWork',
-            "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh code below and use the newest one, or try a different email address.",
-          )
+          error.value = friendlyVerifyCodeError(e.message, { resends: resendCount.value })
           return
         }
         loginCodeAudit.alreadySignedIn(addr)
@@ -1378,8 +1385,9 @@ async function continueIn() {
           <div class="ob-links">
             <button type="button" class="ob-link" @click="changeEmail">{{ t('settings.changeEmail') }}</button>
             <span class="ob-link-sep" aria-hidden="true">·</span>
-            <button type="button" class="ob-link" :disabled="busy" @click="sendCode">{{ t('onboarding.resendCode') }}</button>
+            <button type="button" class="ob-link" :disabled="busy || !resendCooldown.canResend.value" @click="sendCode">{{ resendCountdownLabel(resendCooldown.secondsLeft.value) }}</button>
           </div>
+          <p class="ob-fine">{{ SUPERSESSION_NOTICE }}</p>
 
           <Transition name="fade">
             <div v-if="showDeliveryHint" class="ob-delivery-hint">
