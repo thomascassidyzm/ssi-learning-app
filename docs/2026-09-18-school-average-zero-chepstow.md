@@ -150,3 +150,110 @@ whole action whenever he says go.
   Chepstow sessions are one `tap_play`, one audio clip and a `tap_pause` seconds later. That is
   either teachers opening the app and stopping, or playback dying after one clip, and the diary
   cannot tell those apart. It is not this bug and this fix does not address it.
+
+---
+
+# Second pass — Tom's two rulings, and the week window put on trial
+
+## 1. "Weeks might be being calculated wrongly" — they are not. One line: **the week is computed correctly and no session is misfiled.**
+
+`api/_utils/schoolWeek.ts`, exactly as it runs:
+
+| question | answer |
+|---|---|
+| which weekday starts the week | **Monday** |
+| at what local time | **00:00** |
+| in which timezone | an **IANA zone**, defaulting to `Europe/London`. The endpoint honours `?tz=`, but no client sends it, so in practice every school week is computed in `Europe/London` — which for Chepstow *is* the school's local time |
+| this week | Monday 00:00 local → **now**. Not to Friday, not truncated at "today" in any way that would drop Saturday and Sunday once they happen |
+| last week | previous Monday 00:00 → this Monday 00:00, exclusive — i.e. **Monday to Sunday inclusive** |
+| DST | a two-pass wall-clock conversion (`wallClockToMs`), and week-stepping goes back 36 hours into the Saturday before re-anchoring, so neither spring-forward nor fall-back moves a boundary |
+| can the LABEL and the BOUNDS disagree? | **No.** Both come from the same `WeekRange` object, formatted by `weekLabel` on the **server**, in the same zone the bounds were built in. There is no browser-local label over a UTC window |
+
+Live, at the moment of writing:
+
+```
+this_week bounds : 2026-09-13T23:00:00.000Z -> 2026-09-18T13:08:10Z   (UTC)
+                 : Monday, 14 September 2026 00:00:00 -> Friday, 18 September 2026 14:08:10  (local)
+this_week LABEL  : 14–18 Sep
+last_week bounds : 2026-09-06T23:00:00.000Z -> 2026-09-13T23:00:00.000Z
+                 : Monday, 7 September 2026 00:00:00 -> Monday, 14 September 2026 00:00:00
+last_week LABEL  : 7–13 Sep
+```
+
+### Per local day (Europe/London), by session start
+
+| day | dow | the week the code files it in | Chepstow | estate |
+|---|---|---|---|---|
+| 2026-09-07 | Mon | last_week | 5.77 | 5.77 |
+| 2026-09-08 | Tue | last_week | 160.33 | 183.13 |
+| 2026-09-09 | Wed | last_week | 100.07 | 109.38 |
+| 2026-09-10 | Thu | last_week | 2.78 | 4.68 |
+| 2026-09-11 | Fri | last_week | 5.02 | 23.37 |
+| 2026-09-12 | Sat | last_week | 0.00 | 0.00 |
+| 2026-09-13 | Sun | last_week | 0.00 | 0.00 |
+| 2026-09-14 | Mon | this_week | 3.13 | 43.17 |
+| 2026-09-15 | Tue | this_week | 0.28 | 153.88 |
+| 2026-09-16 | Wed | this_week | 0.92 | 216.02 |
+| 2026-09-17 | Thu | this_week | 0.00 | 205.17 |
+| 2026-09-18 | Fri | this_week | 7.37 | 80.87 |
+
+Chepstow last week **274.0**, this week **11.7** — and the shipped week bounds return **274** and
+**11.7**. The day table and the window agree to the decimal.
+
+### The three specific things asked for
+
+- **Monday 14 Sep 00:00–01:00 BST (= Sun 13 Sep 23:00–24:00 UTC):** no session in the estate starts
+  in that hour, at Chepstow or anywhere.
+- **Sunday/Monday overnight:** no session at Chepstow crosses local midnight in the last 20 days.
+- **Weekend practice:** one session in the window, 7P on Sunday 6 September, correctly filed in the
+  week that began Monday 31 August.
+- **Timestamps written in a different zone:** `player_events.occurred_at` is `timestamptz`, so every
+  row is an absolute instant and the comparison is instant-to-instant. There is no zone for a row to
+  be "written in".
+
+One note on #205's figures, for the record: it reported 18 minutes this week, this pass reports 11.7.
+Both are right — #205's table rounded each class to whole minutes before summing, and eight of the
+nine practising classes did under two minutes each.
+
+## 2. The denominator — Tom's ruling, applied
+
+> "Classes that did not use the app in the window are EXCLUDED from the school average — the
+> denominator is classes with any practice in that window, and the caption says so."
+
+This overrules the started-by-the-end-of-the-window half of his own 2026-09-16 rule. The rest of that
+rule survives: the set is still viewer-independent and the entity is still inside its own average.
+
+`cohortForWindow` is the one rule, and it feeds **all three** averages on the page — the card's
+number, the twelve bars under it, and the leader page's normal line — because two denominators on one
+screen is the bug being replaced, whichever way the denominator is chosen. `cohortFor` now has
+exactly one job left, and it is not a denominator: telling an entity's real zero from its absence.
+
+**What Chepstow reads now**, computed from production through the changed modules:
+
+| | classes in the average | 10P | school average | caption |
+|---|---|---|---|---|
+| **This week** 14–18 Sep | **9** of 34 | 8m | **2m** (1.3) | `… average · 9 classes that practised this week` |
+| **Last week** 7–13 Sep | **30** of 34 | 12m | **10m** (9.1) | `… average · 30 classes that practised last week` |
+
+Nine — the exact number in Tom's own example. Last week's average moves from the 8m on his screenshot
+to 10m, because four classes that never played that week are no longer dragging it down.
+
+**Sovereignty under the new denominator.** An average of one is not an average: if the entity is the
+only unit that practised, the two columns are the same number twice; if it is not, the "average" IS
+one named peer's exact week. Below the existing floor the column goes, the bars stay, and the card
+says which of the two nothings it is.
+
+## 3. The All-time column — by design, and the design is Tom's
+
+Not a missing lane. His ruling of 2026-09-16, widened to this page on 2026-09-17: *All time is
+TOTALS ONLY, on its own line beneath, with no comparison figure and no cohort column.* It is enforced
+at both ends — the server sends no cohort and null bars under `allTimeMode`, and the client hides the
+Compare-to picker rather than leaving it sitting there changing nothing. The reasoning written into
+the code is that a whole school's history has nothing fair to sit beside.
+
+## 4. The red "Couldn't save that just now" — dropped, per Tom's correction
+
+View As is read-only by design (`viewAsFetchGuard.ts` refuses the write before it leaves the browser).
+No log search was run and no fix was made. The wording alone changed, in its own commit: in View As
+it now reads **"Viewing only — changes are not saved"**, because the old words invited a retry that
+can never succeed.
