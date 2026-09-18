@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `073efe3dded1` · generated 2026-09-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `82d8a3a8368e` · generated 2026-09-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -229,6 +229,19 @@ Moment: setting-up · section: getting-people-in · roles: school_admin · ancho
 3. Tap **Add domain**.
 
 **Worth knowing.** This grants nothing. Somebody at your domain still sees no learner until you give them a class, and somebody who is not still gets in with one tap. Public providers such as gmail.com or outlook.com cannot be added, because they do not identify a school. Schools in the same trust share each other's domains automatically.
+
+## Confirm your email from the dashboard
+
+Moment: setting-up · section: your-own-account · roles: school_admin · anchor: `mailbox-banner-confirm` · in `packages/player-vue/src/components/schools/MailboxBanner.vue`
+
+**What it's for.** Proving the address your school was set up with actually reaches you, without it ever standing between you and your dashboard.
+
+**Where it is.** The strip across the top of every schools page, for as long as your address is unconfirmed.
+
+1. Wait for our six-digit code. School mail systems can hold it for a while.
+2. Type it into the strip and tap **Confirm**.
+
+**Worth knowing.** A code that has gone stale just says so; tap **Send a fresh code** and use the newest one. If your school address eats our mail, tap **Use a different address** and confirm from a personal one instead. Nothing in your school waits on this.
 
 ## Copy a class link without opening the class
 
