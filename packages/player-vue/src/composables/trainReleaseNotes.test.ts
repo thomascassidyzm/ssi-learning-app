@@ -169,3 +169,22 @@ describe('wrapped bullets and unrenderable markup', () => {
     expect(truncated).toEqual([])
   })
 })
+
+// The ?raw glob INLINES every file it matches into the learner's Settings
+// chunk. On 2026-09-18 two hand-written source notes sat in notes/ beside the
+// dated ship files, and their internal prose — "DRAFT, not sent (job #195)",
+// the whole unsent schools note — shipped inside the production bundle. The
+// glob is now date-shaped; this asserts the shape it depends on, in the one
+// place a stray file would be added.
+describe('the notes directory only holds dated ship files', () => {
+  it('has no undated .md beside the ships', async () => {
+    const { readdirSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    // cwd is packages/player-vue when vitest runs this workspace.
+    const dir = resolve(process.cwd(), '../../tools/release-train/notes')
+    const stray = readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .filter((f) => !/^\d{4}-\d{2}-\d{2}\.md$/.test(f))
+    expect(stray).toEqual([])
+  })
+})

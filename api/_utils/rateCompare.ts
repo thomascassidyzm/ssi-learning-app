@@ -60,6 +60,25 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10
 }
 
+/**
+ * A TENTH, BUT A REAL NUMBER NEVER BECOMES ZERO (Tom on production,
+ * 2026-09-18, job #207: "It can't be zero if the class I'm looking at has
+ * 8m"). The week card's numbers are the only ones a school reads as words
+ * rather than as a bar, and an average is a fraction by nature: a school's
+ * minutes spread over every class that has started can land below a twentieth
+ * of a minute and round1 would hand the client a flat 0, which the client can
+ * only render as "nothing happened".
+ *
+ * So a positive value that would round to zero keeps two decimals instead of
+ * one — enough for the client to know it is more than nothing and say "<1m",
+ * and never enough to invent a tenth of a minute nobody practised.
+ */
+function round1NonZero(n: number): number {
+  const r = Math.round(n * 10) / 10
+  if (r === 0 && n > 0) return Math.max(Math.round(n * 100) / 100, 0.01)
+  return r
+}
+
 export interface WindowPace {
   pace: number // LEGOs/week over the window
   legosAdvanced: number
@@ -459,7 +478,7 @@ export function rangeMinutesByActor(
     seconds += r.duration_seconds ?? 0
     any = true
   }
-  return { minutes: round1(seconds / 60), hasData: any }
+  return { minutes: round1NonZero(seconds / 60), hasData: any }
 }
 
 /**
@@ -510,7 +529,7 @@ export function weekNumbersForClassIds(
   return {
     classMinutes: x.minutes,
     pupilMinutes: y.minutes,
-    totalMinutes: round1(x.minutes + y.minutes),
+    totalMinutes: round1NonZero(x.minutes + y.minutes),
     newPhrases: newPhrasesInRange(rows, classIds, startMs, endMs),
     hasData: x.hasData || y.hasData,
   }
@@ -553,8 +572,56 @@ export function cohortFor(
 }
 
 /**
- * The COHORT's three numbers — the mean over the cohort as `cohortFor` defines
- * it. Job #979b's self-inclusion is kept: the viewed class is one of the
+ * WHO THE AVERAGE ACTUALLY DIVIDES BY — Tom's ruling, 2026-09-18, on seeing
+ * Chepstow's week: "classes that did not use the app in the window are
+ * EXCLUDED from the school average — the denominator is classes with any
+ * practice in that window, and the caption says so."
+ *
+ * This REPLACES the started-by-the-end-of-the-window half of `cohortFor` for
+ * every AVERAGE on the week card. It is the stricter rule: a class that has
+ * played before but was quiet this week is not a zero dragging the mean down,
+ * it is simply not one of the classes this week's average is about. Chepstow
+ * is the case that earned it — 33 classes have started, 8 practised, and
+ * dividing 11.7 minutes by 33 described a school nobody was looking at.
+ *
+ * `cohortFor` keeps exactly one job after this, and it is not a denominator:
+ * deciding whether an ENTITY's own weekly bar is a real zero (it had started,
+ * and was quiet) or an absence (it had not started yet). A quiet week for the
+ * class you are reading is a fact about that class and must still draw as a
+ * zero.
+ *
+ * A row of zero seconds is not practice: it cannot lift the numerator, so
+ * letting it into the denominator would halve the average on a stray event.
+ * The window is half-open [startMs, endMs), the same bounds the sums use, so
+ * a session can never be in the numerator of one week and the denominator of
+ * another.
+ *
+ * Viewer-independent by construction — nothing here reads who is asking — so
+ * the average still reads the same number whichever class a leader opens it
+ * from, which was the point of the 2026-09-16 self-inclusive ruling and
+ * survives this one intact.
+ */
+export function cohortForWindow(
+  rows: ScopedSessionRow[],
+  candidateClassIds: string[],
+  startMs: number,
+  endMs: number,
+): string[] {
+  const want = new Set(candidateClassIds)
+  const active = new Set<string>()
+  for (const r of rows) {
+    if (!want.has(r.class_id)) continue
+    if ((r.duration_seconds ?? 0) <= 0) continue
+    const t = new Date(r.started_at).getTime()
+    if (t < startMs || t >= endMs) continue
+    active.add(r.class_id)
+  }
+  return candidateClassIds.filter((id) => active.has(id))
+}
+
+/**
+ * The COHORT's three numbers — the mean over the cohort as `cohortForWindow`
+ * defines it. Job #979b's self-inclusion is kept: the viewed class is one of the
  * members, so the average reads the same whoever opens it. A cohort of zero
  * members has no numbers at all rather than a zero that reads like a fact —
  * that is ABSENCE, and the card and the bars both render it as nothing.
@@ -563,8 +630,10 @@ export function meanWeekNumbers(members: WeekNumbers[]): WeekNumbers {
   if (members.length === 0) {
     return { classMinutes: 0, pupilMinutes: 0, totalMinutes: 0, newPhrases: 0, hasData: false }
   }
+  // round1NonZero, not round1: the cohort mean is the number that printed "0m"
+  // for a school whose classes had genuinely practised (job #207).
   const mean = (pick: (w: WeekNumbers) => number): number =>
-    round1(members.reduce((s, w) => s + pick(w), 0) / members.length)
+    round1NonZero(members.reduce((s, w) => s + pick(w), 0) / members.length)
   return {
     classMinutes: mean((w) => w.classMinutes),
     pupilMinutes: mean((w) => w.pupilMinutes),

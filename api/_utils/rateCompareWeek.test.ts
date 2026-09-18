@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   cohortFor,
+  cohortForWindow,
   meanBars,
   weekNumbersForClassIds,
   meanWeekNumbers,
@@ -247,5 +248,107 @@ describe('bars — absence and zero are different nothings', () => {
     const bars = weeklyPhrasesBars(rows, ['c1'], buckets, (end) => cohortFor(['c1'], firstPlay, end))
     expect(bars).toEqual([null, 12, 5])
     expect(bars[2]).toBe(newPhrasesInRange(rows, ['c1'], buckets[2].startMs, buckets[2].endMs))
+  })
+})
+
+/**
+ * JOB #207, Chepstow on production 2026-09-18. A whole-class school: 34
+ * classes, 33 of them started, nine of them practising this week for 11.7
+ * minutes between them. The mean is 0.354 of a minute — and round1 handed the
+ * client a flat 0, which the card could only draw as "nobody practised", while
+ * the class page beside it said 8 min. Tom: "It can't be zero if the class I'm
+ * looking at has 8m."
+ *
+ * Red on round1 (0.354 -> 0); green on round1NonZero.
+ */
+describe('a cohort mean never flattens real practice to zero — job #207', () => {
+  const MINUTES = [7.4, 1.5, 1.1, 0.8, 0.5, 0.4, 0.1, 0.1] // the nine classes that played; the rest are 0
+  const chepstowRows: ScopedSessionRow[] = MINUTES.map((m, i) =>
+    row({ class_id: `c${i}`, actor: 'class', started_at: MON + 3_600_000, duration_seconds: Math.round(m * 60) }))
+  const allIds = Array.from({ length: 33 }, (_, i) => `c${i}`)
+
+  it('11.7 minutes over 33 started classes is more than nothing', () => {
+    const mean = meanWeekNumbers(allIds.map((id) => weekNumbersForClassIds(chepstowRows, [id], range.startMs, range.endMs)))
+    expect(mean.classMinutes).toBeGreaterThan(0)
+    expect(mean.totalMinutes).toBeGreaterThan(0)
+  })
+
+  it('and is still small — a tenth of a minute is never invented', () => {
+    const mean = meanWeekNumbers(allIds.map((id) => weekNumbersForClassIds(chepstowRows, [id], range.startMs, range.endMs)))
+    expect(mean.classMinutes).toBeLessThan(1)
+  })
+
+  it('a school of 300 classes and one 90-second lesson is still not zero', () => {
+    const ids = Array.from({ length: 300 }, (_, i) => `b${i}`)
+    const rows = [row({ class_id: 'b0', actor: 'class', started_at: MON + 3_600_000, duration_seconds: 90 })]
+    const mean = meanWeekNumbers(ids.map((id) => weekNumbersForClassIds(rows, [id], range.startMs, range.endMs)))
+    expect(mean.classMinutes).toBeGreaterThan(0)
+  })
+
+  it('a class that played for six seconds does not report a zero week', () => {
+    const rows = [row({ class_id: 'x', actor: 'class', started_at: MON + 3_600_000, duration_seconds: 6 })]
+    expect(rangeMinutesByActor(rows, ['x'], 'class', range.startMs, range.endMs).minutes).toBeGreaterThan(0)
+  })
+
+  it('a cohort that genuinely did nothing still reports zero', () => {
+    const ids = ['z0', 'z1', 'z2']
+    const mean = meanWeekNumbers(ids.map((id) => weekNumbersForClassIds([], [id], range.startMs, range.endMs)))
+    expect(mean.classMinutes).toBe(0)
+    expect(mean.totalMinutes).toBe(0)
+  })
+})
+
+/**
+ * JOB #207, Tom's ruling of 2026-09-18 on Chepstow's production dashboard:
+ * "classes that did not use the app in the window are EXCLUDED from the school
+ * average — the denominator is classes with any practice in that window, and
+ * the caption says so."
+ *
+ * This SUPERSEDES the started-by-the-end-of-the-window denominator for every
+ * average on the week card. `cohortFor` keeps only its other job — telling an
+ * entity's real zero from its absence — and is tested above unchanged.
+ *
+ * The live shape that earned it: 34 classes, 33 started, 9 practised, 11.7
+ * minutes. Over 33 that is 0.35 of a minute; over 9 it is 1.3.
+ */
+describe('cohortForWindow — the denominator is who practised, not who has started', () => {
+  const ids = ['c1', 'c2', 'c3', 'c4']
+  const rows = [
+    row({ class_id: 'c1', started_at: MON + 3_600_000, duration_seconds: 1800 }),
+    row({ class_id: 'c2', started_at: MON + 2 * 86_400_000, duration_seconds: 360 }),
+    // started long before this week, silent through it
+    row({ class_id: 'c3', started_at: MON - 30 * 86_400_000, duration_seconds: 1800 }),
+    // present in the week but zero seconds — not practice
+    row({ class_id: 'c4', started_at: MON + 3_600_000, duration_seconds: 0 }),
+  ]
+
+  it('keeps only the classes with real practice inside the window', () => {
+    expect(cohortForWindow(rows, ids, range.startMs, range.endMs)).toEqual(['c1', 'c2'])
+  })
+
+  it('and that is what the average divides by — 36 minutes over 2, not over 4', () => {
+    const cohort = cohortForWindow(rows, ids, range.startMs, range.endMs)
+    const mean = meanWeekNumbers(cohort.map((id) => weekNumbersForClassIds(rows, [id], range.startMs, range.endMs)))
+    expect(mean.classMinutes).toBe(18)
+    // the old denominator, for the record: 36 / 4 = 9, and 36 / 33 would be 1.1
+    expect(meanWeekNumbers(ids.map((id) => weekNumbersForClassIds(rows, [id], range.startMs, range.endMs))).classMinutes).toBe(9)
+  })
+
+  it('a window nobody practised in has an EMPTY denominator, never a zero one', () => {
+    const quiet = { startMs: MON + 20 * WEEK, endMs: MON + 21 * WEEK }
+    expect(cohortForWindow(rows, ids, quiet.startMs, quiet.endMs)).toEqual([])
+    expect(meanWeekNumbers([]).hasData).toBe(false)
+  })
+
+  it('the bounds are the SAME half-open window the sums use, so no session is in one week and the denominator of another', () => {
+    const edge = [row({ class_id: 'c1', started_at: range.endMs, duration_seconds: 600 })]
+    expect(cohortForWindow(edge, ids, range.startMs, range.endMs)).toEqual([])
+    expect(cohortForWindow(edge, ids, range.endMs, range.endMs + WEEK)).toEqual(['c1'])
+  })
+
+  it('it does not care who is asking — the same set whichever class a leader opens it from', () => {
+    const fromC1 = cohortForWindow(rows, ids, range.startMs, range.endMs)
+    const fromC3 = cohortForWindow(rows, ['c3', 'c1', 'c2', 'c4'], range.startMs, range.endMs)
+    expect(new Set(fromC1)).toEqual(new Set(fromC3))
   })
 })

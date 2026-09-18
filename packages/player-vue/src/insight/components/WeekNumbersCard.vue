@@ -35,6 +35,7 @@
 // ============================================================================
 import { computed, ref } from 'vue'
 import WeekBars from './WeekBars.vue'
+import { formatPracticeMinutesCompact, formatAverageCount } from '@/composables/schools/practiceMinutes'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
@@ -84,6 +85,12 @@ export interface WeekBlock {
   /** The faint normal line for the per-class cards: the mean over this node's classes. */
   classesNormal?: (number | null)[] | null
   pupilMinutesCapped?: boolean
+  /**
+   * Why the second column is absent on a week where peers exist but nobody
+   * practised — distinct from `noCohortReason`, which is a fact about the
+   * scope rather than about this week.
+   */
+  cohortNote?: string | null
   /** The leader's page: one row per class under this node, quietest first. */
   classes?: WeekClassRow[]
 }
@@ -113,14 +120,16 @@ const props = defineProps<{
   unitNoun?: string
 }>()
 
-/** Minutes as a school reads them: "1h 25m" past the hour, plain minutes below. */
-function mins(n: number): string {
-  const whole = Math.round(n)
-  if (whole < 60) return `${whole}m`
-  const h = Math.floor(whole / 60)
-  const m = whole % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
-}
+/**
+ * Minutes as a school reads them — THE ONE FORMATTER (composables/schools/
+ * practiceMinutes.ts), never a private copy. This card kept its own
+ * round-to-nearest until 2026-09-18, and that is how Chepstow's school average
+ * printed "0m" on the very screen where the class beside it printed 8 min: an
+ * average of 11.7 minutes over 33 classes is 0.35 of a minute, and rounding it
+ * to the nearest whole reads as "nobody practised". A fraction of a minute now
+ * reads "<1m" everywhere, and the ceiling above a minute is the estate's.
+ */
+const mins = formatPracticeMinutesCompact
 
 const entity = computed(() => props.data.entity)
 const cohort = computed(() => props.data.cohort)
@@ -133,10 +142,12 @@ const cohort = computed(() => props.data.cohort)
 const isAllTime = computed(() => props.data.window === 'all_time')
 
 /**
- * "Ysgol Cas-gwent Chepstow School average · 27 classes" — the denominator in
- * four words beside the name it belongs to (Watson, 2026-09-16). It counts
- * classes that have STARTED: a class set up and never played is in no
- * average, so the school reads as busy as it actually is.
+ * "Ysgol Cas-gwent Chepstow School average · 8 classes that practised this
+ * week" — the denominator AND the rule that chose it, beside the name it
+ * belongs to. Tom, 2026-09-18: classes that did not use the app in the window
+ * are excluded from the average, "and the caption says so". The server counts
+ * it off the very set its numbers were averaged over, so this line cannot
+ * drift from the numbers above it.
  */
 const denominatorLine = computed(() => {
   const c = props.data.cohort
@@ -152,7 +163,9 @@ const rows = computed(() => [
   { key: 'class', label: t('insights.week.playAsClass', 'Play as class'), big: true, entity: mins(entity.value.classMinutes), cohort: cohort.value ? mins(cohort.value.classMinutes) : null },
   { key: 'pupils', label: t('insights.week.studentsOwn', 'Students on their own'), big: true, entity: mins(entity.value.pupilMinutes), cohort: cohort.value ? mins(cohort.value.pupilMinutes) : null },
   { key: 'total', label: t('insights.week.total', 'Total learning time'), big: false, entity: mins(entity.value.totalMinutes), cohort: cohort.value ? mins(cohort.value.totalMinutes) : null },
-  { key: 'phrases', label: isAllTime.value ? t('insights.week.phrasesReached', 'Phrases reached') : t('insights.week.newPhrases', 'New phrases'), big: true, entity: String(Math.round(entity.value.newPhrases)), cohort: cohort.value ? String(Math.round(cohort.value.newPhrases)) : null },
+  // Phrases take the same law as minutes: a cohort mean of 0.6 phrases is not
+  // 1 and a mean of 0.4 is not 0 — both are "<1".
+  { key: 'phrases', label: isAllTime.value ? t('insights.week.phrasesReached', 'Phrases reached') : t('insights.week.newPhrases', 'New phrases'), big: true, entity: formatAverageCount(entity.value.newPhrases), cohort: cohort.value ? formatAverageCount(cohort.value.newPhrases) : null },
 ])
 
 const whyOpen = ref(false)
@@ -165,7 +178,7 @@ const whyText = computed(() => isAllTime.value ? t(
   'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together, from the first lesson to now. Phrases reached are the ones covered for the first time over all of that. These are totals and nothing else — never an average, never a rate, and with nothing beside them to be measured against. Switch to This week or Last week for the week beside the average you choose.',
 ) : t(
   'insights.week.whyText',
-  'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together. New phrases are the ones the class reached for the first time that week. The two move apart on purpose: in Fast mode a class covers more new phrases in the same minutes, in Easy mode fewer. Neither is skipping ahead or going back. The average beside you is the mean of every {unit} in that scope that has started this course, this {unit} included, so it reads the same whoever opens it.',
+  'Minutes are time while the play button was playing, on the class account and on students’ own accounts, added together. New phrases are the ones the class reached for the first time that week. The two move apart on purpose: in Fast mode a class covers more new phrases in the same minutes, in Easy mode fewer. Neither is skipping ahead or going back. The average beside you is the mean of every {unit} in that scope that practised in the week you are reading, this {unit} included when it practised. A {unit} that was quiet that week is not counted as a zero, so the average says what a {unit} that ran a lesson actually did. The line under it says how many are in it, and it reads the same number whoever opens it.',
 ).split('{unit}').join(unitWord.value))
 
 const allTimeLine = computed(() => {
@@ -216,7 +229,7 @@ const allTimeLine = computed(() => {
     </div>
 
     <p v-if="denominatorLine" class="wk-denominator">{{ denominatorLine }}</p>
-    <p v-if="!cohort && noCohortReason" class="wk-note">{{ noCohortReason }}</p>
+    <p v-if="!cohort && (noCohortReason || data.cohortNote)" class="wk-note">{{ noCohortReason || data.cohortNote }}</p>
     <p v-if="data.pupilMinutesCapped" class="wk-note">
       {{ t('insights.week.pupilsCapped', "Students' own minutes aren't counted at this level — too many classes to read individually. Play-as-class time is complete.") }}
     </p>
