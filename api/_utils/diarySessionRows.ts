@@ -27,10 +27,10 @@
  *   - the block's course is the one its clips were on; a block with no course
  *     falls back to the class's own.
  *
- * `loadScopedSessionRows` is the one entry point: the legacy RPC rows (demo
- * seeds, and real history before the re-anchor) UNION the diary rows. A class
- * account did not exist before 2026-08-19 and class_sessions has not been
- * written since, so the two sources never describe the same lesson twice.
+ * `loadScopedSessionRows` uses the diary exclusively for classes with a class
+ * account, matching Overview. The lesson recorder writes class_sessions again,
+ * but those records describe the same practice, not additional minutes.
+ * Legacy/demo classes without a class account retain their RPC history.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chunk } from './schoolScope'
@@ -341,7 +341,8 @@ export async function pupilLearnersByClass(
 }
 
 /**
- * THE ONE READ for rate-compare rows: legacy RPC rows plus diary rows, in the
+ * THE ONE READ for rate-compare rows: diary for class accounts, legacy RPC
+ * rows only for classes without an account, in the
  * `{ data, error }` shape the RPC call sites already handle.
  */
 export async function loadScopedSessionRows(
@@ -352,6 +353,14 @@ export async function loadScopedSessionRows(
   now: number = Date.now(),
   opts: { includePupils?: boolean } = {},
 ): Promise<{ data: ScopedSessionRow[]; error: { message: string } | null }> {
+  // Decide by account configuration, not by whether this window happens to
+  // contain diary rows: a quiet window must not revive a duplicate source.
+  const diaryClassIds = new Set<string>()
+  for (const batch of chunk(classIds)) {
+    const { data, error } = await svc.from('classes').select('id, class_learner_id').in('id', batch)
+    if (error) return { data: [], error: { message: error.message } }
+    for (const cls of data ?? []) if (cls.class_learner_id) diaryClassIds.add(cls.id)
+  }
   const [rpc, diary] = await Promise.all([
     svc.rpc('analytics_class_sessions_scoped', { p_class_ids: classIds, p_days: days, p_include_demo: includeDemo }),
     loadDiarySessionRows(svc, classIds, days, includeDemo, now, opts).catch((e: unknown) => {
@@ -360,5 +369,6 @@ export async function loadScopedSessionRows(
     }),
   ])
   if (rpc.error) return { data: [], error: { message: rpc.error.message } }
-  return { data: [...((rpc.data as ScopedSessionRow[]) || []), ...diary], error: null }
+  const legacy = ((rpc.data as ScopedSessionRow[]) || []).filter((row) => !diaryClassIds.has(row.class_id))
+  return { data: [...legacy, ...diary], error: null }
 }
