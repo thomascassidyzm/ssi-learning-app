@@ -1,6 +1,7 @@
 /**
- * platformSupport — every school's and every org's support thread, read and
- * answered by an ssi_admin from one place (job #220).
+ * platformSupport — every school's, every org's and every learner's support
+ * thread, read and answered by an ssi_admin from one place (job #220, job
+ * #221).
  *
  * Tom, 2026-09-18 14:16Z: platform admins should be able to see in-app support
  * messages somewhere in the app, even though agents will handle most of them.
@@ -15,10 +16,28 @@
  * scopeForSchoolRead in schoolScope.ts, which the class-practice tiles use —
  * lifted to the support tables and reachable only behind verifyAdmin.
  *
- * THE REPLY IS AN ORDINARY 'out' ROW. Nothing new is needed to deliver it: the
- * user_messages_from_support_reply trigger fans an out row into every admin's
- * inbox, GET /api/support/thread marks those read when she opens the thread,
- * and api/cron/support-doorbell emails her if the reply sits unopened. So the
+ * THE THIRD OWNER, ONE LIST (job #221). support_threads carries a third owner
+ * kind since job #821: learner_user_id + origin_message_id, opened when a
+ * learner replies to an admin_message from /me/inbox. Tom wants ONE list of
+ * everything waiting, so a learner thread is listed here exactly like a
+ * school's or an org's — named by her display name or her support id, NEVER
+ * her email — and answered the same way, through the same replyAsPlatform.
+ *
+ * DE-DUPED AGAINST HER OWN REPORT. A learner thread whose origin_message_id
+ * is a bug_report's or tester_feedback's own reply_message_id (job #28) is
+ * the SAME conversation the reports list already shows — she replied to our
+ * reply to her bug report — so it is left out here rather than shown twice.
+ * See repliedReportOriginIds.
+ *
+ * THE REPLY IS AN ORDINARY 'out' ROW. Nothing new is needed to deliver it: for
+ * a school/org thread the user_messages_from_support_reply trigger fans an out
+ * row into every admin's inbox, GET /api/support/thread marks those read when
+ * she opens the thread, and api/cron/support-doorbell emails her if the reply
+ * sits unopened (skipped for a learner thread — see support-doorbell.ts, the
+ * copy there is written for a school and her own inbox already carries it).
+ * For a learner thread the same trigger instead clears read_at on the origin
+ * message, so her own inbox shows it unread again with the reply inside — the
+ * same shape /api/messages/reply already writes her side with. So the
  * platform inbox writes the same row the watson-1 watcher writes, and the
  * doorbell and the read receipts keep working because they were never told
  * about us.
@@ -30,6 +49,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { MESSAGE_VIEW_COLUMNS, type SupportMessageView } from '../support/_shared'
+import { supportIdForLearnerId } from '../../packages/core/src/identity/supportId'
 
 /** A body longer than this is not a support reply, it is a document. */
 export const PLATFORM_REPLY_MAX = 4000
@@ -41,22 +61,24 @@ export interface PlatformThreadRow {
   id: string
   school_id: string | null
   group_id: string | null
+  learner_user_id: string | null
+  origin_message_id: string | null
   created_at: string
   last_message_at: string | null
   last_read_at: string | null
   language: string | null
 }
 
-const THREAD_COLUMNS = 'id, school_id, group_id, created_at, last_message_at, last_read_at, language'
+const THREAD_COLUMNS = 'id, school_id, group_id, learner_user_id, origin_message_id, created_at, last_message_at, last_read_at, language'
 
 /** One thread as the platform inbox lists it. */
 export interface PlatformThreadSummary {
   id: string
-  /** 'school' or 'group' — a learner-owned thread is not listed here (see listPlatformThreads). */
-  kind: 'school' | 'group'
-  /** The school's or the org's name, as the admin would say it out loud. */
+  /** 'school', 'group' or 'learner' (job #221) — her own reply thread, named by her, never by email. */
+  kind: 'school' | 'group' | 'learner'
+  /** The school's or the org's name, as the admin would say it out loud; for a learner thread, her display name or support id. */
   who: string
-  /** The person who wrote the most recent question, when we know their name. */
+  /** The person who wrote the most recent question, when we know their name. Null for a learner thread — 'who' already says it. */
   person: string | null
   language: string | null
   createdAt: string
@@ -95,6 +117,8 @@ export interface PlatformThreadDetail extends PlatformThreadSummary {
    * stays column-scoped to MESSAGE_VIEW_COLUMNS (SEC0912-B-01), untouched.
    */
   context: ThreadContext | null
+  /** What she was replying to — the admin_message this learner thread answers. Null for a school/org thread. */
+  originMessage: { title: string; body: string } | null
 }
 
 interface TurnRow {
@@ -154,28 +178,68 @@ async function namesFor(svc: SupabaseClient, schoolIds: string[], groupIds: stri
   return names
 }
 
+/** Her display name, or failing that her support id (job #221) — never her email, keyed by auth uid. */
+async function learnerNamesFor(svc: SupabaseClient, authUserIds: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>()
+  if (!authUserIds.length) return names
+  const { data } = await svc.from('learners').select('id, user_id, display_name').in('user_id', authUserIds)
+  for (const l of (data ?? []) as Array<{ id: string; user_id: string; display_name: string | null }>) {
+    names.set(l.user_id, l.display_name || supportIdForLearnerId(l.id) || 'a learner')
+  }
+  return names
+}
+
 /**
- * Every school and org thread, unanswered first, newest first.
+ * Every bug_report / tester_feedback reply already in the reports list
+ * (job #28) that a learner might have replied to, keyed by the admin_message
+ * id it was sent as. A learner thread whose origin_message_id lands in this
+ * set is the SAME conversation, so listPlatformThreads leaves it out rather
+ * than showing it twice.
+ */
+async function repliedReportOriginIds(svc: SupabaseClient): Promise<Set<string>> {
+  const [bugs, testers] = await Promise.all([
+    svc.from('bug_reports').select('reply_message_id'),
+    svc.from('tester_feedback').select('reply_message_id'),
+  ])
+  const ids = new Set<string>()
+  for (const row of [...((bugs.data ?? []) as Array<{ reply_message_id: string | null }>), ...((testers.data ?? []) as Array<{ reply_message_id: string | null }>)]) {
+    if (row.reply_message_id) ids.add(row.reply_message_id)
+  }
+  return ids
+}
+
+/** The admin_message a learner thread answers — for the "what she was replying to" line. */
+async function loadOriginMessage(svc: SupabaseClient, id: string): Promise<{ title: string; body: string } | null> {
+  const { data } = await svc.from('user_messages').select('title, body').eq('id', id).maybeSingle()
+  const row = data as { title?: string; body?: string } | null
+  return row ? { title: row.title ?? '', body: row.body ?? '' } : null
+}
+
+/**
+ * Every school, org and learner thread, unanswered first, newest first.
  *
- * Learner-owned threads (support_threads.learner_user_id, job #821) are NOT
- * here: a learner's reply to an admin message belongs to her own report, which
- * the same page already lists from bug_reports and tester_feedback. This list
- * is the schools channel.
+ * A learner thread (support_threads.learner_user_id, job #821) already shown
+ * via her own bug_report/tester_feedback row (job #28) is left out — see
+ * repliedReportOriginIds — so the same conversation never appears twice.
  */
 export async function listPlatformThreads(svc: SupabaseClient): Promise<PlatformThreadSummary[]> {
   const { data, error } = await svc
     .from('support_threads')
     .select(THREAD_COLUMNS)
-    .or('school_id.not.is.null,group_id.not.is.null')
+    .or('school_id.not.is.null,group_id.not.is.null,learner_user_id.not.is.null')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(THREAD_LIMIT)
   // Silent to loud (RLS doctrine rule 8): a refused read is a failure the
   // caller must see, never an empty inbox.
   if (error) throw new Error(`support threads read failed: ${error.message}`)
-  const threads = (data ?? []) as PlatformThreadRow[]
+  const allThreads = (data ?? []) as PlatformThreadRow[]
+  if (!allThreads.length) return []
+
+  const excludedOriginIds = await repliedReportOriginIds(svc)
+  const threads = allThreads.filter((t) => !(t.learner_user_id && t.origin_message_id && excludedOriginIds.has(t.origin_message_id)))
   if (!threads.length) return []
 
-  const [{ data: turnRows, error: turnErr }, names] = await Promise.all([
+  const [{ data: turnRows, error: turnErr }, orgNames, learnerNames] = await Promise.all([
     svc
       .from('support_messages')
       .select('id, thread_id, body, direction, author_name, answered_at, created_at')
@@ -185,6 +249,7 @@ export async function listPlatformThreads(svc: SupabaseClient): Promise<Platform
       threads.map((t) => t.school_id).filter((x): x is string => !!x),
       threads.map((t) => t.group_id).filter((x): x is string => !!x),
     ),
+    learnerNamesFor(svc, threads.map((t) => t.learner_user_id).filter((x): x is string => !!x)),
   ])
   if (turnErr) throw new Error(`support messages read failed: ${turnErr.message}`)
 
@@ -195,17 +260,30 @@ export async function listPlatformThreads(svc: SupabaseClient): Promise<Platform
     byThread.set(t.thread_id, list)
   }
 
-  const rows = threads.map((t) => toSummary(t, byThread.get(t.id) ?? [], names))
+  const rows = threads.map((t) => toSummary(t, byThread.get(t.id) ?? [], orgNames, learnerNames))
   return orderThreads(rows)
 }
 
-function toSummary(t: PlatformThreadRow, turns: TurnRow[], names: Map<string, string>): PlatformThreadSummary {
+function toSummary(t: PlatformThreadRow, turns: TurnRow[], orgNames: Map<string, string>, learnerNames: Map<string, string>): PlatformThreadSummary {
+  if (t.learner_user_id) {
+    return {
+      id: t.id,
+      kind: 'learner',
+      who: learnerNames.get(t.learner_user_id) ?? 'a learner',
+      language: t.language,
+      createdAt: t.created_at,
+      lastMessageAt: t.last_message_at,
+      lastReadAt: t.last_read_at,
+      ...summariseTurns(turns),
+      person: null,
+    }
+  }
   const kind: 'school' | 'group' = t.school_id ? 'school' : 'group'
   const key = (t.school_id ?? t.group_id) as string
   return {
     id: t.id,
     kind,
-    who: names.get(key) ?? (kind === 'school' ? 'Unknown school' : 'Unknown organisation'),
+    who: orgNames.get(key) ?? (kind === 'school' ? 'Unknown school' : 'Unknown organisation'),
     language: t.language,
     createdAt: t.created_at,
     lastMessageAt: t.last_message_at,
@@ -235,7 +313,7 @@ export function toContext(turn: TurnRow | null): ThreadContext | null {
   }
 }
 
-/** One thread with every turn, oldest first. Null when the id is not a school or org thread. */
+/** One thread with every turn, oldest first. Null when the id is not a school, org or learner thread. */
 export async function loadPlatformThread(svc: SupabaseClient, threadId: string): Promise<PlatformThreadDetail | null> {
   const { data, error } = await svc
     .from('support_threads')
@@ -245,16 +323,17 @@ export async function loadPlatformThread(svc: SupabaseClient, threadId: string):
   if (error) throw new Error(`support thread read failed: ${error.message}`)
   const thread = data as (PlatformThreadRow & { standing_notes: Record<string, unknown> }) | null
   if (!thread) return null
-  // A learner-owned thread is not this channel: it belongs to her own report.
-  if (!thread.school_id && !thread.group_id) return null
+  if (!thread.school_id && !thread.group_id && !thread.learner_user_id) return null
 
-  const [{ data: rows, error: rowErr }, names] = await Promise.all([
+  const [{ data: rows, error: rowErr }, orgNames, learnerNames, originMessage] = await Promise.all([
     svc
       .from('support_messages')
       .select(`${MESSAGE_VIEW_COLUMNS}, thread_id, envelope, signal_key`)
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true }),
     namesFor(svc, thread.school_id ? [thread.school_id] : [], thread.group_id ? [thread.group_id] : []),
+    learnerNamesFor(svc, thread.learner_user_id ? [thread.learner_user_id] : []),
+    thread.origin_message_id ? loadOriginMessage(svc, thread.origin_message_id) : Promise.resolve(null),
   ])
   if (rowErr) throw new Error(`support messages read failed: ${rowErr.message}`)
 
@@ -266,10 +345,11 @@ export async function loadPlatformThread(svc: SupabaseClient, threadId: string):
   const latestQuestion = [...all].reverse().find((r) => r.direction === 'in') ?? null
 
   return {
-    ...toSummary(thread, all, names),
+    ...toSummary(thread, all, orgNames, learnerNames),
     messages,
     standingNotes: thread.standing_notes ?? {},
     context: toContext(latestQuestion),
+    originMessage,
   }
 }
 
@@ -283,16 +363,18 @@ export interface PlatformReplyInput {
 export class PlatformSupportError extends Error {}
 
 /**
- * Answer a school's question as SSi.
+ * Answer a school's, an org's or a learner's thread as SSi.
  *
  * Writes the same 'out' row the watcher writes — author_source 'human',
  * author_via 'jwt', author_user_id the admin's own — points it at the question
  * it answers, and stamps answered_at on every question still open in the
  * thread so the watcher does not answer them a second time.
  *
- * It deliberately does NOT touch last_read_at: that is the SCHOOL's reading of
- * the thread, and the doorbell email rings precisely on "our reply is newer
- * than her last open".
+ * It deliberately does NOT touch last_read_at: for a school/org thread that is
+ * HER reading of it, and the doorbell email rings precisely on "our reply is
+ * newer than her last open". A learner thread has no such reading to disturb —
+ * the fan-out trigger clears her origin message's read_at instead, exactly as
+ * postLearnerReply's counterpart does on her own side.
  */
 export async function replyAsPlatform(svc: SupabaseClient, input: PlatformReplyInput): Promise<SupportMessageView> {
   const thread = await loadPlatformThread(svc, input.threadId)

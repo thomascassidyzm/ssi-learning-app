@@ -20,6 +20,16 @@
  * person; opening it shows the whole exchange, what her screen said when she
  * wrote, and a reply box. The reply goes out as SSi, authored as the admin who
  * typed it — never as the school admin, even while touring under View As.
+ *
+ * AND A LEARNER'S OWN THREAD, IN THE SAME LIST (job #221). Once a learner
+ * replies to an admin message from /me/inbox the channel goes live for her
+ * too (job #821) — a row names her (display name, or her support id, never
+ * her email) and opens to the whole exchange and what she was replying to.
+ * The reply goes out through the SAME /api/admin/support/reply this file
+ * already calls; the difference is entirely server-side. A learner thread
+ * already reachable from her own bug_report/tester_feedback row is left out
+ * of this list — see platformSupport.ts's repliedReportOriginIds — so the
+ * same conversation is never shown twice.
  */
 import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
@@ -49,7 +59,7 @@ interface Report {
 
 interface ThreadSummary {
   id: string
-  kind: 'school' | 'group'
+  kind: 'school' | 'group' | 'learner'
   who: string
   person: string | null
   language: string | null
@@ -83,6 +93,8 @@ interface ThreadContext {
 interface ThreadDetail extends ThreadSummary {
   messages: ThreadMessage[]
   context: ThreadContext | null
+  /** What she was replying to — only set for a learner-owned thread (job #221). */
+  originMessage: { title: string; body: string } | null
 }
 
 /** One row of the list, whichever door it came in by. */
@@ -217,7 +229,12 @@ function when(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : stamp.format(d)
 }
 
-/** What a school thread's row says about its state, in a few words. */
+/** What a thread's kind reads as, in a few words. */
+function threadKindWords(kind: ThreadSummary['kind']): string {
+  return kind === 'school' ? 'school' : kind === 'group' ? 'organisation' : 'her own message'
+}
+
+/** What a thread's row says about its state, in a few words. */
 function threadState(t: ThreadSummary): string {
   if (t.unanswered > 0) return `Waiting since ${when(t.lastMessageAt ?? t.createdAt)}`
   if (t.lastDirection !== 'out') return `${t.messageCount} messages`
@@ -239,7 +256,7 @@ function replyState(r: Report): string {
     <header class="support-head">
       <h1>Support</h1>
       <p class="support-sub">
-        Every report sent from inside the app, and every school's support thread. {{ unanswered }} not answered.
+        Every report sent from inside the app, every school's support thread, and every learner's own reply. {{ unanswered }} not answered.
       </p>
       <label class="support-toggle">
         <input type="checkbox" v-model="showAnswered" />
@@ -318,7 +335,7 @@ function replyState(r: Report): string {
           <span class="report-lines">
             <span class="report-who">
               {{ row.thread.who }}
-              <span class="report-course"> · {{ row.thread.kind === 'school' ? 'school' : 'organisation' }}<span v-if="row.thread.person"> · {{ row.thread.person }}</span></span>
+              <span class="report-course"> · {{ threadKindWords(row.thread.kind) }}<span v-if="row.thread.person"> · {{ row.thread.person }}</span></span>
             </span>
             <span class="report-snippet">{{ row.thread.lastBody }}</span>
             <span class="report-state">{{ threadState(row.thread) }}</span>
@@ -331,6 +348,12 @@ function replyState(r: Report): string {
           <p v-else-if="threadError" class="support-error" role="alert">{{ threadError }}</p>
 
           <template v-else-if="openThread && openThread.id === row.thread.id">
+            <div v-if="openThread.originMessage" class="report-reply-sent">
+              <p class="report-reply-label">What she was replying to</p>
+              <p v-if="openThread.originMessage.title" class="report-title">{{ openThread.originMessage.title }}</p>
+              <p class="report-text">{{ openThread.originMessage.body }}</p>
+            </div>
+
             <div v-for="m in openThread.messages" :key="m.id" class="turn" :class="m.direction === 'out' ? 'turn-out' : 'turn-in'">
               <p class="report-reply-label">
                 {{ m.direction === 'out' ? (m.author_name || 'SSi') : (m.author_name || row.thread.who) }} · {{ when(m.created_at) }}
@@ -352,7 +375,7 @@ function replyState(r: Report): string {
                 :id="`reply-${row.key}`"
                 v-model="drafts[row.key]"
                 rows="5"
-                placeholder="She reads this in her school's Support thread, and gets an email if she misses it."
+                :placeholder="row.thread.kind === 'learner' ? 'She reads this in her own inbox, under the message she replied to.' : 'She reads this in her school\'s Support thread, and gets an email if she misses it.'"
               ></textarea>
               <button type="button" class="report-send" :disabled="sending === row.key || !(drafts[row.key] || '').trim()" @click="sendThreadReply(row.thread)">
                 {{ sending === row.key ? 'Sending…' : 'Send reply' }}
