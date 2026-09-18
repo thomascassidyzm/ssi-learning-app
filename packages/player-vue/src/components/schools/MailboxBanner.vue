@@ -27,8 +27,6 @@ import { computed, inject, ref } from 'vue'
 import { useI18n } from '@/composables/useI18n'
 import { sendSignInCode } from '@/auth/sendSignInCode'
 import { shouldShowMailboxBanner } from '@/composables/useMailboxPrompt'
-import { friendlyVerifyCodeError, resendCountdownLabel } from '@/auth/codeSupersession'
-import { useResendCooldown } from '@/composables/useResendCooldown'
 
 const { t } = useI18n()
 const auth = inject<any>('auth', null)
@@ -51,8 +49,6 @@ const showOther = ref(false)
 const status = ref('')
 const statusKind = ref<'info' | 'error' | 'done'>('info')
 const busy = ref(false)
-const resendCooldown = useResendCooldown()
-const resendCount = ref(0)
 
 function say(kind: 'info' | 'error' | 'done', text: string) {
   statusKind.value = kind
@@ -69,7 +65,6 @@ async function resend(address?: string) {
     say('error', t('schools.ui.mailboxBanner.notConnected', 'Not connected — try again in a moment.'))
     return
   }
-  if (!resendCooldown.canResend.value) return
   busy.value = true
   try {
     const { error } = await sendSignInCode(supabase.value, email)
@@ -77,12 +72,10 @@ async function resend(address?: string) {
       say('error', error.message)
       return
     }
-    resendCount.value += 1
-    resendCooldown.start()
     sentTo.value = email
     showOther.value = false
     codeInput.value = ''
-    say('info', t('schools.ui.mailboxBanner.sent', 'Sent. Only the newest code works, and asking again cancels it — give a school mail system a few minutes.'))
+    say('info', t('schools.ui.mailboxBanner.sent', 'Sent. Codes from school mail systems can take a while — use the newest one.'))
   } finally {
     busy.value = false
   }
@@ -111,8 +104,8 @@ async function confirm() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok || !data.success) {
       // Soft, never a wall: the usual truth on a school mail estate is a
-      // superseded code, and it is named as such (auth/codeSupersession.ts).
-      say('error', friendlyVerifyCodeError(data?.error, { resends: resendCount.value }))
+      // stale or superseded code, and the fresh one is a tap away.
+      say('error', t('schools.ui.mailboxBanner.codeDidNotWork', "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh one and use the newest."))
       return
     }
     say('done', t('schools.ui.mailboxBanner.done', 'Lovely — that mailbox reaches you. You are sorted for good.'))
@@ -132,7 +125,7 @@ async function confirm() {
       }
     }
   } catch {
-    say('error', friendlyVerifyCodeError('network error'))
+    say('error', t('schools.ui.mailboxBanner.codeDidNotWork', "That code didn't work — it may have expired, or a newer one is on its way. Ask for a fresh one and use the newest."))
   } finally {
     busy.value = false
   }
@@ -179,8 +172,8 @@ async function confirm() {
         </button>
       </form>
       <div class="mailbox-banner__links">
-        <button type="button" class="mailbox-banner__link" :disabled="busy || !resendCooldown.canResend.value" @click="resend()">
-          {{ resendCountdownLabel(resendCooldown.secondsLeft.value) }}
+        <button type="button" class="mailbox-banner__link" :disabled="busy" @click="resend()">
+          {{ t('schools.ui.mailboxBanner.resend', 'Send a fresh code') }}
         </button>
         <span aria-hidden="true">·</span>
         <button type="button" class="mailbox-banner__link" :disabled="busy" @click="showOther = !showOther">

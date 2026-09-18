@@ -18,22 +18,13 @@
  * left "the schools lane unchanged"; turning it into a wall for every teacher
  * in Wales is a product call, not a detail, so it stays an invitation here.
  * Dismissible, per-user, and it never nags twice in a session.
- *
- * THE DEFAULT FIRST STEP (Tom, 2026-09-18, job #188): "on a teacher's first
- * successful entry into their school, set a password right there as the
- * default step, not a buried option". With `autoOpen` the password form
- * opens itself the first time a passwordless account lands in the schools
- * shell; closing it leaves this card standing, and only "Not now" puts it
- * away for good. SchoolsContainer mounts it once, above every schools page.
  */
-import { computed, inject, ref, watch } from 'vue'
+import { computed, inject, ref } from 'vue'
 import ManagerOnboardingGate from '@/components/admin/ManagerOnboardingGate.vue'
 import { hasPasswordFlag } from '@/composables/useManagerOnboarding'
 import { useI18n } from '@/composables/useI18n'
 
 const { t } = useI18n()
-
-const props = defineProps<{ autoOpen?: boolean }>()
 
 const auth = inject<any>('auth', null)
 
@@ -56,21 +47,6 @@ try {
 const gateOpen = ref(false)
 
 const show = computed(() => !!auth?.user?.value && !hasPasswordFlag(auth.user.value) && !dismissed.value)
-
-// Once per mount: the moment a passwordless account is signed in, the form
-// is the first thing on screen. A closed form does not reopen — the card
-// below it stays as the invitation.
-let opened = false
-watch(
-  show,
-  (now) => {
-    if (now && props.autoOpen && !opened) {
-      opened = true
-      gateOpen.value = true
-    }
-  },
-  { immediate: true },
-)
 
 function dismiss() {
   dismissed.value = true
@@ -100,12 +76,7 @@ function onPassworded() {
       <button type="button" class="btn-ghost btn-small" @click="dismiss">{{ t('schools.ui.passwordPrompt.notNow', 'Not now') }}</button>
     </div>
   </div>
-  <ManagerOnboardingGate
-    :is-open="gateOpen"
-    :why-copy="t('schools.ui.passwordPrompt.why', 'You are in. Before anything else, set a password — it is the one way back into your school that never depends on an email getting through.')"
-    @passworded="onPassworded"
-    @close="gateOpen = false"
-  />
+  <ManagerOnboardingGate :is-open="gateOpen" @passworded="onPassworded" @close="gateOpen = false" />
 </template>
 
 <style scoped>
