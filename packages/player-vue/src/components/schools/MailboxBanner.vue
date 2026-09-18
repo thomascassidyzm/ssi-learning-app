@@ -42,7 +42,13 @@ const primaryEmail = computed<string>(() => auth?.user?.value?.email || '')
  *  hide the only way of proving the address from inside the dashboard. */
 const collapsed = ref(false)
 
-const isOpen = computed(() => shouldShowMailboxBanner({ metadata: metadata.value, collapsed: collapsed.value }))
+// The "sorted for good" line lingers for a beat after the predicate flips,
+// otherwise the strip vanishes the instant the code lands and the person
+// never reads that it worked (seen on the staging walk, 2026-09-18).
+const justProved = ref(false)
+const isOpen = computed(() =>
+  justProved.value || shouldShowMailboxBanner({ metadata: metadata.value, collapsed: collapsed.value }),
+)
 
 const sentTo = ref('')
 const codeInput = ref('')
@@ -116,6 +122,8 @@ async function confirm() {
       return
     }
     say('done', t('schools.ui.mailboxBanner.done', 'Lovely — that mailbox reaches you. You are sorted for good.'))
+    justProved.value = true
+    setTimeout(() => { justProved.value = false }, 4000)
     // Same local patch useAuth applies after a password set: the predicate
     // flips here, so the strip goes without a reload.
     if (auth?.user?.value && email === primaryEmail.value.toLowerCase()) {
