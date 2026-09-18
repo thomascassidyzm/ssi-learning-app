@@ -129,7 +129,17 @@ const isPlayDisabled = computed(() =>
 )
 
 const handlePlayTap = () => {
-  if (isPlayDisabled.value) return
+  // A tap on the not-ready button is STILL A TAP (job #223). It used to die
+  // here — no state change, no telemetry, no answer — and with cold starts
+  // running p90 10.5s in production that is long enough for a learner to tap,
+  // see nothing, and force-quit. Hand it to the player instead: its ready-guard
+  // is the one place that decides, and it now answers the learner on screen
+  // and records the refusal. The spinner stays until the player is genuinely
+  // ready, so nothing here starts claiming to be something it is not.
+  if (isPlayDisabled.value) {
+    emit('togglePlayback')
+    return
+  }
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])

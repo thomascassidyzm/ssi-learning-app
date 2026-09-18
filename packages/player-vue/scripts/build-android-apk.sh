@@ -65,7 +65,7 @@ SHELL_ORIGIN="${SHELL_ORIGIN%/}"
 
 echo "==> shell origin: $SHELL_ORIGIN  ($ORIGIN_SOURCE)"
 
-echo "==> writing the holding notice into android-shell-web/"
+echo "==> writing the holding notice and the offline fallback into android-shell-web/"
 mkdir -p android-shell-web
 cat > android-shell-web/index.html <<HTML
 <!doctype html>
@@ -86,6 +86,43 @@ cat > android-shell-web/index.html <<HTML
       <p>SaySomethingin is loading from ${SHELL_ORIGIN}.</p>
       <p>If you are seeing this page, the app could not reach it. Check your connection and open the app again.</p>
     </main>
+  </body>
+</html>
+HTML
+
+cat > android-shell-web/error.html <<HTML
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SaySomethingin</title>
+    <style>
+      body { margin: 0; display: grid; place-items: center; min-height: 100vh;
+             background: #e8e3dd; color: #2b2b2b;
+             font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+      main { max-width: 22rem; padding: 2rem; text-align: center; }
+      h1 { font-size: 1.15rem; margin: 0 0 .75rem; }
+      button { margin-top: 1.5rem; font: inherit; padding: .7rem 1.4rem;
+               border: 1px solid #b9b2a8; border-radius: 10px;
+               background: #fff; color: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Cannot reach SaySomethingin</h1>
+      <p>The app needs the internet the first time it opens. After that it works offline.</p>
+      <button type="button" id="retry">Try again</button>
+    </main>
+    <script>
+      // The one thing this page can do: go back to the real app. A reload would
+      // only reload this page, since this IS what the WebView fell back to.
+      var ORIGIN = ${SHELL_ORIGIN@Q};
+      function retry() { location.replace(ORIGIN); }
+      document.getElementById('retry').addEventListener('click', retry);
+      // And take the first chance it gets without being asked.
+      window.addEventListener('online', retry);
+    </script>
   </body>
 </html>
 HTML

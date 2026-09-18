@@ -27,7 +27,7 @@ function withUserAgent(ua: string, fn: () => void): void {
 
 describe('platform capabilities', () => {
   it('defaults to the web with no API origin — today, unchanged', () => {
-    expect(platform()).toEqual({ shell: 'web', apiOrigin: '', os: '' })
+    expect(platform()).toEqual({ shell: 'web', apiOrigin: '', os: '', nativeLevel: 0 })
     expect(isNativeShell()).toBe(false)
   })
 
@@ -67,7 +67,7 @@ describe('platform capabilities', () => {
   it('reads an injected config from the shell', () => {
     window.__SSI_PLATFORM__ = { shell: 'webview', apiOrigin: 'https://api.example.test/' }
     resetPlatform()
-    expect(platform()).toEqual({ shell: 'webview', apiOrigin: 'https://api.example.test', os: '' })
+    expect(platform()).toEqual({ shell: 'webview', apiOrigin: 'https://api.example.test', os: '', nativeLevel: 0 })
     delete window.__SSI_PLATFORM__
   })
 
@@ -94,7 +94,7 @@ describe('platform capabilities', () => {
     expect(SHELL_UA_MARKER).toBe('SSiShell/')
     withUserAgent('Mozilla/5.0 (Linux; Android 14) Chrome/120 SSiShell/android', () => {
       resetPlatform()
-      expect(platform()).toEqual({ shell: 'webview', apiOrigin: '', os: 'android' })
+      expect(platform()).toEqual({ shell: 'webview', apiOrigin: '', os: 'android', nativeLevel: 0 })
     })
   })
 
@@ -106,7 +106,7 @@ describe('platform capabilities', () => {
     })
     withUserAgent('Mozilla/5.0 (Macintosh) Safari/605', () => {
       resetPlatform()
-      expect(platform()).toEqual({ shell: 'web', apiOrigin: '', os: '' })
+      expect(platform()).toEqual({ shell: 'web', apiOrigin: '', os: '', nativeLevel: 0 })
     })
   })
 

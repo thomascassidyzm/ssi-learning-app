@@ -277,8 +277,11 @@ const toggleLibrary = async () => {
   const opening = !showLibrary.value
   if (opening) {
     showSettings.value = false // Close settings if open
-    if (learningPlayerRef.value?.handlePause) {
-      learningPlayerRef.value.handlePause()
+    // stopEverything(), not the transport pause: opening an overlay halts the
+    // audio but it is NOT a pause tap, and logging it as one is what made
+    // tap_pause unreadable (job #219/#223).
+    if (learningPlayerRef.value?.stopEverything) {
+      learningPlayerRef.value.stopEverything()
     }
   }
   showLibrary.value = !showLibrary.value
@@ -304,8 +307,11 @@ const toggleSettings = () => {
   if (!showSettings.value) {
     showLibrary.value = false // Close library if open
     showCourseSelector.value = false // Close course selector if open
-    if (learningPlayerRef.value?.handlePause) {
-      learningPlayerRef.value.handlePause()
+    // stopEverything(), not the transport pause: opening an overlay halts the
+    // audio but it is NOT a pause tap, and logging it as one is what made
+    // tap_pause unreadable (job #219/#223).
+    if (learningPlayerRef.value?.stopEverything) {
+      learningPlayerRef.value.stopEverything()
     }
   }
   showSettings.value = !showSettings.value

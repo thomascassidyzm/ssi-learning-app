@@ -17,6 +17,7 @@ import {
 } from './composables/useInstantPlayback'
 import { setCourseBundleAuthProvider, setCourseBundleIdentityProvider, setCourseBundleEntitlementProvider, revalidateCachedBundles, getCourseBundle } from './composables/useCourseBundle'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
+import { runOpenUpdateGate } from './composables/useOpenUpdateGate'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { checkContentVersion } from './composables/useScriptCache'
@@ -50,6 +51,10 @@ import {
 // (PWA update available, install prompt eligible, admin flag), so
 // they don't belong on the first-paint critical path.
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
+// The on-open update screen. Renders nothing unless useOpenUpdateGate proves
+// the live build is newer than this one — see that composable's header for why
+// it is allowed to hold the surface when the banner is not.
+const UpdateOnOpenOverlay = defineAsyncComponent(() => import('./components/UpdateOnOpenOverlay.vue'))
 // "Was the earlier sign-in you?" — the contest card (job #371). App-level so a
 // code sign-in on any screen is covered; see src/auth/claimAccount.ts.
 const AccountContestPrompt = defineAsyncComponent(() => import('./components/auth/AccountContestPrompt.vue'))
@@ -1008,6 +1013,13 @@ onMounted(async () => {
     console.warn('[App] Kill switch check failed (non-fatal):', err)
   })
 
+  // Ask, once, whether the live build is newer than this one — and if it
+  // provably is, say so on screen and take it, rather than updating silently
+  // under the learner (Tom, 2026-09-18). Deliberately NOT awaited: when there
+  // is no update, and whenever we are offline, this costs boot nothing and
+  // paints nothing at all.
+  void runOpenUpdateGate()
+
   // Supabase client was created synchronously above. Finish the async parts
   // (stores + auth init) now that mount is complete.
   if (supabaseClient.value) {
@@ -1238,6 +1250,7 @@ onMounted(async () => {
          the player, the only place anything is playing (job #683). -->
     <PlayingAsYourselfBanner v-if="route.name === 'player'" />
     <PwaUpdatePrompt />
+    <UpdateOnOpenOverlay />
     <AccountContestPrompt :client="supabaseClient" />
     <InstallBanner />
     <TesterFeedback />

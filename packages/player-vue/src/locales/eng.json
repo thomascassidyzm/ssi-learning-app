@@ -118,6 +118,7 @@
     "newBeltEarned": "New Belt Earned!",
     "keepLearningReachNext": "Keep learning to reach the next level!",
     "progressLoadFailed": "We couldn't load where you got to. Your progress is safe — have another go.",
+    "notReadyAck": "Got you — still getting your session ready…",
     "practisingBanner": "Practising",
     "practisingBannerNote": "New material comes back when your connection does.",
     "subscriptionsNotAvailableHere": "Subscriptions aren't available in this version of the app yet.",
@@ -264,6 +265,7 @@
     "closeSettings": "Close settings",
     "updateAvailable": "Update available",
     "appBehindLive": "This app is from {date}. A newer version is available — install it from popty.app/builds.",
+    "needsStoreUpdate": "This version of the app needs an update from the Play Store. Everything else keeps working until you get it.",
     "nothingSavedYet": "Nothing is saved on this device yet. If you used an earlier version of this app, your place and your downloads stayed with it. Sign in and your progress comes back from your account.",
     "tapUpdate": "Tap to update",
     "latestVersionTapVersion": "✦ In the latest version — tap the version above to update.",
@@ -843,7 +845,12 @@
     "tapRelaunch": "Tap to relaunch",
     "newVersionAvailable": "New version available",
     "later": "Later",
-    "update": "Update"
+    "update": "Update",
+    "updatingTitle": "Updating to the latest version",
+    "updatingBody": "This takes a few seconds.",
+    "updatingSlow": "This is taking longer than usual.",
+    "keepWaiting": "Keep waiting",
+    "reloadNow": "Reload"
   },
   "me": {
     "pointsEarned": "Points earned",
