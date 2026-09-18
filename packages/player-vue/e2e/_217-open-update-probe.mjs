@@ -34,9 +34,14 @@ const logs = []
 page.on('console', (m) => { const t = m.text(); logs.push(t); if (t.includes('[OpenUpdate]') || t.includes('[PWA]')) console.log('  page:', t) })
 
 await page.goto(BASE, { waitUntil: 'load' })
-// The service worker registers on `window load` (immediate:false) and then
-// precaches the whole shell — give it room, then prove it controls this page.
-await page.waitForTimeout(12000)
+// The service worker registers on `window load` (immediate:false), and with
+// clientsClaim off it does NOT take over the page that registered it — so the
+// precached-shell path needs a second visit, exactly as a learner's second
+// open does. Give the precache room, then reopen and check.
+await page.waitForTimeout(20000)
+await page.evaluate(() => navigator.serviceWorker.ready)
+await page.reload({ waitUntil: 'load' })
+await page.waitForTimeout(5000)
 const controlled = await page.evaluate(async () => {
   await navigator.serviceWorker.ready
   return !!navigator.serviceWorker.controller
