@@ -48,23 +48,30 @@ const page = await ctx.newPage()
 const logs = []
 page.on('console', (m) => logs.push(m.text()))
 page.on('pageerror', (e) => logs.push('PAGEERROR ' + e.message))
-const dismissLater = async () => { const b = page.getByRole('button', { name: 'Later', exact: true }); if (await b.count()) await b.first().click().catch(() => {}) }
+const dismissLater = async () => {
+  for (const name of ['Later', 'That was me', 'Not now', 'Got it']) {
+    const b = page.getByRole('button', { name, exact: true })
+    if (await b.count()) await b.first().click().catch(() => {})
+  }
+}
 
 await page.goto(`${BASE}/?course=eus_for_eng&stream`, { waitUntil: 'domcontentloaded' }).catch(() => {})
-await page.waitForTimeout(12000); await dismissLater()
+await page.waitForTimeout(14000); await dismissLater()
+await page.waitForTimeout(2000)
 await page.screenshot({ path: `${OUT}/1-loaded.png` })
 
-for (const name of ['Continue', 'Start', 'Play', 'Resume']) {
-  const b = page.getByRole('button', { name: new RegExp(`^${name}`, 'i') })
-  if (await b.count()) { await b.first().click().catch(() => {}); break }
-}
-await page.waitForTimeout(3000); await dismissLater()
+// The transport's centre button — Play / Stop / Return (BottomNav slot 3).
+const play = page.locator('button.center-btn')
+check('the play button is there', (await play.count()) >= 1, `count=${await play.count()}`)
+await play.first().click().catch(() => {})
+await page.waitForTimeout(4000); await dismissLater()
+await page.screenshot({ path: `${OUT}/1b-playing.png` })
 
 // Let it run. A round holds ~12-18 cycles; the seed review sits among the
 // spaced-rep block, so give it several minutes and shoot whenever the current
 // cycle is a sandwich slot.
 let shots = 0
-for (let i = 0; i < 90; i++) {
+for (let i = 0; i < 400; i++) {
   await page.waitForTimeout(4000)
   const seen = logs.some(l => /seed_rep/.test(l))
   if (seen && shots < 3) {
