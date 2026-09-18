@@ -349,3 +349,113 @@ describe('Onboarding.vue — the school door lands ON the school dashboard', () 
     expect(localStorage.getItem('ssi-user-role')).toContain('school_admin')
   })
 })
+
+describe('Onboarding.vue — the school door needs no code to get in (job #188)', () => {
+  // Tom, 2026-09-18: "The account IS created. That is the whole point. The
+  // account is created instantly. But the teacher does not know it because
+  // they are being asked for the code still." Pre-fix this test is red: the
+  // door sends a code and parks the head on "Check your email" with nothing
+  // provisioned. Post-fix it is green: the door mints a session, provisions
+  // the school and lands in the dashboard, and the code screen never shows.
+  let hrefSpy: string[]
+
+  beforeEach(() => {
+    hrefSpy = []
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...window.location,
+        set href(v: string) { hrefSpy.push(v) },
+        get href() { return hrefSpy[hrefSpy.length - 1] ?? '' },
+      },
+      writable: true,
+      configurable: true,
+    })
+  })
+
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  function mountFreshSchoolDoor(fetchMock: any, supabase: any) {
+    vi.stubGlobal('fetch', fetchMock)
+    const auth = { isAuthenticated: ref(false), user: ref(null) }
+    return mount(Onboarding, {
+      props: { track: 'school' },
+      global: {
+        provide: { supabase, auth },
+        stubs: {
+          AtmosphereBackdrop: true,
+          FrostCard: { template: '<div><slot /></div>' },
+          Button: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+  }
+
+  it('a fresh head picks a language, types an email, and lands in the dashboard — no code screen', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/auth/setup-mint') {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true, adopted: false, session: { access_token: 'a', refresh_token: 'r' } }) })
+      }
+      if (url === '/api/auth/send-code') return Promise.resolve({ ok: true, status: 200, json: async () => ({ sent: true }) })
+      if (url === '/api/onboarding/provision') {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ role: 'school_admin', existing: false, redirect: '/schools' }) })
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => LIVE_COURSES })
+    })
+    const supabase = ref({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'a' } } }),
+        setSession: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      },
+    })
+    const wrapper = mountFreshSchoolDoor(fetchMock, supabase)
+    await flushAsync()
+
+    await wrapper.find('#ob-email').setValue('head@ysgol.cymru')
+    const go = wrapper.findAll('button').find((b) => b.text().includes('Set up my school'))!
+    expect(go.exists()).toBe(true)
+    await go.trigger('click')
+    await flushAsync()
+
+    const urls = fetchMock.mock.calls.map(([u]: [string]) => u)
+    expect(urls).toContain('/api/auth/setup-mint')
+    expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'a', refresh_token: 'r' })
+    expect(urls).toContain('/api/onboarding/provision')
+    expect(wrapper.text()).not.toContain('Check your email')
+    expect(hrefSpy.at(-1)).toBe('/schools')
+  })
+
+  it('an address somebody has already PROVED gets the sign-in code, worded as welcome back — never a wall', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/auth/setup-mint') return Promise.resolve({ ok: true, status: 200, json: async () => ({ existing: true }) })
+      if (url === '/api/auth/send-code') return Promise.resolve({ ok: true, status: 200, json: async () => ({ sent: true }) })
+      return Promise.resolve({ ok: true, status: 200, json: async () => LIVE_COURSES })
+    })
+    const supabase = ref({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        setSession: vi.fn(),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      },
+    })
+    const wrapper = mountFreshSchoolDoor(fetchMock, supabase)
+    await flushAsync()
+    await wrapper.find('#ob-email').setValue('mcauleys51@hwbcymru.net')
+    await wrapper.findAll('button').find((b) => b.text().includes('Set up my school'))!.trigger('click')
+    await flushAsync()
+
+    expect(supabase.value.auth.setSession).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.map(([u]: [string]) => u)).toContain('/api/auth/send-code')
+    expect(wrapper.text()).toContain('Check your email')
+    expect(wrapper.text()).toContain('You already have an account here')
+    expect(wrapper.text()).not.toMatch(/already (in use|used)/i)
+  })
+})
