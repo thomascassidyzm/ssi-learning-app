@@ -4422,3 +4422,40 @@ it was asked for, at class and at school level.
 
 **Not touched.** The Monday/Tuesday `defaultWeekWindow` rule stays in `_utils/schoolWeek.ts` with its
 tests; it simply no longer decides what the page opens on. `?days=` stays the only rolling path.
+
+## 2026-09-18 — the bundle path carried one LEGO id per cycle, so no pairs were ever written (job #158)
+
+**What was broken.** `generateScript` in `@ssi/core` — the generator every
+BUNDLE course plays from — copied a phrase's `displayTiling` onto the cycle but
+never its `decomposition`. Downstream is faithful: `bundleToBackendCycles`
+forwards `decomposition` when it is there, `backendCyclesToRounds` derives
+`componentLegoIds` from it, `LearningPlayer` expands those ids and
+`usePairingsTelemetry.buildPairs()` pairs them. With the decomposition missing,
+every cycle carried exactly one id, `buildPairs()` of one id is `[]`, the tally
+stayed empty and `flush()` returned before any request. Nothing errored, and
+the on-screen tiles still rendered — `LegoAssembly` reads `displayTiling` — so
+it looked right the whole time.
+
+**Who it hit, and since when.** Every learner on the fifteen
+`BUNDLE_BOOTSTRAP_COURSES` since the bundle cutover: both Welsh class entities
+AND real production individuals on `cym_s_for_eng`, measured against
+`player_events` + `learner_lego_pairings` from 2026-09-17 11:00Z. Learners on
+non-bundle courses (cat/ell/hrv, still on the legacy walk) wrote pairs
+normally, which is why this read as class-specific and sent job #52 after the
+class route. The class route was fine and was never reached — the class brain,
+Course-journey arcs and cloth simply starved on every bundle course.
+
+**The fix.** `decomposition` joins `BaseCycleOpts` and is spread in `baseCycle`
+exactly as `displayTiling` is (only when non-empty), passed from both
+phrase-cycle builders — the main build/use one and the INF PLAY one. Nothing
+downstream changed. Regression tests at both levels: core asserts a phrase with
+a decomposition yields a cycle carrying it verbatim and one without yields
+none; player-vue asserts a `bundleFullScript` round's phrase cycles come out
+with `componentLegoIds` equal to the non-ghost lego ids. Both were red on the
+pre-fix generator and green after.
+
+**Kept.** The job #155 diagnostic `console.warn` instrumentation in
+`usePairingsTelemetry` is reverted; the probe that found this lives on as
+`packages/player-vue/e2e/class-cofire-flush-probe.mjs` — the standing
+end-to-end check that cycle → componentLegoIds → tally → flush → RPC → rows is
+alive on a deployed build.
