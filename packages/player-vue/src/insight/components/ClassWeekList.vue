@@ -58,6 +58,10 @@ function since(iso: string | null): string {
 
 const started = computed(() => props.classes.filter((c) => c.started))
 const notStarted = computed(() => props.classes.filter((c) => !c.started))
+// Under ALL TIME — the window the page opens on since Tom's ruling of
+// 2026-09-17 — a row's figures are that class's totals since it started, so
+// "new phrases for the week" would be the wrong noun for the same number.
+const isAllTime = computed(() => (props.windowLabel || '').toLowerCase() === 'all time')
 </script>
 
 <template>
@@ -69,13 +73,14 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
        keywords: classes, quiet, last practised, not started, week, each class
        walk: reading-insights
        What it's for. Seeing every class under this level at a glance, the one that
-       has gone longest without practising first, with its week beside its name.
+       has gone longest without practising first, with its own figures beside its name.
        Where it is. Under the card on a school's or a group's insights page.
        How you do it.
-       1. Read down the list. Each card says when that class last practised, then
-          its total time and new phrases for the week, then that class's last twelve
-          weeks as small bars with the average here drawn across them as a faint line.
-       2. Tap a class to open its own card, with the average beside it.
+       1. Read down the list. Each card says when that class last practised, then its
+          total time and phrases over whatever the card above is set to — totals since
+          it started on **All time**, the week's own numbers on a week — then that
+          class's last twelve weeks as small bars.
+       2. Tap a class to open its own card, with the average beside it on a week.
        3. Classes that have not started yet are counted in one quiet line at the
           end; open it to see their names.
        Worth knowing. This is not a league table. Nothing is ranked by minutes and
@@ -86,7 +91,7 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
   <section class="cwl" data-walk="insights-classes">
     <header class="cwl-head">
       <h2 class="cwl-title">{{ t('insights.classes.title', 'Each class, quietest first') }}</h2>
-      <p class="cwl-sub">{{ t('insights.classes.sub', 'How long since each class last practised, and its week. Tap a class for its own card.') }}</p>
+      <p class="cwl-sub">{{ isAllTime ? t('insights.classes.subAllTime', 'How long since each class last practised, and its totals since it started. Tap a class for its own card.') : t('insights.classes.sub', 'How long since each class last practised, and its week. Tap a class for its own card.') }}</p>
     </header>
 
     <p v-if="classes.length === 0" class="cwl-empty">{{ t('insights.classes.none', 'No classes on this course here yet.') }}</p>
@@ -98,7 +103,7 @@ const notStarted = computed(() => props.classes.filter((c) => !c.started))
           <span class="cwl-since">{{ t('insights.classes.lastPractised', 'last practised {when}').replace('{when}', since(c.lastPlayedAt)) }}</span>
           <span class="cwl-nums">
             <span class="cwl-num"><span class="cwl-num-v">{{ mins(c.totalMinutes ?? 0) }}</span><span class="cwl-num-l">{{ windowLabel || t('insights.classes.thisWeek', 'this week') }}</span></span>
-            <span class="cwl-num"><span class="cwl-num-v">{{ Math.round(c.newPhrases ?? 0) }}</span><span class="cwl-num-l">{{ t('insights.classes.newPhrases', 'new phrases') }}</span></span>
+            <span class="cwl-num"><span class="cwl-num-v">{{ Math.round(c.newPhrases ?? 0) }}</span><span class="cwl-num-l">{{ isAllTime ? t('insights.classes.phrasesReached', 'phrases reached') : t('insights.classes.newPhrases', 'new phrases') }}</span></span>
           </span>
           <WeekBars
             v-if="c.bars && c.bars.some((v) => typeof v === 'number')"
