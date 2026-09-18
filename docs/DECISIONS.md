@@ -1,3 +1,59 @@
+## 2026-09-18 — The average divides by who practised, and the week was never wrong (job #207, second pass)
+
+Two rulings from Tom within eleven minutes of reading Chepstow's dashboard, plus one thing he asked
+us to stop trusting.
+
+**"Weeks might be being calculated wrongly." Checked first, and they are not.** `api/_utils/schoolWeek.ts`
+computes Monday 00:00 in an IANA zone through a two-pass wall-clock conversion, so the boundary
+survives both DST changes. This week runs Monday 00:00 local to NOW — not to Friday, not to "today"
+in a way that would drop Saturday and Sunday once they happen — and last week is the previous
+complete Monday 00:00 to Monday 00:00, which is Monday–Sunday inclusive. The zone is the default
+`Europe/London` in practice: the client never sends `?tz=`. The on-screen label and the query bounds
+are the same `WeekRange` object formatted by the same function on the same server, so they cannot
+disagree. Proved per day for 7–18 Sep: the local-day table sums to exactly what the shipped bounds
+return (274 minutes last week, 11.7 this week), nothing sits in the Sunday/Monday boundary hour,
+nothing crosses local midnight, and the one weekend session in the estate window (7P, Sunday 6 Sep)
+is filed in the week that started Monday 31 August. **Nothing is misfiled.**
+
+**Ruling one: idle classes leave the denominator.** "Classes that did not use the app in the window
+are EXCLUDED from the school average — the denominator is classes with any practice in that window,
+and the caption says so." This overrules the started-by-the-end-of-the-window half of his own
+2026-09-16 cohort ruling; the rest of it survives intact, because the new set is still
+viewer-independent and still self-inclusive. Chepstow is why: 33 classes have started, 9 practised,
+11.7 minutes. Over 33 that is 0.35 of a minute and the card said `0m`. Over 9 it is 1.3, which reads
+`2m` beside 10P's `8m` — a comparison a head of department can act on.
+
+**Decision.** One rule, `cohortForWindow`, and it feeds all three averages that exist on the page:
+the card's number, the twelve bars beneath it, and the leader page's normal line. Two denominators
+on one screen is the bug it replaces and it stays replaced whichever way the denominator is chosen.
+`cohortFor` is now used for exactly one thing, and it is not a denominator: telling an entity's real
+zero (it had started, and was quiet) from its absence. A zero-second row is not practice and never
+joins the denominator. The caption states the rule — "… average · 9 classes that practised this
+week" — and so do the why? chip and the Handbook entry.
+
+**Sovereignty, under the new denominator.** An average of one is not an average: if the entity is
+the only unit that practised the two columns are the same number twice, and if it is not, the
+"average" IS one named peer's exact week. Below the existing entity floor the column goes, the bars
+stay, and the card says which of the two nothings that is.
+
+**Ruling two was already landed earlier the same day** — a positive average never floors to zero;
+`<1m` where a fraction of a minute used to read `0m`, and one formatter for the whole estate.
+
+**The All-time column is absent BY DESIGN, and the design is Tom's** (2026-09-16, widened
+2026-09-17): "All time is TOTALS ONLY, on its own line beneath, with no comparison figure and no
+cohort column." It is enforced in both places — the server sends no cohort and null bars under
+`allTimeMode`, and the client hides the Compare-to picker rather than leaving it there changing
+nothing. Not a missing lane; nothing to fix.
+
+**The red "Couldn't save that just now" was View As being read-only**, which is correct behaviour,
+so nothing was investigated and nothing was fixed. The wording alone changed, in its own commit: in
+View As it now says "Viewing only — changes are not saved", because the old words invited a retry
+that can never succeed.
+
+**Left deliberately alone.** The legacy `?days=` rate lane keeps the structural cohort with dormant
+members at zero. It answers a different question on surfaces that are not the school week card
+(me/insights, intel/minutes), and its own test still pins that behaviour.
+
 ## 2026-09-18 — A school average is a fraction, and a fraction is never zero (job #207)
 
 Tom on production, 12:44, on Chepstow's leader dashboard: "The school average is the misleading one.
