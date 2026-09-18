@@ -46,9 +46,46 @@ const collapsed = ref(false)
 // otherwise the strip vanishes the instant the code lands and the person
 // never reads that it worked (seen on the staging walk, 2026-09-18).
 const justProved = ref(false)
+// TOM'S RULING 3 (job #195, 2026-09-18): at proof, if there is exactly one
+// live session — nearly everyone — nothing is shown. Only when the server
+// counts more than one does THIS device, the proving one, see one line:
+// keep the other signed in, or sign it out. KEEP is the default and the
+// safe path; nothing happens unless the person taps the other answer.
+// And TOM'S RULING 2 beside it: proof itself ended nothing to get here.
+const otherSessions = ref(0)
+const othersEnded = ref(false)
 const isOpen = computed(() =>
-  justProved.value || shouldShowMailboxBanner({ metadata: metadata.value, collapsed: collapsed.value }),
+  justProved.value || otherSessions.value > 0 || shouldShowMailboxBanner({ metadata: metadata.value, collapsed: collapsed.value }),
 )
+
+function keepOtherSessions() {
+  otherSessions.value = 0
+}
+
+async function endOtherSessions() {
+  if (!supabase?.value) return
+  busy.value = true
+  try {
+    const session = await supabase.value.auth.getSession()
+    const authToken = session.data?.session?.access_token
+    const res = await fetch('/api/auth/end-other-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+    })
+    if (!res.ok) {
+      say('error', t('schools.ui.mailboxBanner.othersNotEnded', "Couldn't sign the other device out just now. It stays signed in — you can try again from Settings."))
+      return
+    }
+    othersEnded.value = true
+    otherSessions.value = 0
+    say('done', t('schools.ui.mailboxBanner.othersEnded', 'Done — only this device is signed in now.'))
+    setTimeout(() => { othersEnded.value = false }, 4000)
+  } catch {
+    say('error', t('schools.ui.mailboxBanner.othersNotEnded', "Couldn't sign the other device out just now. It stays signed in — you can try again from Settings."))
+  } finally {
+    busy.value = false
+  }
+}
 
 const sentTo = ref('')
 const codeInput = ref('')
@@ -124,6 +161,8 @@ async function confirm() {
     say('done', t('schools.ui.mailboxBanner.done', 'Lovely — that mailbox reaches you. You are sorted for good.'))
     justProved.value = true
     setTimeout(() => { justProved.value = false }, 4000)
+    // Ruling 3: counted by the server at proof, shown only when > 0.
+    otherSessions.value = typeof data.other_sessions === 'number' && data.other_sessions > 0 ? data.other_sessions : 0
     // Same local patch useAuth applies after a password set: the predicate
     // flips here, so the strip goes without a reload.
     if (auth?.user?.value && email === primaryEmail.value.toLowerCase()) {
@@ -214,6 +253,37 @@ async function confirm() {
       </button>
     </form>
     <p v-if="status" class="mailbox-banner__status" :class="`is-${statusKind}`">{{ status }}</p>
+    <!-- HANDBOOK A second device at the moment you confirm
+         section: your-own-account
+         moment: setting-up
+         roles: school_admin
+         place: dashboard
+         keywords: device, signed in, laptop, phone, session, keep
+         What it's for. Telling you, at the moment your email is confirmed, if
+         your account is also signed in somewhere else, and letting you decide.
+         Where it is. One line under the confirmation strip, only when there is
+         another device. Most people never see it.
+         How you do it.
+         1. Read the line. Tap **Keep** to leave the other device signed in.
+         2. Or tap **Sign it out** to end the other sign-in and keep this one.
+         Worth knowing. Nothing is signed out unless you tap it. Confirming your
+         email never ends a sign-in on its own, and nothing you set up before
+         confirming is lost.
+         checked: 79132ec5.03bf72c2
+    -->
+    <div v-if="otherSessions" class="mailbox-banner__sessions" data-walk="mailbox-banner-other-device">
+      <span>
+        {{ (otherSessions === 1
+          ? t('schools.ui.mailboxBanner.otherDevice', "You're also signed in on another device. Keep it signed in?")
+          : t('schools.ui.mailboxBanner.otherDevices', "You're also signed in on {n} other devices. Keep them signed in?")).replace('{n}', String(otherSessions)) }}
+      </span>
+      <button type="button" class="mailbox-banner__btn" :disabled="busy" @click="keepOtherSessions">
+        {{ t('schools.ui.mailboxBanner.keep', 'Keep') }}
+      </button>
+      <button type="button" class="mailbox-banner__link" :disabled="busy" @click="endOtherSessions">
+        {{ otherSessions === 1 ? t('schools.ui.mailboxBanner.signItOut', 'Sign it out') : t('schools.ui.mailboxBanner.signThemOut', 'Sign them out') }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -267,6 +337,14 @@ async function confirm() {
   cursor: pointer;
 }
 .mailbox-banner__status { margin: 6px 0 0; text-align: center; }
+.mailbox-banner__sessions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 8px;
+}
 .mailbox-banner__status.is-error { color: #8a2a1e; }
 .mailbox-banner__status.is-done { color: #1f6b3a; font-weight: 600; }
 </style>

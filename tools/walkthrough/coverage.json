@@ -3,7 +3,9 @@
   "capabilities": {
     "obvious": {
       "insights-org-practising": "Job #32, 2026-09-16: \"Which classes practised this week\" now mounts only on the insights page of an organisation that runs no classes anywhere below it, where it is the whole page — one question, one sentence, nothing to find. Every school and group answers it with the card and the class list above, which the reading-insights walk steps on, so a step here would point at an element those personas never see.",
-      "mailbox-banner-confirm": "Job #188, 2026-09-18: a one-line strip across the top of every schools page with a single six-digit field and a Confirm button beside it, shown only while the leader's own address is unconfirmed. One field, one button, and the strip itself says what goes in the box, so a clip would show a person typing six digits into the only box on the line."
+      "mailbox-banner-confirm": "Job #188, 2026-09-18: a one-line strip across the top of every schools page with a single six-digit field and a Confirm button beside it, shown only while the leader's own address is unconfirmed. One field, one button, and the strip itself says what goes in the box, so a clip would show a person typing six digits into the only box on the line.",
+      "mailbox-banner-other-device": "Job #195, 2026-09-18: one line under the confirmation strip, shown only when the server counted a second live session at the moment the code landed, with Keep and Sign it out beside it. Nearly nobody ever sees it, and a clip would have to stage two signed-in devices to show a line whose whole content is its own two buttons.",
+      "school-vouch-button": "Job #195, 2026-09-18: one button on a card that appears on a school's admin page only while that school, set up without a code, has an unconfirmed email address and no vouch. The card says what it is for in two sentences and the button is the only thing on it; a clip would show a person tapping the one button after reading the two sentences."
     },
     "missing": {}
   },

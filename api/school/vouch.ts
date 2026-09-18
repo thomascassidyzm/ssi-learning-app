@@ -75,17 +75,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   const svc = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false, autoRefreshToken: false } })
   try {
-    const { data: school } = await svc.from('schools').select('id, admin_user_id').eq('id', schoolId).maybeSingle()
+    // The admin read-view addresses a school by its own id or by its node
+    // group's id (schools.node_group_id); either resolves here.
+    let { data: school } = await svc.from('schools').select('id, admin_user_id').eq('id', schoolId).maybeSingle()
+    if (!school) {
+      const byNode = await svc.from('schools').select('id, admin_user_id').eq('node_group_id', schoolId).maybeSingle()
+      school = byNode.data
+    }
     if (!school) {
       res.status(404).json({ error: 'School not found' })
       return
     }
+    const resolvedSchoolId = (school as { id: string }).id
     const founderId = (school as { admin_user_id?: string | null }).admin_user_id ?? null
-    if (!(await mayVouch(svc, auth.userId, schoolId, founderId))) {
+    if (!(await mayVouch(svc, auth.userId, resolvedSchoolId, founderId))) {
       res.status(403).json({ error: 'Not authorised to vouch for this school' })
       return
     }
-    const held = await schoolEnrolmentHeld(svc, schoolId)
+    const held = await schoolEnrolmentHeld(svc, resolvedSchoolId)
     if (req.method === 'GET') {
       res.status(200).json({ held })
       return
@@ -101,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const { data: founder } = await svc.auth.admin.getUserById(founderId)
     const existing = (founder?.user?.app_metadata as Record<string, unknown> | undefined) || {}
     const { error } = await svc.auth.admin.updateUserById(founderId, {
-      app_metadata: { ...existing, [SCHOOL_VOUCH_KEY]: { school_id: schoolId, by: auth.userId, at: new Date().toISOString() } },
+      app_metadata: { ...existing, [SCHOOL_VOUCH_KEY]: { school_id: resolvedSchoolId, by: auth.userId, at: new Date().toISOString() } },
     })
     if (error) {
       res.status(500).json({ error: 'Could not record the vouch. Please try again.' })

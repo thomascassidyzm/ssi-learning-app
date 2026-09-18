@@ -428,7 +428,7 @@ describe('Onboarding.vue — the school door needs no code to get in (job #188)'
     expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'a', refresh_token: 'r' })
     expect(urls).toContain('/api/onboarding/provision')
     expect(wrapper.text()).not.toContain('Check your email')
-    expect(hrefSpy.at(-1)).toBe('/schools')
+    expect(hrefSpy[hrefSpy.length - 1]).toBe('/schools')
   })
 
   it('an address somebody has already PROVED gets the sign-in code, worded as welcome back — never a wall', async () => {

@@ -63,6 +63,47 @@ export function shouldShowMailboxBanner(state: {
   return isMailboxUnproven(state.metadata)
 }
 
+/**
+ * TOM'S RULING 1 (job #195, 2026-09-18): "An unproven school can build but
+ * not enrol." The browser mirror of api/_utils/schoolProof.ts's
+ * enrolmentHeldFor, so the founder's own class page says the same thing the
+ * server will say to a pupil: a school that came through the no-code door,
+ * whose founder has proved neither the school address nor a different one
+ * from the banner, and whom no admin has vouched for, hands out no pupil
+ * code. The server is the gate; this is the honest line beside the button.
+ */
+export function enrolmentHeldFor(input: {
+  metadata: Record<string, unknown> | null | undefined
+  appMetadata: Record<string, unknown> | null | undefined
+  primaryEmail: string | null | undefined
+  verifiedEmails: string[] | null | undefined
+}): boolean {
+  const meta = input.metadata || {}
+  if (!meta.setup_door) return false
+  if (!isMailboxUnproven(meta)) return false
+  const vouch = (input.appMetadata || {}).school_vouch
+  if (vouch && typeof vouch === 'object') return false
+  const primary = (input.primaryEmail || '').trim().toLowerCase()
+  const others = (input.verifiedEmails || [])
+    .map((e) => String(e || '').trim().toLowerCase())
+    .filter((e) => e && e !== primary)
+  return others.length === 0
+}
+
+/** Is enrolment held for the signed-in founder's school? Reactive over the
+ *  injected auth, so the line goes the moment the banner's code lands. */
+export function useEnrolmentHold(): ComputedRef<boolean> {
+  const auth = inject<any>('auth', null)
+  return computed(() =>
+    enrolmentHeldFor({
+      metadata: auth?.user?.value?.user_metadata ?? null,
+      appMetadata: auth?.user?.value?.app_metadata ?? null,
+      primaryEmail: auth?.user?.value?.email ?? null,
+      verifiedEmails: auth?.learner?.value?.verified_emails ?? null,
+    }),
+  )
+}
+
 /** Per-account, so a shared browser never inherits somebody else's answer. */
 export function dismissalStorageKey(authUserId: string): string {
   return `ssi-mailbox-prompt-dismissed:${authUserId}`

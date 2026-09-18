@@ -438,6 +438,24 @@ principle SchoolDoorNeedsNoCode:
     card and their "not me" evicts the stranger (unclaimedMint.ts). So the
     door is open and nobody is handed somebody else's school.
 
+    TOM'S THREE RULINGS (job #195, 2026-09-18) sit on top of that and
+    supersede the design document's own security section:
+      1. An unproven school can build but not enrol. api/_utils/schoolProof.ts
+         holds every pupil code of a door-founded school whose founder has
+         proved no mailbox and been vouched for by nobody — asked by
+         code/redeem, code/validate, auth/possession-redeem and
+         teacher/by-code, on the usability of the code, failing closed.
+         api/school/vouch.ts is the admin's vouch; the founder cannot vouch
+         for herself. The class page says the same line to the teacher.
+      2. Proof never ends sessions. api/email/verify.ts signs nothing out;
+         it retires the unclaimed-mint marker on the primary address so the
+         teacher's own next device never meets the contest card.
+      3. A second session at proof time is shown, not killed. verify.ts
+         counts through live_session_count(uuid) (service role only) and
+         answers other_sessions; exactly one shows nothing; more shows one
+         line in MailboxBanner with Keep as the default and
+         api/auth/end-other-sessions.ts behind the other tap.
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 

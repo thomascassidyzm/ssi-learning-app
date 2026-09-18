@@ -2883,7 +2883,8 @@
       "noMinutesYet": "no time in the app yet",
       "minutesThisWeek": "{n} min in the app this week",
       "notStartedJourney": "Not started — the class has not played together yet.",
-      "classTravelled": "The class has travelled {done} of {total} phrases together."
+      "classTravelled": "The class has travelled {done} of {total} phrases together.",
+      "enrolmentHeld": "Pupils can't join yet. Confirm your school's email address from the strip at the top first, and this link goes live."
     },
     "studentProgress": {
       "adminLastSession": "Last session {when}.",
@@ -3170,7 +3171,14 @@
         "invalidEmail": "That doesn't look like an email address.",
         "notConnected": "Not connected — try again in a moment.",
         "codeTooShort": "The code is six digits.",
-        "done": "Lovely — that mailbox reaches you. You are sorted for good."
+        "done": "Lovely — that mailbox reaches you. You are sorted for good.",
+        "otherDevice": "You're also signed in on another device. Keep it signed in?",
+        "otherDevices": "You're also signed in on {n} other devices. Keep them signed in?",
+        "keep": "Keep",
+        "signItOut": "Sign it out",
+        "signThemOut": "Sign them out",
+        "othersEnded": "Done — only this device is signed in now.",
+        "othersNotEnded": "Couldn't sign the other device out just now. It stays signed in — you can try again from Settings."
       }
     },
     "support": {
@@ -3492,7 +3500,12 @@
       "phrasePractisedTotal": "phrase practised in total",
       "phrasesPractisedTotal": "phrases practised in total",
       "classMinutesInAppTotal": "{n} minutes in the app together altogether, pauses included.",
-      "classThisWeek": "In the last seven days: {phrases} phrases and {minutes} minutes."
+      "classThisWeek": "In the last seven days: {phrases} phrases and {minutes} minutes.",
+      "vouchTitle": "Pupils are on hold at this school",
+      "vouchBody": "It was set up without a code and its email address is not confirmed yet, so no pupil can join. If you know this school is real, vouch for it and its class links go live. The founder's strip stays until the code lands.",
+      "vouchButton": "Vouch for this school",
+      "vouchDone": "Vouched. Pupils can join now.",
+      "vouchFailed": "Couldn't record that. Try again."
     },
     "ui": {
       "howThisWorks": {
