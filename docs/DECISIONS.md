@@ -1,3 +1,42 @@
+## 2026-09-18 — A school average is a fraction, and a fraction is never zero (job #207)
+
+Tom on production, 12:44, on Chepstow's leader dashboard: "The school average is the misleading one.
+It can't be zero if the class I'm looking at has 8m."
+
+**What was actually wrong.** Nothing in the data and nothing in the cohort rule. Reproduced read-only
+against production: this week Chepstow's 33 started classes played 11.7 minutes of play-as-class
+between them, 10P doing 7 min 22 s of it. The mean is 0.354 of a minute. The week card's own private
+`mins()` helper did `Math.round(0.354)` and printed `0m`, on the same screen where the class page —
+which formats through the estate's `practiceMinutes.ts`, and ceilings — printed `8 min` for the very
+same class. Two formatters, one number, two answers. The four other candidates were checked and ruled
+out: no surface on that page reads `course_enrollments.total_practice_minutes`; the cohort is the 33
+STARTED classes, not 34, and the started-by-week-end rule is right; the class column and the average
+column in that card come from one `rows` array and one `weekRange`, so they cannot disagree on window
+or on keying; and the zero appears on the "Play as class" row, which has nothing to do with pupils.
+
+**Decision.** There is one practice-time formatter and the insight cards now use it. `practiceMinutes.ts`
+gains a band it never had: more than nothing and less than a minute reads `<1 min`, never the `0 min`
+that denies practice and never a ceilinged `1 min` that claims three times the practice there was. The
+compact `"8m" / "<1m" / "1h 25m"` form lives in that same file, so the tight two-column card shares the
+one rule rather than keeping a copy of it. `WeekNumbersCard.vue` and `ClassWeekList.vue` each delete
+their own. Phrases take the same law: a cohort mean of 0.6 phrases is `<1`, not `1`, and 0.4 is `<1`,
+not `0`. Server-side, `round1NonZero` stops a real mean being flattened to zero before it ever reaches
+the client — a 300-class school with one 90-second lesson used to hand the card a literal 0.
+
+Better: the number a leader reads can no longer contradict the class page beside it, and 10P now reads
+`8m` in both places. Simpler: two private formatters deleted, one rule in one file. Cheaper: four files,
+no new endpoint, no new signal, no schema.
+
+**Scope of the harm, measured today.** Chepstow is the only school whose school AVERAGE reads a lying
+zero this week. Seven individual class rows across two schools — Chepstow and Ysgol Gyfun Trefynwy /
+Monmouth Comprehensive — read `0m` for a week in which those classes genuinely practised. Chepstow's is
+structural: 34 classes and a quiet week will produce it again every week, which is why it was worth
+fixing rather than waiting out.
+
+**Left alone deliberately.** The caption already names its own denominator ("… average · 33 classes")
+and is now pinned by a test. The cohort rule, the week window and the diary minutes source are all
+correct and untouched.
+
 ## 2026-09-18 — The school door needs no code: set up, land, confirm the mailbox later (job #188)
 
 Tom's diagnosis, verbatim: "The account IS created. That is the whole point. The account is created
