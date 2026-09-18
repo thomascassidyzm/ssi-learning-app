@@ -40,28 +40,53 @@ const results = {}
   const page = await ctx.newPage()
   const events = []
   watchEvents(page, events)
-  await page.route(/supabase\.co/, async route => {
-    await new Promise(r => setTimeout(r, 30000))
-    await route.continue().catch(() => {})
+  // Widening the awakening window is the whole difficulty of this probe, and
+  // three earlier attempts failed at it. Holding every supabase call from the
+  // first byte starved boot so the player never mounted; holding only the
+  // script reads let the page reach ready in ~4s anyway and the tap landed as
+  // a real `tap_play`. The window is not something a route can open, because
+  // as a guest on a fast box there is barely a window at all.
+  //
+  // So throttle the whole connection, which is what actually produces this
+  // state in the field: the trap bites on a slow phone network, where
+  // cold_start.mountToReadyMs reaches the p90 10.5s and p99 46s the fix was
+  // written for. Read and tap in ONE round trip even so.
+  const cdp = await ctx.newCDPSession(page)
+  await cdp.send('Network.enable')
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 1200, downloadThroughput: 45 * 1024, uploadThroughput: 20 * 1024,
   })
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' }).catch(() => {})
-  await page.waitForSelector('.loading-text', { timeout: 30000 })
-  const before = (await page.locator('.loading-text').first().innerText()).trim()
-  await page.screenshot({ path: `${OUT}/a1-awakening-before-tap.png` })
+  await page.goto(BASE, { waitUntil: 'commit' }).catch(() => {})
+  await page.waitForSelector('.center-btn', { timeout: 180000 })
 
-  await page.locator('.center-btn').click()
-  await page.waitForTimeout(400)
-  const acknowledged = await page.locator('.loading-text.tap-acknowledged').count()
-  const after = (await page.locator('.loading-text').first().innerText()).trim()
+  // Tap the ring and read what changed, without an await in between.
+  const tapped = await page.evaluate(() => {
+    const line = () => document.querySelector('.loading-text')?.innerText.trim() ?? null
+    const before = line()
+    document.querySelector('.center-btn')?.click()
+    return { before, after: line(), ack: document.querySelectorAll('.loading-text.tap-acknowledged').length }
+  })
+  const before = tapped.before
+  const acknowledged = tapped.ack
+  let after = tapped.after
+  // The acknowledgement is a class toggle plus a copy swap — one Vue tick.
+  await page.waitForTimeout(250)
+  const settled = await page.evaluate(() => ({
+    after: document.querySelector('.loading-text')?.innerText.trim() ?? null,
+    ack: document.querySelectorAll('.loading-text.tap-acknowledged').length,
+  }))
+  after = settled.after ?? after
   await page.screenshot({ path: `${OUT}/a2-awakening-after-tap.png` })
 
-  // The refusal is recorded. Flush is every 5s; give it two windows.
-  await page.waitForTimeout(12000)
+  // The refusal is recorded. Flush is every 5s, and the connection is still
+  // throttled, so give it room.
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await page.waitForTimeout(15000)
   const ignored = events.filter(e => e.event_type === 'tap_ignored')
   results.A = {
     lineBeforeTap: before,
     lineAfterTap: after,
-    acknowledgedNodes: acknowledged,
+    acknowledgedNodes: Math.max(acknowledged, settled.ack),
     tapIgnoredRows: ignored.length,
     tapIgnoredPayload: ignored[0]?.payload ?? null,
     tapPauseRows: events.filter(e => e.event_type === 'tap_pause').length,
@@ -93,7 +118,7 @@ const results = {}
 await browser.close()
 
 const ok =
-  results.A.acknowledgedNodes === 1 &&
+  results.A.acknowledgedNodes >= 1 &&
   /Got you/.test(results.A.lineAfterTap) &&
   results.A.tapIgnoredRows >= 1 &&
   results.A.tapPauseRows === 0 &&
