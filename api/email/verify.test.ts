@@ -119,7 +119,8 @@ vi.mock('@supabase/supabase-js', () => ({
     auth: {
       verifyOtp: ({ email }: { email: string }) => {
         if (!verifyOtpResult.error) hijackedBy = email === authUser?.email ? 'user-1' : 'stub'
-        return Promise.resolve(verifyOtpResult)
+        if (verifyOtpResult.error) return Promise.resolve(verifyOtpResult)
+        return Promise.resolve({ ...verifyOtpResult, data: { session: { access_token: 'phantom-otp-token' } } })
       },
       admin: {
         signOut: (...args: any[]) => { signOutCalls.push(args); return Promise.resolve({ error: null }) },
@@ -186,7 +187,9 @@ describe('POST /api/email/verify', () => {
       const markerWrite = updateUserByIdCalls.find((c) => c.patch.app_metadata)
       expect(markerWrite).toBeDefined()
       expect(markerWrite.patch.app_metadata).toEqual({ unclaimed_mint: null, provider: 'email' })
-      expect(signOutCalls).toHaveLength(0)
+      // The only sign-out is the OTP round trip's own phantom session, scoped
+      // to its own token — never 'global', never 'others', never the caller's.
+      expect(signOutCalls).toEqual([['phantom-otp-token', 'local']])
     })
     it('leaves the marker alone when a DIFFERENT address is proved', async () => {
       authUser.app_metadata = { unclaimed_mint: { session_id: 'sess-door', minted_by: 'setup_door', minted_at: 'now' } }
@@ -194,7 +197,7 @@ describe('POST /api/email/verify', () => {
       await handler(makeReq({ email: 'personal@example.com', token: '123456' }), res)
       expect(res._status).toBe(200)
       expect(updateUserByIdCalls.find((c) => c.patch.app_metadata)).toBeUndefined()
-      expect(signOutCalls).toHaveLength(0)
+      expect(signOutCalls).toEqual([['phantom-otp-token', 'local']])
     })
     it('writes no marker patch when there is no marker', async () => {
       const res = makeRes()
@@ -206,6 +209,17 @@ describe('POST /api/email/verify', () => {
   // TOM'S RULING 3 (job #195): the multi-session line — counted, never acted
   // on; exactly one session means nothing is shown.
   describe('the multi-session line (ruling 3)', () => {
+    it("ends the OTP round trip's phantom session BEFORE counting, so one device counts as one", async () => {
+      const order: string[] = []
+      liveSessionCountResult = { data: 1, error: null }
+      const res = makeRes()
+      const origRpc = rpcCalls
+      await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
+      expect(signOutCalls).toEqual([['phantom-otp-token', 'local']])
+      expect(rpcCalls.map((c) => c.name)).toEqual(['live_session_count'])
+      expect(res._json.other_sessions).toBe(0)
+      void order; void origRpc
+    })
     it('reports other_sessions:0 when the proving session is the only one', async () => {
       liveSessionCountResult = { data: 1, error: null }
       const res = makeRes()
@@ -219,7 +233,7 @@ describe('POST /api/email/verify', () => {
       const res = makeRes()
       await handler(makeReq({ email: 'teacher@school.example', token: '123456' }), res)
       expect(res._json.other_sessions).toBe(2)
-      expect(signOutCalls).toHaveLength(0)
+      expect(signOutCalls.filter((c) => c[1] !== 'local')).toHaveLength(0)
     })
     it('reports 0 when the count cannot be read — a courtesy that cannot be counted is not offered', async () => {
       liveSessionCountResult = { data: null, error: { message: 'function does not exist' } }

@@ -163,6 +163,11 @@ async function confirm() {
     setTimeout(() => { justProved.value = false }, 4000)
     // Ruling 3: counted by the server at proof, shown only when > 0.
     otherSessions.value = typeof data.other_sessions === 'number' && data.other_sessions > 0 ? data.other_sessions : 0
+    // The stored session still carries the OLD user_metadata until the token
+    // refreshes, so a full reload of a class page would show the hold line
+    // for up to an hour after the code landed (seen live on staging,
+    // 2026-09-18). A refresh brings the proven metadata down now. Best-effort.
+    try { await supabase.value.auth.refreshSession?.() } catch { /* the local patch above still holds this page */ }
     // Same local patch useAuth applies after a password set: the predicate
     // flips here, so the strip goes without a reload.
     if (auth?.user?.value && email === primaryEmail.value.toLowerCase()) {
