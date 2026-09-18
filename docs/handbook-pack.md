@@ -1,6 +1,6 @@
 # Handbook — compiled render
 
-**Version `073efe3dded1` · generated 2026-09-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
+**Version `56dd6eb4702c` · generated 2026-09-18 by `tools/walkthrough/compile.mjs`. DO NOT EDIT — each description lives in a HANDBOOK comment directly above the element it describes, in the .vue file named under its title. Edit it there, in the same change that alters the capability, then recompile.**
 
 ## A question whose page is not built yet
 
@@ -14,6 +14,19 @@ Moment: something-wrong · section: seeing-progress · roles: admin · anchor: `
 2. Read the card saying nothing is measured for it yet.
 
 **Worth knowing.** This is never a teaser and never a stub with a fake number on it.
+
+## A second device at the moment you confirm
+
+Moment: setting-up · section: your-own-account · roles: school_admin · anchor: `mailbox-banner-other-device` · in `packages/player-vue/src/components/schools/MailboxBanner.vue`
+
+**What it's for.** Telling you, at the moment your email is confirmed, if your account is also signed in somewhere else, and letting you decide.
+
+**Where it is.** One line under the confirmation strip, only when there is another device. Most people never see it.
+
+1. Read the line. Tap **Keep** to leave the other device signed in.
+2. Or tap **Sign it out** to end the other sign-in and keep this one.
+
+**Worth knowing.** Nothing is signed out unless you tap it. Confirming your email never ends a sign-in on its own, and nothing you set up before confirming is lost.
 
 ## Add a class to a group
 
@@ -229,6 +242,19 @@ Moment: setting-up · section: getting-people-in · roles: school_admin · ancho
 3. Tap **Add domain**.
 
 **Worth knowing.** This grants nothing. Somebody at your domain still sees no learner until you give them a class, and somebody who is not still gets in with one tap. Public providers such as gmail.com or outlook.com cannot be added, because they do not identify a school. Schools in the same trust share each other's domains automatically.
+
+## Confirm your email from the dashboard
+
+Moment: setting-up · section: your-own-account · roles: school_admin · anchor: `mailbox-banner-confirm` · in `packages/player-vue/src/components/schools/MailboxBanner.vue`
+
+**What it's for.** Proving the address your school was set up with actually reaches you, without it ever standing between you and your dashboard.
+
+**Where it is.** The strip across the top of every schools page, for as long as your address is unconfirmed.
+
+1. Wait for our six-digit code. School mail systems can hold it for a while.
+2. Type it into the strip and tap **Confirm**.
+
+**Worth knowing.** A code that has gone stale just says so; tap **Send a fresh code** and use the newest one. If your school address eats our mail, tap **Use a different address** and confirm from a personal one instead. Nothing in your school waits on this.
 
 ## Copy a class link without opening the class
 
@@ -621,7 +647,7 @@ Moment: setting-up · section: getting-people-in · roles: teacher · anchor: `c
 3. For a room with a whiteboard, tap **Show code instead** and write the code up.
 4. Students enter that code at saysomethingin.com/redeem.
 
-**Worth knowing.** The link and the code both stay valid, so the same one works for a student who joins in week one and a student who arrives in week six. If the card says it could not load, do not hand anything out until it comes back.
+**Worth knowing.** The link and the code both stay valid, so the same one works for a student who joins in week one and a student who arrives in week six. If the card says it could not load, do not hand anything out until it comes back. A school set up without a code cannot take pupils until its email address is confirmed from the strip at the top of the dashboard: until then this card shows one line saying so, and a link handed out early tells the pupil the same thing.
 
 ## Invite a teacher to your school
 
@@ -1394,6 +1420,19 @@ Moment: setting-up · section: seeing-progress · roles: admin, leader, school_a
 4. Open a class to see the same reading at a smaller scope.
 
 **Worth knowing.** Nobody is named here: the figures are counts over the level, never a row per pupil. A learner with no microphone data is absent from these figures rather than counted as a zero, so the denominator is always stated. A class that practises from the front counts as one learner, its own class account, so a school with no pupil accounts still has a reading here.
+
+## Vouch for a school whose email is not yet confirmed
+
+Moment: something-wrong · section: getting-people-in · roles: admin, leader · anchor: `school-vouch-button` · in `packages/player-vue/src/components/admin/SchoolVouchCard.vue`
+
+**What it's for.** Letting pupils join a school that was set up without a code before its email address has been confirmed, because you know the school is real.
+
+**Where it is.** The school's page, a card headed **Pupils are on hold at this school**, shown only while that is true.
+
+1. Open the school.
+2. Tap **Vouch for this school**.
+
+**Worth knowing.** The head's own confirmation strip stays until their code lands. A school cannot vouch for itself.
 
 ## Walking down to a school, a class or a person
 

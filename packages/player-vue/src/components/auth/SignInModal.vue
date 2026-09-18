@@ -9,6 +9,8 @@ import { useInviteCode } from '@/composables/useInviteCode'
 import { CONFIG_UNAVAILABLE_MESSAGE } from '@/config/env'
 import { hasLiveSessionFor, useLoginCodeAudit } from '@/auth/loginCode'
 import { sendSignInCode } from '../../auth/sendSignInCode'
+import { friendlyVerifyCodeError, resendCountdownLabel, SUPERSESSION_NOTICE } from '../../auth/codeSupersession'
+import { useResendCooldown } from '../../composables/useResendCooldown'
 import { startGoogleSignIn, takeOAuthReturnError } from '../../auth/googleSignIn'
 import { readLastSignInEmail, rememberSignInEmail, forgetLastSignInEmail } from '../../auth/lastSignInEmail'
 
@@ -199,6 +201,7 @@ const handleSendCode = async () => {
     // for next time. Only the address; never the code.
     rememberSignInEmail(email.value)
     step.value = 'verify'
+    resendCooldown.start()
     showDeliveryHint.value = false
     if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
     deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
@@ -302,7 +305,7 @@ const handleVerify = async () => {
         return
       }
       loginCodeAudit.failed(email.value, verifyError.message)
-      error.value = verifyError.message || 'Invalid verification code. Please try again.'
+      error.value = friendlyVerifyCodeError(verifyError.message, { resends: resendCount.value })
       return
     }
 
@@ -403,13 +406,17 @@ const retryRedeem = async () => {
   }
 }
 
-// Resend verification code
+// Resend verification code — cooled down, and the consequence named
+// (auth/codeSupersession.ts): only the newest code works.
+const resendCooldown = useResendCooldown()
+const resendCount = ref(0)
 const resendCode = async () => {
   const client = supabaseClient?.value
   if (!client) {
     error.value = CONFIG_UNAVAILABLE_MESSAGE
     return
   }
+  if (!resendCooldown.canResend.value) return
 
   showDeliveryHint.value = true
   try {
@@ -418,6 +425,8 @@ const resendCode = async () => {
       error.value = 'Unable to resend code. Please try again.'
     } else {
       error.value = ''
+      resendCount.value += 1
+      resendCooldown.start()
     }
   } catch (err: any) {
     error.value = 'Unable to resend code. Please try again.'
@@ -699,8 +708,9 @@ const handleClose = () => {
 
       <p class="resend-code">
         Didn't receive the code?
-        <button type="button" @click="resendCode">{{ t('auth.resend') }}</button>
+        <button type="button" :disabled="!resendCooldown.canResend.value" @click="resendCode">{{ resendCooldown.canResend.value ? t('auth.resend') : resendCountdownLabel(resendCooldown.secondsLeft.value) }}</button>
       </p>
+      <p class="resend-code">{{ SUPERSESSION_NOTICE }}</p>
 
       <Transition name="error">
         <div v-if="showDeliveryHint" class="delivery-hint">

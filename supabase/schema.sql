@@ -5380,6 +5380,29 @@ $$;
 
 
 --
+-- Name: live_session_count(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.live_session_count(p_user_id uuid) RETURNS integer
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  SELECT count(*)::integer
+  FROM auth.sessions s
+  WHERE s.user_id = p_user_id
+    AND (s.not_after IS NULL OR s.not_after > now())
+    AND COALESCE(s.refreshed_at, s.updated_at, s.created_at) > now() - interval '30 days';
+$$;
+
+
+--
+-- Name: FUNCTION live_session_count(p_user_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.live_session_count(p_user_id uuid) IS 'Sessions this account holds right now (not expired, touched within 30 days). Read by api/email/verify.ts at mailbox proof so a second device can be shown, never killed. Service role only. job #195.';
+
+
+--
 -- Name: log_pod_ratchet_reset(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -23173,6 +23196,14 @@ GRANT ALL ON FUNCTION public.link_all_audio_ids(p_course_code text) TO service_r
 GRANT ALL ON FUNCTION public.link_audio_to_content() TO anon;
 GRANT ALL ON FUNCTION public.link_audio_to_content() TO authenticated;
 GRANT ALL ON FUNCTION public.link_audio_to_content() TO service_role;
+
+
+--
+-- Name: FUNCTION live_session_count(p_user_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.live_session_count(p_user_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.live_session_count(p_user_id uuid) TO service_role;
 
 
 --

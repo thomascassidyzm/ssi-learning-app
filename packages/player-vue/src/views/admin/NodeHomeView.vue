@@ -66,7 +66,8 @@ import ClassBrain from '@/components/schools/shared/ClassBrain.vue'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { isMemberNodeSurface, nodeInsightsPath } from '@/composables/nodeSurfacePaths'
-import { derivePreset } from '@/composables/nodeTerminology'
+import { derivePreset, deriveInstitutionKind } from '@/composables/nodeTerminology'
+import SchoolVouchCard from '@/components/admin/SchoolVouchCard.vue'
 import { timeAgo } from '@/composables/admin/adminUtils'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 import CopyTeacherPlayCard from '@/components/schools/CopyTeacherPlayCard.vue'
@@ -195,6 +196,10 @@ const isClass = computed(() => home.value?.kind === 'class')
 // in the neutral vocabulary — group / group leader / learner — and never
 // shows a school/teacher/class word or lens. ───
 const preset = computed(() => derivePreset(home.value))
+// TOM'S RULING 1 (job #195): the admin vouch card lives on the ADMIN read-view
+// of a school only — the member surface belongs to the founder, who can never
+// vouch for herself.
+const isSchoolNode = computed(() => deriveInstitutionKind(home.value) === 'school')
 const neutral = computed(() => preset.value === 'neutral')
 
 // BELOW THIS is DRAWN, not filtered (founder ruling 2026-09-07: the chip row
@@ -1483,6 +1488,7 @@ const listPayload = computed(() => {
           <!-- WAYS IN — the link ledger (founder scope-add 2026-07-20):
                every link minted anywhere in this subtree, with copy /
                revoke / re-mint. The management face of the link system. -->
+          <SchoolVouchCard v-if="!member && !isClass && isSchoolNode && home.node" :school-id="home.node.id" />
           <WaysInLedger v-if="!isClass && home.node" ref="ledgerEl" :node-id="home.node.id" />
           <!-- The same ledger on a class, filtered to this class's own links —
                so the leader who just minted one can copy, re-mint or revoke it

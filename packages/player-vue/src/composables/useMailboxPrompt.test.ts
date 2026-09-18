@@ -13,6 +13,7 @@ import { mount } from '@vue/test-utils'
 import {
   isMailboxUnproven,
   shouldShowMailboxPrompt,
+  shouldShowMailboxBanner,
   dismissalStorageKey,
   useMailboxPrompt,
   __resetMailboxPromptSession,
@@ -129,5 +130,48 @@ describe('useMailboxPrompt', () => {
     api.noteKeepWorthyMoment()
     await nextTick()
     expect(api.isOpen.value).toBe(false)
+  })
+})
+
+describe('shouldShowMailboxBanner — the founding admin\'s standing strip (job #188)', () => {
+  it('shows only for an unproven account that came through the setup door', () => {
+    expect(shouldShowMailboxBanner({ metadata: { onboarded_via: 'possession', setup_door: 'school' }, collapsed: false })).toBe(true)
+    // an invited teacher (no setup_door) keeps the moment-based card, never the strip
+    expect(shouldShowMailboxBanner({ metadata: possessionUnproven, collapsed: false })).toBe(false)
+    // proved → gone
+    expect(shouldShowMailboxBanner({ metadata: { ...possessionProved, setup_door: 'school' }, collapsed: false })).toBe(false)
+    // closed for this session
+    expect(shouldShowMailboxBanner({ metadata: { onboarded_via: 'possession', setup_door: 'school' }, collapsed: true })).toBe(false)
+    expect(shouldShowMailboxBanner({ metadata: null, collapsed: false })).toBe(false)
+  })
+})
+
+// TOM'S RULING 1 (job #195, 2026-09-18): the browser mirror of the enrol
+// hold — the founder's own class page says what the server will say.
+import { enrolmentHeldFor, useEnrolmentHold } from './useMailboxPrompt'
+
+describe('enrolmentHeldFor', () => {
+  const door = { onboarded_via: 'possession', setup_door: 'school' }
+  it('holds a door-founded school whose founder has proved nothing', () => {
+    expect(enrolmentHeldFor({ metadata: door, appMetadata: {}, primaryEmail: 'head@school.wales', verifiedEmails: ['head@school.wales'] })).toBe(true)
+  })
+  it('never holds an account that did not come through the door', () => {
+    expect(enrolmentHeldFor({ metadata: { onboarded_via: 'possession' }, appMetadata: {}, primaryEmail: 'a@b.c', verifiedEmails: [] })).toBe(false)
+    expect(enrolmentHeldFor({ metadata: null, appMetadata: null, primaryEmail: null, verifiedEmails: null })).toBe(false)
+  })
+  it('opens on proof of the school address, on proof of a different address, or on a vouch', () => {
+    expect(enrolmentHeldFor({ metadata: { ...door, email_confirmed_manually: true }, appMetadata: {}, primaryEmail: 'h@s.w', verifiedEmails: [] })).toBe(false)
+    expect(enrolmentHeldFor({ metadata: door, appMetadata: {}, primaryEmail: 'h@hwbcymru.net', verifiedEmails: ['h@hwbcymru.net', 'h@gmail.com'] })).toBe(false)
+    expect(enrolmentHeldFor({ metadata: door, appMetadata: { school_vouch: { school_id: 's', by: 'a', at: 't' } }, primaryEmail: 'h@s.w', verifiedEmails: [] })).toBe(false)
+  })
+  it('useEnrolmentHold flips the moment the banner patches the metadata', async () => {
+    const user = ref<any>({ id: 'u1', email: 'head@school.wales', user_metadata: door, app_metadata: {} })
+    let held: any
+    const Probe = defineComponent({ setup() { held = useEnrolmentHold(); return () => h('div') } })
+    mount(Probe, { global: { provide: { auth: { user, learner: ref({ verified_emails: ['head@school.wales'] }) } } } })
+    expect(held.value).toBe(true)
+    user.value = { ...user.value, user_metadata: { ...door, email_confirmed_manually: true } }
+    await nextTick()
+    expect(held.value).toBe(false)
   })
 })

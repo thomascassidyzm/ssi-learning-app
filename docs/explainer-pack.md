@@ -1,6 +1,6 @@
 # Explanation pack — compiled render
 
-**Version `697b02eac132` · generated 2026-09-18 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
+**Version `f03bcb4b9d98` · generated 2026-09-18 by `tools/explainer/compile.mjs`. DO NOT EDIT — edit the rulings/rules and recompile.**
 
 Truth manifest: 12 verbs (Invite students · Invite a person · Get a shareable link · Add a group · Add a school · Add a class · Mint a demo org · Courses · Rename · Refresh demo activity · Delete · See insights) · stat words: Demo · Paid — all courses · No end date — inactive · Phrases practised in total · Minutes played as class in total · Phrases travelled together · Teachers · Minutes in the app in total · Groups · Learners · Classes · Classes that have practised · 3 measures · windows: This week / Last week.
 
@@ -67,8 +67,8 @@ This is your organisation, one page per level. It's groups all the way down: a g
 more groups — each with its own leader — or learners directly. The map on the left is the whole
 tree; tap any name to look closer, and the page stays put.
 
-The numbers are always **everyone below this level**, counted once. **Minutes in the app this
-week** is the one to watch — it's your organisation actually using the language, from pressing
+The numbers are always **everyone below this level**, counted once. **Minutes in the app in
+total** is the one to watch — it's your organisation actually using the language, from pressing
 play to stopping, and the same minute wherever you read it.
 
 You can grow it from right here. **Invite a person** makes a personal link that IS their login —

@@ -404,6 +404,58 @@ principle CreateClassOneTap:
     DashboardView.createClassDirect.test.ts (source pin: no create CTA may
     regress to a router-link).
 
+principle SchoolDoorNeedsNoCode:
+  statement: "The self-serve school door mints the session and provisions the school with NO code typed; the mailbox is proved later, from a banner, and never gates anything"
+
+  why: |
+    Job #188, Tom 2026-09-18: "The account IS created. That is the whole
+    point. The account is created instantly. But the teacher does not know
+    it because they are being asked for the code still." Asking for a code
+    already created the auth account (send-code.ts mints via generateLink),
+    but Onboarding.vue only reached POST /api/onboarding/provision from
+    inside verify(), after verifyOtp — so on a school mail estate (Hwb,
+    Microsoft 365) a late, doubled or eaten code left a head on "Token has
+    expired or is invalid" with an account and no school.
+
+  flow: |
+    /schools1 -> pick language + type email -> POST api/auth/setup-mint
+    (createUser email_confirm:false -> generateLink -> verifyOtp token_hash,
+    the possession-redeem shape; adopts an untouched shell, refuses a
+    confirmed account with existing:true) -> browser setSession -> the six
+    digits go out as a courtesy (send-code) -> provision -> dashboard.
+    Session carries user_metadata.onboarded_via='possession' + setup_door,
+    app_metadata.unclaimed_mint minted_by 'setup_door' (contestable).
+    components/schools/MailboxBanner.vue, in SchoolsContainer, takes the code
+    whenever it lands via api/email/verify.ts; resend and a different address
+    are one tap each; a dead code is a soft line. existing:true -> the code
+    step, worded "You already have an account here", never a wall.
+
+  security: |
+    An unproven founding admin claims NO email domain (provision.ts,
+    api/_utils/mailboxProof.ts); the claim is written by api/email/verify.ts
+    the moment the mailbox is proved. The real owner of a typed address,
+    signing in by receiving mail from another session, is shown the contest
+    card and their "not me" evicts the stranger (unclaimedMint.ts). So the
+    door is open and nobody is handed somebody else's school.
+
+    TOM'S THREE RULINGS (job #195, 2026-09-18) sit on top of that and
+    supersede the design document's own security section:
+      1. An unproven school can build but not enrol. api/_utils/schoolProof.ts
+         holds every pupil code of a door-founded school whose founder has
+         proved no mailbox and been vouched for by nobody — asked by
+         code/redeem, code/validate, auth/possession-redeem and
+         teacher/by-code, on the usability of the code, failing closed.
+         api/school/vouch.ts is the admin's vouch; the founder cannot vouch
+         for herself. The class page says the same line to the teacher.
+      2. Proof never ends sessions. api/email/verify.ts signs nothing out;
+         it retires the unclaimed-mint marker on the primary address so the
+         teacher's own next device never meets the contest card.
+      3. A second session at proof time is shown, not killed. verify.ts
+         counts through live_session_count(uuid) (service role only) and
+         answers other_sessions; exactly one shows nothing; more shows one
+         line in MailboxBanner with Keep as the default and
+         api/auth/end-other-sessions.ts behind the other tap.
+
 principle SingleAuthOnboarding:
   statement: "One email+OTP verification per signup, never two"
 
