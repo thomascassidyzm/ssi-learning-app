@@ -90,9 +90,12 @@ export function parseTrainNote(source: string): TrainReleaseNote | null {
   }
 }
 
-// Eager + raw: the markdown never reaches the client as markdown, only the parsed
+// Eager + raw: ONLY dated ship files. A ?raw glob INLINES every matched file into
+// the learner's Settings chunk, so a hand-written source note beside them (a
+// draft, a schools note) shipped its internal prose to production on 2026-09-18.
+// The date shape is the gate. Eager + raw: the markdown never reaches the client as markdown, only the parsed
 // bullets do, and the whole set is a few hundred bytes per ship.
-const files = import.meta.glob('../../../../tools/release-train/notes/*.md', {
+const files = import.meta.glob('../../../../tools/release-train/notes/????-??-??.md', {
   eager: true,
   query: '?raw',
   import: 'default',
