@@ -102,11 +102,15 @@ describe('bundleToCyclesResponse', () => {
     expect(debut.durations).toEqual({ target1_ms: 2000, target2_ms: 2100 })
   })
 
-  it('puts the presentation narration in the intro prompt slot', () => {
+  it('puts the presentation narration in the intro prompt slot, with the known clip behind it', () => {
     const { cycles } = bundleToCyclesResponse(makeBundle(), 'S0001L01', 25)
     const intro = cycles.find((c) => c.type === 'intro')!
     expect(intro.audio.presentation_id).toBe('S0001L01-pres')
-    expect(intro.audio.known_id).toBeUndefined()
+    // `known_id` on an intro is NOT a second clip — it is the fallback
+    // `toPlayerCycle` turns into `known.fallbackUrl`. It used to be omitted,
+    // and the bundle round-trip therefore dropped the fallback, so a narration
+    // that 404s took the whole intro with it (job #256).
+    expect(intro.audio.known_id).toBe('S0001L01-known')
   })
 
   it('sets round_lego_id + review_of on cross-LEGO spaced review only', () => {
