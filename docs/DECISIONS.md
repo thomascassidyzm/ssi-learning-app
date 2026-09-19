@@ -5100,3 +5100,30 @@ odd one out. Test watched red at the shipped 40 and green at 64.
 and ink2/12px axis labels are a real improvement to that chart; they are not
 the fix to the report Tom filed, and this entry is the record of which is
 which.
+
+## 2026-09-19 — one send is one row: the Sent list groups by contiguous run, not by clock minute (job #248)
+
+Job #243 folded the Sent list with a key of title + body + SEND MINUTE. Astra's
+cold-verify (#247) caught it on the very send that prompted it: the 18 Sep
+schools release note is 123 `audience_kind:'one'` broadcasts written
+12:26:32–12:27:22 UTC, so it straddles a minute boundary and the live list
+showed TWO rows, 67 and 56.
+
+**The grain is now a contiguous run.** Rows are walked newest-first and a new
+group starts when the title, the body or the SENDER differs, or when more than
+120 seconds have passed since the previous row. A loop is one row however it
+falls against the clock; two deliberate sends of identical words ten minutes
+apart stay two rows; two admins sending the same words at the same moment are
+two sends, which a minute key could not see because it never read
+`sender_user_id` at all.
+
+**The count is the whole run, not the read window.** The old fixed 400-row scan
+could cut a long send in half and report a smaller audience than was actually
+sent to. `recentAdminMessages` now reads 500-row pages and stops only once the
+last group it will return is CLOSED — either a later group exists after it, or
+the table ran out — capped at 20 pages.
+
+**Verified against the live DB, read-only:** 145 admin_messages rows fold to 22
+sends, and the 18 Sep send reads as ONE row, parts 123, recipient_count 123.
+The 20 "A reply to your report" rows from this morning correctly stay 20 rows —
+same title, different bodies, different messages.
