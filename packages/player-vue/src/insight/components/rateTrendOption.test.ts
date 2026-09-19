@@ -4,7 +4,7 @@
  * two days of play read as a hill of practice on the days between).
  */
 import { describe, it, expect } from 'vitest'
-import { buildRateTrendOption } from './rateTrendOption'
+import { buildRateTrendOption, LEGEND_BAND_PX } from './rateTrendOption'
 
 const input = {
   entityLabel: 'Class 7H',
@@ -36,5 +36,27 @@ describe('buildRateTrendOption', () => {
     const data = (option.series as any[])[0].data as any[]
     const values = data.map((d) => (typeof d === 'number' ? d : d.value))
     expect(values).toEqual([0, 0, 42, 0, 0, 0, 18])
+  })
+})
+
+/**
+ * Tom's own bug report, 18 Sep 2026, iPhone 402×874: "a genuine bug — I can't
+ * read the legend on the x axis." His screenshot shows the legend's first row
+ * drawn straight through the date labels.
+ *
+ * legend.bottom stacks UP from the canvas floor, and a long course name wraps
+ * the legend onto two rows on a phone — about 34px — while the x-axis labels
+ * want about 18px of the grid's bottom margin. With grid.bottom at 40 the two
+ * bands could not both fit and the legend won.
+ */
+describe('the legend never lands on the date axis', () => {
+  const TWO_LEGEND_ROWS_PX = 34
+  const AXIS_LABELS_PX = 18
+
+  it('the grid stops above a band that holds a two-row legend AND the date labels', () => {
+    const option = buildRateTrendOption(input) as any
+    expect(option.legend.bottom).toBe(0)
+    expect(option.grid.bottom).toBe(LEGEND_BAND_PX)
+    expect(LEGEND_BAND_PX).toBeGreaterThanOrEqual(TWO_LEGEND_ROWS_PX + AXIS_LABELS_PX)
   })
 })
