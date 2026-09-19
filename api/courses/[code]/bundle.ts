@@ -247,9 +247,43 @@ async function backfillPresentationAudio(
     ])
 
     const lookup = new Map<string, string>()
+    // A LEGACY ID IS NOT PROOF OF AUDIO (job #256, 2026-09-19). A
+    // `lego_introductions` row is a 2025 import and nothing keeps it honest:
+    // cym_s_for_eng's three unlinked LEGOs each name an `audio_uuid` that is in
+    // no audio table, so `/api/audio/<id>` answered 404, the media element
+    // refused the JSON body with MEDIA_ERR_SRC_NOT_SUPPORTED, and the intro
+    // died — 96 failures in one week on S0006L01 alone, 35 of the 36 learners
+    // who reached it. A `course_audio` row IS its own proof; a legacy id has to
+    // be checked. One extra `in.(...)` over a handful of ids, and only for
+    // courses that have unlinked LEGOs at all.
+    const legacyIds = Array.from(new Set(
+      ((introRes.data || []) as Array<Record<string, unknown>>)
+        .map((row) => (row.presentation_audio_id || row.audio_uuid) as string | null)
+        .filter((id): id is string => !!id)
+        .map(String),
+    ))
+    let resolvableLegacyIds = new Set<string>()
+    if (legacyIds.length > 0) {
+      const { data: legacyRows } = await supabase
+        .from('course_audio')
+        .select('id')
+        .in('id', legacyIds)
+      resolvableLegacyIds = new Set(
+        ((legacyRows || []) as Array<Record<string, unknown>>).map((r) => String(r.id)),
+      )
+      const dangling = legacyIds.length - resolvableLegacyIds.size
+      if (dangling > 0) {
+        console.warn(
+          `[Bundle] ${code}: ${dangling}/${legacyIds.length} legacy lego_introductions ids name ` +
+          `audio that does not exist — ignored; those intros prompt with the known clip`,
+        )
+      }
+    }
     for (const row of (introRes.data || []) as Array<Record<string, unknown>>) {
       const audioId = (row.presentation_audio_id || row.audio_uuid) as string | null
-      if (audioId && row.lego_id) lookup.set(String(row.lego_id), String(audioId))
+      if (audioId && row.lego_id && resolvableLegacyIds.has(String(audioId))) {
+        lookup.set(String(row.lego_id), String(audioId))
+      }
     }
     for (const row of (courseAudioRes.data || []) as Array<Record<string, unknown>>) {
       if (typeof row.s3_key === 'string' && row.s3_key.startsWith('pending/')) continue

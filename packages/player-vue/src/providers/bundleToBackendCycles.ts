@@ -74,6 +74,11 @@ export function toBackendCycle(
   // `toPlayerCycle` resolves as `presentation_id || known_id`.
   if (c.type === 'intro') {
     if (c.known.audioUrl) audio.presentation_id = c.known.audioUrl
+    // ...and the known clip travels with it as `known_id`, which is the slot
+    // `toPlayerCycle` turns back into `known.fallbackUrl`. Without this the
+    // bundle round-trip drops the fallback and a narration that 404s kills the
+    // intro again (job #256) — the wire shape is what the player sees.
+    if (c.known.fallbackUrl) audio.known_id = c.known.fallbackUrl
   } else if (c.known.audioUrl) {
     audio.known_id = c.known.audioUrl
   }

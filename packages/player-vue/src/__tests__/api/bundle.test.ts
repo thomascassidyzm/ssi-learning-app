@@ -1109,6 +1109,15 @@ describe('GET /api/courses/:code/bundle — presentation-audio backfill', () => 
       data: [{ lego_id: 'S0002L01', presentation_audio_id: null, audio_uuid: 'intro-legacy-2' }],
       error: null,
     }
+    // The legacy id has to EXIST to be used (job #256, 2026-09-19): three
+    // cym_s_for_eng LEGOs were backfilled from rows naming audio in no audio
+    // table, so the intro prompt 404'd and the cycle died. `lego_id: null`
+    // keeps this row reachable only through the legacy link, so the assertion
+    // below is still about the legacy path.
+    tableResponses.course_audio = {
+      data: [{ id: 'intro-legacy-2', lego_id: null, s3_key: 'mastered/legacy.mp3', created_at: '2025-12-31' }],
+      error: null,
+    }
 
     const res = makeRes()
     await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
@@ -1148,7 +1157,13 @@ describe('GET /api/courses/:code/bundle — presentation-audio backfill', () => 
       error: null,
     }
     tableResponses.course_audio = {
-      data: [{ id: 'pres-pending-2', lego_id: 'S0002L01', s3_key: 'pending/x.mp3', created_at: '2026-01-01' }],
+      data: [
+        { id: 'pres-pending-2', lego_id: 'S0002L01', s3_key: 'pending/x.mp3', created_at: '2026-01-01' },
+        // The legacy clip's own row — its existence is what makes it usable
+        // (job #256). Without it the pending render is skipped AND the legacy
+        // id is refused, which is also correct, but says nothing about pending.
+        { id: 'intro-legacy-2', lego_id: null, s3_key: 'mastered/legacy.mp3', created_at: '2025-12-31' },
+      ],
       error: null,
     }
 
