@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { makeChainable, type DB } from '../support/_testkit'
-import { resolveAudience, sendAdminMessage, courseAudiences, parseSendBody, BroadcastMismatchError } from './adminMessages'
+import { resolveAudience, sendAdminMessage, courseAudiences, parseSendBody, BroadcastMismatchError, groupSentRows, type SentSummary } from './adminMessages'
 
 let DB: DB
 const svc = () => ({ from: (t: string) => makeChainable(DB, t) }) as any
@@ -137,5 +137,53 @@ describe('parseSendBody', () => {
     expect(parseSendBody({ id, title: 'x', body: 'y', kind: 'course' })).toEqual({ error: 'course_code is required' })
     expect(parseSendBody({ id, title: 'x', body: 'y', kind: 'one', user_id: 'u1' })).toEqual({ input: { id, title: 'x', body: 'y', spec: { kind: 'one', userId: 'u1' } } })
     expect(parseSendBody({ id, title: '', body: 'y', kind: 'all' })).toEqual({ error: 'title is required' })
+  })
+})
+
+describe('groupSentRows — one row per SEND, not per recipient (Tom, 2026-09-19)', () => {
+  const row = (over: Partial<SentSummary>): SentSummary => ({
+    id: 'm1',
+    audience_kind: 'one',
+    course_code: null,
+    target_user_id: 'u1',
+    title: "What's new in your school dashboard",
+    body: 'Three things changed.',
+    recipient_count: 1,
+    created_at: '2026-09-18T12:27:22.718Z',
+    sent_at: '2026-09-18T12:27:22.840Z',
+    ...over,
+  })
+
+  it('folds a per-recipient loop into one row carrying the whole audience', () => {
+    // The real 18 Sep send: one audience_kind 'one' broadcast per recipient,
+    // seconds apart, same words.
+    const rows = ['u1', 'u2', 'u3'].map((u, i) =>
+      row({ id: `m${i}`, target_user_id: u, created_at: `2026-09-18T12:27:${22 - i}.000Z` }),
+    )
+    const out = groupSentRows(rows)
+    expect(out).toHaveLength(1)
+    expect(out[0].recipient_count).toBe(3)
+    expect(out[0].parts).toBe(3)
+    // Naming one of the three would be a lie.
+    expect(out[0].target_user_id).toBeNull()
+  })
+
+  it('a genuine second send of the same words on another day stays its own row', () => {
+    const out = groupSentRows([
+      row({ id: 'a', created_at: '2026-09-19T09:00:00.000Z' }),
+      row({ id: 'b', created_at: '2026-09-18T12:27:22.000Z' }),
+    ])
+    expect(out.map((g) => g.id)).toEqual(['a', 'b'])
+    expect(out.every((g) => g.parts === 1)).toBe(true)
+  })
+
+  it('leaves an ordinary single send alone, target and all', () => {
+    const out = groupSentRows([row({ id: 'solo', title: 'Pod 1 is live' })])
+    expect(out).toEqual([{ ...row({ id: 'solo', title: 'Pod 1 is live' }), parts: 1 }])
+  })
+
+  it('different words in the same minute are different sends', () => {
+    const out = groupSentRows([row({ id: 'a' }), row({ id: 'b', body: 'Something else.' })])
+    expect(out).toHaveLength(2)
   })
 })

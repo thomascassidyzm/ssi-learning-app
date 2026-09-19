@@ -5014,3 +5014,36 @@ seeds came round as cups laps instead. The walk case was forced with
 Fibonacci tail and a global `pods.roundInterval` of 5; `reviewOffsets()` caps
 the ladder below 144 on both producers, and the per-mode interval defaults sit
 UNDER the mode row, so the absent key means the code value wins.
+
+## 2026-09-19 — the Sent list shows one row per SEND, not per recipient (job #243)
+
+Tom, from his phone: "We don't want to see tons of copies of a message sent to
+all learners." Admin → Messages → Sent showed "What's new in your school
+dashboard / one learner · 1 / 18 Sep at 13:27" more than twenty times over.
+
+**The cause was upstream, and it is not in this repo.** `admin_messages` is
+already one row per broadcast and already carries `recipient_count`; the
+18 Sep send minted 123 SEPARATE `audience_kind:'one'` broadcasts, one per
+recipient, 0.4s apart, all under Tom's own uid. The recipients were 33 school
+admins and 83 teachers — the schools release note. `POST
+/api/admin/messages/send` does not loop: it takes ONE audience and writes ONE
+broadcast row. The loop was in the ad-hoc script that sent it, which had no
+"every school staff member" audience to ask for — the three kinds are one,
+course and all. So there is no in-repo sender to fix, and adding a fourth
+audience kind is a feature, not this job.
+
+**What changed: the display folds.** `groupSentRows()` in
+`api/_utils/adminMessages.ts` folds rows sharing TITLE, BODY and SEND MINUTE
+into one row carrying the summed `recipient_count`; `recentAdminMessages` now
+reads a 400-row window and returns the first 30 GROUPS. Nothing is hidden and
+nothing is filtered — a genuine second send of the same words on another day
+is a different minute and stays its own row. A group of one keeps its
+`target_user_id` so "who did that one-learner message go to" survives; a group
+of many drops it, because naming one of 123 people would be a lie.
+
+`sentAudience()` in `AdminMessages.vue` now counts: "123 learners · 18 Sep at
+13:27", and the separate bare count is gone from the line.
+
+**The gap.** A future per-recipient loop will still mint 123 rows; only the
+reading is fixed. If that recurs, the answer is an audience kind for school
+staff, not another display patch.
