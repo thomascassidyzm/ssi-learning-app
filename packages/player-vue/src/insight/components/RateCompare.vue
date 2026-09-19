@@ -257,8 +257,12 @@ const cohortTicks = computed<number[]>(() => {
           <span class="rc-section-label">{{ data.metricLabel }} over time</span>
           <span class="rc-trend-window">{{ trendCaption }}</span>
         </div>
+        <!-- subjectShort, not the full course name: the chart legend sits under
+             the date axis and a name like "Basque for English Speakers" wraps
+             it onto a second row on a phone. The strip legend below already
+             uses the short form for exactly this reason. -->
         <RateTrend
-          :entity-label="data.entity.label"
+          :entity-label="subjectShort"
           :entity="data.entity.trend"
           :average-label="data.average.label"
           :average="data.average.trend"

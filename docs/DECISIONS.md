@@ -5072,3 +5072,31 @@ pinned by a test that was watched red against the old `day.slice(5)` label.
 `insight/widgets/TimeSeries.vue` go from `ink3` at 11px to `ink2` at 12px —
 the same Mist restraint, at a size an arm's length away can resolve. It is a
 restyle: no capability changed, so no Handbook re-pin.
+
+## 2026-09-19 — the legend Tom could not read was on the Minutes chart, not Working now (job #243)
+
+The brief named the Working-now failure chart. **His screenshot says
+otherwise**: it is Intelligence → Minutes, the "IN-APP MINUTES PER PERSON OVER
+TIME" hero on a course node — and the bug is not small type, it is a
+COLLISION. The legend's first row, "Basque for English Speakers", is drawn
+straight through the date labels "20 Aug 27 Aug 05 Sep". Open the screenshot
+before believing the brief.
+
+**The arithmetic.** `rateTrendOption.ts` put `legend.bottom: 0` — which stacks
+upward from the canvas floor — under a `grid.bottom` of 40. The x-axis labels
+want about 18 of those 40. A long course name wraps the legend onto two rows
+on a 402px phone, about 34px, and the two bands cannot both fit. The legend
+wins and sits on the dates.
+
+**Fixed at both ends.** `LEGEND_BAND_PX = 64` (two legend rows + the axis
+labels + air) is now `grid.bottom`, named rather than inlined so the next
+person who changes one number has to look at the other; and `RateCompare`
+passes `subjectShort` to `RateTrend` instead of the full course name, so the
+legend is one row in the ordinary case. The strip legend directly below has
+used the short form for this exact reason all along — the hero chart was the
+odd one out. Test watched red at the shipped 40 and green at 64.
+
+**The earlier WorkingView change stands on its own merits.** Day-number ticks
+and ink2/12px axis labels are a real improvement to that chart; they are not
+the fix to the report Tom filed, and this entry is the record of which is
+which.
