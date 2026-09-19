@@ -16,7 +16,21 @@ export interface Cycle {
    * (listen_intro/listening/pod/listen_outro) without changing button behaviour.
    */
   type?: string
-  known: { text: string; audioUrl: string }
+  /**
+   * PROMPT phase. `audioUrl` is what plays; `fallbackUrl` is the clip to try
+   * if it cannot be played at all.
+   *
+   * Only intros set `fallbackUrl`, and it is always the LEGO's own known-
+   * language clip. The intro prompt is the presentation narration, and a
+   * narration that is missing, unlinked or dangling used to take the whole
+   * intro with it: the element got a 404's JSON body, failed with
+   * MEDIA_ERR_SRC_NOT_SUPPORTED, and the cycle was skipped in silence
+   * (job #256 — three cym_s_for_eng LEGOs whose `lego_introductions` rows
+   * name audio ids that are in no audio table). With the fallback the intro
+   * degrades to a quiet one — the known clip, then both target voices —
+   * instead of vanishing.
+   */
+  known: { text: string; audioUrl: string; fallbackUrl?: string }
   target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
   lingerMs?: number // ms — extra hold after voice2 (intro/debut: lets learner read tiles)

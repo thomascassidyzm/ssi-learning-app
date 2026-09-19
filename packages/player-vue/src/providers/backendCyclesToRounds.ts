@@ -269,6 +269,12 @@ export function toPlayerCycle(
   const promptAudioId = isIntro
     ? bc.audio.presentation_id || bc.audio.known_id
     : bc.audio.known_id
+  // Intro only: the known clip stands behind the narration. `presentation_id`
+  // being present is not the same as it being playable — a dangling id (one
+  // named by a `lego_introductions` row but in no audio table) 404s and the
+  // element refuses the JSON body, which killed three cym_s_for_eng intros
+  // outright until job #256. SimplePlayer plays this rather than skipping.
+  const promptFallbackId = isIntro && bc.audio.presentation_id ? bc.audio.known_id : undefined
 
   // Audio completeness: intros need presentation OR known + target1; all
   // other cycles need known + target1 + target2 to play through all four
@@ -332,6 +338,7 @@ export function toPlayerCycle(
     known: {
       text: bc.known_text ?? '',
       audioUrl: audioUrl(promptAudioId),
+      ...(promptFallbackId ? { fallbackUrl: audioUrl(promptFallbackId) } : {}),
     },
     target: {
       text: bc.target_text ?? '',

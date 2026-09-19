@@ -608,6 +608,12 @@ function buildIntroCycle(lego: BundleLego, audioUrl: (id: string) => string): Cy
   // we still emit something playable (matches `toPlayerCycle`).
   const promptId = presentation?.id ?? lego.ephemeralAudio.known?.id
   const promptUrl = promptId ? audioUrl(promptId) : ''
+  // ...and carry the known clip as the prompt's fallback whenever the prompt
+  // is the narration. A narration id can be present and still unplayable — a
+  // dangling `lego_introductions` row names audio in no audio table and the
+  // proxy answers 404 (job #256). The engine plays this instead of skipping.
+  const knownId = lego.ephemeralAudio.known?.id
+  const fallbackUrl = presentation?.id && knownId ? audioUrl(knownId) : undefined
 
   return baseCycle({
     id: `${lego.legoId}_intro`,
@@ -616,6 +622,7 @@ function buildIntroCycle(lego: BundleLego, audioUrl: (id: string) => string): Cy
     seedId: lego.seedId,
     knownText: lego.knownText,
     knownAudioUrl: promptUrl,
+    knownFallbackUrl: fallbackUrl,
     targetText: lego.targetText,
     targetTextNative: lego.targetTextNative,
     target1,
@@ -765,6 +772,8 @@ interface BaseCycleOpts {
   seedId: string
   knownText: string
   knownAudioUrl: string
+  /** Intro only: the known clip, played if the narration prompt cannot play. */
+  knownFallbackUrl?: string
   targetText: string
   targetTextNative?: string
   target1: BundleAudioRef
@@ -801,6 +810,7 @@ function baseCycle(o: BaseCycleOpts): Cycle {
     known: {
       text: o.knownText,
       audioUrl: o.knownAudioUrl,
+      ...(o.knownFallbackUrl ? { fallbackUrl: o.knownFallbackUrl } : {}),
     },
     target: {
       text: o.targetText,
