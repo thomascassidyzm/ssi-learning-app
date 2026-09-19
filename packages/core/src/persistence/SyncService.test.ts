@@ -90,16 +90,18 @@ describe('SyncService', () => {
       autoSyncIntervalMs: 1000,
     });
 
-    // Mock navigator.onLine
-    Object.defineProperty(navigator, 'onLine', {
-      value: true,
-      writable: true,
-      configurable: true,
-    });
+    // SyncService reads `navigator.onLine` behind a `typeof navigator !== 'undefined'`
+    // guard, so the production code is safe in Node — but this suite still needs the
+    // global to exist in order to drive the online/offline branch. Vitest's `node`
+    // environment does not expose one, so stub it rather than demand a DOM: one
+    // property is the whole dependency, and jsdom/happy-dom would be a dependency on
+    // @ssi/core for it. `vi.unstubAllGlobals()` in afterEach puts it back.
+    vi.stubGlobal('navigator', { onLine: true });
   });
 
   afterEach(() => {
     service.stopAutoSync();
+    vi.unstubAllGlobals();
   });
 
   describe('queueOperation', () => {
@@ -187,7 +189,7 @@ describe('SyncService', () => {
     });
 
     it('should return 0 when offline', async () => {
-      Object.defineProperty(navigator, 'onLine', { value: false });
+      vi.stubGlobal('navigator', { onLine: false });
 
       await service.queueOperation('lego_progress', 'create', 'lego-123', {});
 
