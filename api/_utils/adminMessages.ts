@@ -335,13 +335,72 @@ export interface SentSummary {
   sent_at: string | null
 }
 
-/** The last few broadcasts, newest first — what the composer shows under the form. */
-export async function recentAdminMessages(svc: SupabaseClient, limit = 30): Promise<SentSummary[]> {
+/**
+ * One SEND, as the Sent list shows it. `parts` is how many admin_messages rows
+ * folded into it — 1 for an ordinary broadcast.
+ */
+export interface SentGroup extends SentSummary {
+  parts: number
+}
+
+/** How many raw rows are read to fill `limit` grouped ones. A 123-recipient loop is one group. */
+const SENT_SCAN = 400
+
+/** The send minute — the grouping grain. Two rows a second apart are one send; a repeat next week is not. */
+function sendMinute(iso: string): string {
+  return iso.slice(0, 16)
+}
+
+/**
+ * Fold a per-recipient send into one row (Tom, 2026-09-19: "we don't want to
+ * see tons of copies of a message sent to all learners").
+ *
+ * The 18 Sep schools release note landed as 123 separate audience_kind 'one'
+ * broadcasts — one per recipient, minted in a loop by the script that sent it —
+ * so the Sent list read as 123 identical rows. Rows with the same TITLE, BODY
+ * and SEND MINUTE are that one send and become one row carrying the summed
+ * recipient_count. A genuinely separate second send of the same words on
+ * another day is a different minute, so it stays its own row, which is the
+ * point: nothing is hidden, only gathered.
+ *
+ * A group of one keeps its target_user_id, so "who did that one-learner message
+ * go to" survives. A group of many drops it — it names one of 123 people and
+ * would be a lie.
+ *
+ * Pure, and exported, so the folding is testable without a database.
+ */
+export function groupSentRows(rows: SentSummary[]): SentGroup[] {
+  const groups: SentGroup[] = []
+  const byKey = new Map<string, SentGroup>()
+  for (const r of rows) {
+    const key = `${sendMinute(r.created_at)}\u0000${r.title}\u0000${r.body}`
+    const hit = byKey.get(key)
+    if (!hit) {
+      const group: SentGroup = { ...r, parts: 1 }
+      byKey.set(key, group)
+      groups.push(group)
+      continue
+    }
+    hit.parts += 1
+    hit.recipient_count += r.recipient_count
+    hit.target_user_id = null
+    if (!hit.sent_at && r.sent_at) hit.sent_at = r.sent_at
+  }
+  return groups
+}
+
+/**
+ * The last few SENDS, newest first — what the composer shows under the form.
+ *
+ * It reads a wider window of rows than it returns and folds them (see
+ * groupSentRows), because one send can be many rows.
+ */
+export async function recentAdminMessages(svc: SupabaseClient, limit = 30): Promise<SentGroup[]> {
   const { data, error } = await svc
     .from(ADMIN_MESSAGES_TABLE)
     .select('id, audience_kind, course_code, target_user_id, title, body, recipient_count, created_at, sent_at')
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(SENT_SCAN)
   if (error) throw new Error(error.message)
-  return (data ?? []) as SentSummary[]
+  return groupSentRows((data ?? []) as SentSummary[]).slice(0, limit)
 }

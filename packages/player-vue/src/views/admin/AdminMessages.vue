@@ -23,7 +23,8 @@ import { renderMarkdownLight } from '@/utils/markdownLight'
 
 type Kind = 'course' | 'one' | 'all'
 interface CourseRow { courseCode: string; displayName: string; learners: number }
-interface SentRow { id: string; audience_kind: Kind; course_code: string | null; target_user_id: string | null; title: string; body: string; recipient_count: number; created_at: string; sent_at: string | null }
+/** One SEND. The server folds a per-recipient loop into one of these, so `recipient_count` is the whole send. */
+interface SentRow { id: string; audience_kind: Kind; course_code: string | null; target_user_id: string | null; title: string; body: string; recipient_count: number; created_at: string; sent_at: string | null; parts?: number }
 interface Person { id: string; user_id: string; display_name: string | null; primary_email: string | null }
 
 const { getAuthToken } = useAdminClient()
@@ -175,10 +176,20 @@ watch([title, body, kind, courseCode, person], () => { confirmArmed.value = fals
 
 const dayClock = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 function stamp(iso: string): string { return dayClock.format(new Date(iso)) }
+/**
+ * Who a send went to, counted. The 18 Sep schools note went out as 123
+ * one-learner broadcasts and the list said "one learner · 1" 123 times; the
+ * server now folds those into one row, so this says "123 learners" once.
+ */
 function sentAudience(s: SentRow): string {
-  if (s.audience_kind === 'all') return 'everyone'
-  if (s.audience_kind === 'course') return courses.value.find((c) => c.courseCode === s.course_code)?.displayName || s.course_code || 'a course'
-  return 'one learner'
+  const n = s.recipient_count
+  const people = `${n} ${n === 1 ? 'learner' : 'learners'}`
+  if (s.audience_kind === 'all') return `everyone, ${people}`
+  if (s.audience_kind === 'course') {
+    const course = courses.value.find((c) => c.courseCode === s.course_code)?.displayName || s.course_code || 'a course'
+    return `${course}, ${people}`
+  }
+  return n === 1 ? 'one learner' : people
 }
 
 onMounted(() => { void load() })
@@ -276,7 +287,7 @@ onMounted(() => { void load() })
       <ul class="sent">
         <li v-for="s in sent" :key="s.id" class="sent-row">
           <span class="sent-title">{{ s.title }}</span>
-          <span class="muted">{{ sentAudience(s) }} · {{ s.recipient_count }} · {{ stamp(s.created_at) }}</span>
+          <span class="muted">{{ sentAudience(s) }} · {{ stamp(s.created_at) }}</span>
         </li>
       </ul>
     </section>
