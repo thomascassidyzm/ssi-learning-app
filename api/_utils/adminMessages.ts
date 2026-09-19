@@ -333,6 +333,8 @@ export interface SentSummary {
   recipient_count: number
   created_at: string
   sent_at: string | null
+  /** Who sent it. Two admins sending the same words at once are two sends. */
+  sender_user_id?: string | null
 }
 
 /**
@@ -343,13 +345,18 @@ export interface SentGroup extends SentSummary {
   parts: number
 }
 
-/** How many raw rows are read to fill `limit` grouped ones. A 123-recipient loop is one group. */
-const SENT_SCAN = 400
+/** Rows per read. One page is normally the whole Sent list; a big loop send needs more. */
+const SENT_PAGE = 500
 
-/** The send minute — the grouping grain. Two rows a second apart are one send; a repeat next week is not. */
-function sendMinute(iso: string): string {
-  return iso.slice(0, 16)
-}
+/** A stop so a pathological table cannot walk forever: 20 pages is 10,000 rows. */
+const SENT_MAX_PAGES = 20
+
+/**
+ * The longest gap inside ONE send. The real 18 Sep loop wrote 123 rows over
+ * 50 seconds, roughly two a second with pauses; 120s leaves room for a slow
+ * loop and still keeps a deliberate second send minutes later separate.
+ */
+const SEND_RUN_GAP_MS = 120_000
 
 /**
  * Fold a per-recipient send into one row (Tom, 2026-09-19: "we don't want to
@@ -357,11 +364,16 @@ function sendMinute(iso: string): string {
  *
  * The 18 Sep schools release note landed as 123 separate audience_kind 'one'
  * broadcasts — one per recipient, minted in a loop by the script that sent it —
- * so the Sent list read as 123 identical rows. Rows with the same TITLE, BODY
- * and SEND MINUTE are that one send and become one row carrying the summed
- * recipient_count. A genuinely separate second send of the same words on
- * another day is a different minute, so it stays its own row, which is the
- * point: nothing is hidden, only gathered.
+ * so the Sent list read as 123 identical rows.
+ *
+ * The grain is a CONTIGUOUS RUN, not a clock minute. A minute key was the first
+ * cut and it was wrong on the very send that prompted it: those 123 rows span
+ * 12:26:32 to 12:27:22, so they straddle a minute boundary and the list showed
+ * two rows, 67 and 56 (Astra cold-check, job #247). A run instead starts fresh
+ * whenever the title, the body or the sender differs, or more than
+ * SEND_RUN_GAP_MS passes since the previous row — so a loop is one row however
+ * it falls against the clock, and two unrelated sends of identical words ten
+ * minutes apart stay two rows.
  *
  * A group of one keeps its target_user_id, so "who did that one-learner message
  * go to" survives. A group of many drops it — it names one of 123 people and
@@ -370,21 +382,26 @@ function sendMinute(iso: string): string {
  * Pure, and exported, so the folding is testable without a database.
  */
 export function groupSentRows(rows: SentSummary[]): SentGroup[] {
+  const ordered = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
   const groups: SentGroup[] = []
-  const byKey = new Map<string, SentGroup>()
-  for (const r of rows) {
-    const key = `${sendMinute(r.created_at)}\u0000${r.title}\u0000${r.body}`
-    const hit = byKey.get(key)
-    if (!hit) {
-      const group: SentGroup = { ...r, parts: 1 }
-      byKey.set(key, group)
-      groups.push(group)
-      continue
+  let prev: SentSummary | null = null
+  for (const r of ordered) {
+    const sameWords =
+      prev !== null &&
+      prev.title === r.title &&
+      prev.body === r.body &&
+      (prev.sender_user_id ?? null) === (r.sender_user_id ?? null)
+    const gap = prev === null ? Infinity : Date.parse(prev.created_at) - Date.parse(r.created_at)
+    if (!sameWords || !(gap <= SEND_RUN_GAP_MS)) {
+      groups.push({ ...r, parts: 1 })
+    } else {
+      const hit = groups[groups.length - 1]
+      hit.parts += 1
+      hit.recipient_count += r.recipient_count
+      hit.target_user_id = null
+      if (!hit.sent_at && r.sent_at) hit.sent_at = r.sent_at
     }
-    hit.parts += 1
-    hit.recipient_count += r.recipient_count
-    hit.target_user_id = null
-    if (!hit.sent_at && r.sent_at) hit.sent_at = r.sent_at
+    prev = r
   }
   return groups
 }
@@ -392,15 +409,32 @@ export function groupSentRows(rows: SentSummary[]): SentGroup[] {
 /**
  * The last few SENDS, newest first — what the composer shows under the form.
  *
- * It reads a wider window of rows than it returns and folds them (see
- * groupSentRows), because one send can be many rows.
+ * It reads PAGES of rows and folds them (see groupSentRows), stopping only once
+ * the last group it will return is CLOSED — either a later group exists after
+ * it, or the table ran out. A fixed read window could not do that: it truncated
+ * a 123-row send at the window edge and reported a smaller audience than was
+ * actually sent to.
  */
 export async function recentAdminMessages(svc: SupabaseClient, limit = 30): Promise<SentGroup[]> {
-  const { data, error } = await svc
-    .from(ADMIN_MESSAGES_TABLE)
-    .select('id, audience_kind, course_code, target_user_id, title, body, recipient_count, created_at, sent_at')
-    .order('created_at', { ascending: false })
-    .limit(SENT_SCAN)
-  if (error) throw new Error(error.message)
-  return groupSentRows((data ?? []) as SentSummary[]).slice(0, limit)
+  const rows: SentSummary[] = []
+  const seen = new Set<string>()
+  let groups: SentGroup[] = []
+  for (let page = 0; page < SENT_MAX_PAGES; page++) {
+    const { data, error } = await svc
+      .from(ADMIN_MESSAGES_TABLE)
+      .select('id, sender_user_id, audience_kind, course_code, target_user_id, title, body, recipient_count, created_at, sent_at')
+      .order('created_at', { ascending: false })
+      .range(page * SENT_PAGE, page * SENT_PAGE + SENT_PAGE - 1)
+    if (error) throw new Error(error.message)
+    const batch = (data ?? []) as SentSummary[]
+    for (const r of batch) {
+      if (seen.has(r.id)) continue
+      seen.add(r.id)
+      rows.push(r)
+    }
+    groups = groupSentRows(rows)
+    // One more group than asked for means the last one returned is closed.
+    if (batch.length < SENT_PAGE || groups.length > limit) break
+  }
+  return groups.slice(0, limit)
 }
