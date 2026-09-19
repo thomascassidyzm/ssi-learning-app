@@ -388,13 +388,20 @@ test('promote.sh writes the notes BEFORE it pushes main, so they ship with their
   // The player bundles tools/release-train/notes/*.md at BUILD time and production builds from
   // main. Notes written after the push land on dev only and reach production one ship late —
   // which is how Settings came to show 16 Aug on 2026-08-29. Order is the fix; lock it.
+  //
+  // Since 2026-09-18 main is branch-protected and there is NO direct push: the merge commit goes
+  // up on a throwaway `_promote_main_*` branch and a PR carries it onto main. The ordering rule is
+  // unchanged and is what this test guards — the notes must be committed onto the merge commit
+  // BEFORE that commit leaves the promote worktree, whatever the last mile onto main looks like.
   const sh = readFileSync(new URL('./promote.sh', import.meta.url), 'utf8')
   const notes = sh.indexOf("${NOTES_ARGS[@]}")
   const commit = sh.search(/add (-A )?-- tools\/release-train\/notes\//)
-  const push = sh.indexOf('push origin HEAD:main')
-  assert.ok(notes > 0 && commit > 0 && push > 0, 'promote.sh lost one of its three steps')
+  const push = sh.search(/push origin "HEAD:\$PROMOTE_BRANCH"/)
+  const merge = sh.indexOf('gh pr merge')
+  assert.ok(notes > 0 && commit > 0 && push > 0 && merge > 0, 'promote.sh lost one of its steps')
   assert.ok(notes < commit, 'the notes must be written before they are staged')
-  assert.ok(commit < push, 'the notes must be committed onto the merge BEFORE the push to main')
+  assert.ok(commit < push, 'the notes must be committed onto the merge BEFORE it is pushed')
+  assert.ok(push < merge, 'the PR that lands on main must be merged after the branch is pushed')
   assert.match(sh, /--worktree" "\$WT"|--worktree "\$WT"/,
     'the finalise run must be handed the promote worktree, or the notes never reach main')
 })
