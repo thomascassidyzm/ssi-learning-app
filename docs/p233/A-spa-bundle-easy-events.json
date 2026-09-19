@@ -1,0 +1,6277 @@
+[
+ {
+  "occurred_at": "2026-09-18T22:14:40.43+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "stage": "round_map",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 2721,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:40.431+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "stage": "cycles",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 1,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:40.461+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "stage": "full_script",
+   "detail": null,
+   "reason": null,
+   "seedId": "S0001",
+   "outcome": "bundle",
+   "budgetMs": null,
+   "waitedMs": 24,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:40.889+00:00",
+  "event_type": "cold_start",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "guest": false,
+   "seedId": "S0001",
+   "totalMs": 4285,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "mountedMs": 633,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+   "mainExecMs": 608,
+   "returnUser": false,
+   "roundIndex": 0,
+   "scriptPath": "progressive",
+   "animFloorMs": 2800,
+   "isFreshLoad": true,
+   "warmAudioMs": 1,
+   "mountToReadyMs": 3245
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:52.358+00:00",
+  "event_type": "tap_play",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "firstPlay": true,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0,
+   "roundNumber": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:52.372+00:00",
+  "event_type": "learning_mode_selection",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "rounds": 57,
+   "seedId": "S0001",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0,
+   "selectedOut": 222
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:52.396+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/047aa7ee-6134-4559-9008-daab1d72a453.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:57.208+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a6487920-835d-4231-9aac-7ae9f72d16ab",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1656,
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:14:58.889+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/66193e1c-3244-41ab-8861-1e95f189c5ad",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1872,
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:02.816+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/136339e9-40bd-4472-8ebe-d739a56bc2b8.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:12.185+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a6487920-835d-4231-9aac-7ae9f72d16ab",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1656,
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:13.86+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/66193e1c-3244-41ab-8861-1e95f189c5ad",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "cycleId": "S0001L01_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1872,
+   "roundIndex": 0,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:17.262+00:00",
+  "event_type": "round_complete",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "legoId": "S0001L01",
+   "seedId": "S0001",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:17.267+00:00",
+  "event_type": "adaptation_plan",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plan": {
+    "buildCount": 7,
+    "returnReady": [],
+    "spacedRepCap": 12,
+    "insertBreather": false,
+    "consolidateCount": 2
+   },
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "applied": false,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1,
+   "roundNumber": 2,
+   "difficultyStates": [],
+   "roundLegoCentrality": 0.9642857142857143
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:17.277+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/61e890c3-cab8-4766-be57-b94bbd8c4b62.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:22.34+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/630dd4a9-5417-4236-a396-749500989f89",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:24.057+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/05db9e72-2560-413d-ade5-772bac2c3c11",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:27.94+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/dea82591-9afe-4b40-81d5-754481ed30db.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:35.472+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "stage": "round_map",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 863,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:35.482+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "stage": "cycles",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 9,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:36.243+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "blue",
+   "mode": "easy",
+   "stage": "full_script",
+   "detail": null,
+   "reason": null,
+   "seedId": "S0149",
+   "outcome": "bundle",
+   "budgetMs": null,
+   "waitedMs": 752,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 0
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:37.297+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/630dd4a9-5417-4236-a396-749500989f89",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:37.518+00:00",
+  "event_type": "cold_start",
+  "payload": {
+   "belt": "blue",
+   "mode": "easy",
+   "guest": false,
+   "seedId": "S0149",
+   "totalMs": 4007,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "mountedMs": 585,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+   "mainExecMs": 564,
+   "returnUser": false,
+   "roundIndex": 386,
+   "scriptPath": "progressive",
+   "animFloorMs": 2800,
+   "isFreshLoad": true,
+   "warmAudioMs": 3,
+   "mountToReadyMs": 3026
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:39.204+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/05db9e72-2560-413d-ade5-772bac2c3c11",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:42.767+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:51.155+00:00",
+  "event_type": "tap_play",
+  "payload": {
+   "belt": "blue",
+   "mode": "easy",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "firstPlay": true,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "roundNumber": 387
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:51.238+00:00",
+  "event_type": "learning_mode_selection",
+  "payload": {
+   "belt": "blue",
+   "mode": "easy",
+   "rounds": 3298,
+   "seedId": "S0149",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "selectedOut": 11505
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:51.299+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e3bc4b3c-16fd-4786-adac-51988e789811",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:53.865+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:54.784+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5aa444a4-797c-4f61-adbb-1666b886996c",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:55.885+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:57.659+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ea737c4c-33c1-468f-abfd-e838dc48409c",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:15:59.619+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:02.536+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7c56db01-bb50-43b3-abb6-7483357b8952.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:10.758+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:12.837+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:15.816+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5aa444a4-797c-4f61-adbb-1666b886996c",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:16.642+00:00",
+  "event_type": "round_complete",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:16.658+00:00",
+  "event_type": "adaptation_plan",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plan": {
+    "buildCount": 7,
+    "returnReady": [],
+    "spacedRepCap": 12,
+    "insertBreather": false,
+    "consolidateCount": 2
+   },
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "applied": false,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "roundNumber": 3,
+   "difficultyStates": [],
+   "roundLegoCentrality": 0.9821428571428571
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:16.66+00:00",
+  "event_type": "pod_lap_start",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plays": 8,
+   "seedId": "S0001",
+   "isLayer1": false,
+   "podRound": 1,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "omitIntro": false,
+   "roundIndex": 2
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:18.69+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ea737c4c-33c1-468f-abfd-e838dc48409c",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:19.117+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4d38afef-1ce1-4eaa-a3dd-a769a6711e9b?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "pod_intro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_intro",
+   "elapsedMs": 2456,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:20.492+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1375,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 0,
+   "roundIndex": 2,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:22.156+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/2f38d062-e7a2-44b4-b964-dd198b04fc92.v2?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "trans",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1664,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 1,
+   "roundIndex": 2,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:23.288+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/db5c04b5-caad-469b-b308-38906d6f8187",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:23.34+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1184,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 2,
+   "roundIndex": 2,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:24.524+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1184,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 3,
+   "roundIndex": 2,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:26.54+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 2016,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 4,
+   "roundIndex": 2,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:27.628+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/13de788c-d60d-4917-ab3d-61d95cd1c3d4.v2?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "trans",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1088,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 5,
+   "roundIndex": 2,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:29.516+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1888,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 6,
+   "roundIndex": 2,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:31.404+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_play",
+   "elapsedMs": 1888,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 7,
+   "roundIndex": 2,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:34.156+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/003222ed-e1ec-444d-aec1-e05e8b71e1e0?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "pod_outro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 1,
+   "cycleType": "pod_outro",
+   "elapsedMs": 2752,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:34.156+00:00",
+  "event_type": "pod_lap_end",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "seedId": "S0001",
+   "isLayer1": false,
+   "podRound": 1,
+   "cancelled": false,
+   "elapsedMs": 17496,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "abortReason": "completed",
+   "playsExpected": 8,
+   "skippedByUser": false,
+   "stoppedByUser": false,
+   "playsCompleted": 10
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:34.195+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/25bfb23b-84ed-4a20-a2b0-75553746fbcc.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:39.106+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d84e8180-ed1c-44cd-b834-c70df3762566",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:39.381+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c0bd055a-f3ec-49bd-a28f-395fd159562f",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:41.303+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/82c3c319-7d44-4537-934a-8464a7f8407b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2040,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:44.048+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6f2742c0-dc89-4b34-93a2-31da3f0b3f76",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:45.422+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/fd9958ae-0ebd-455e-b300-770e63b1296f.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:50.534+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/db5c04b5-caad-469b-b308-38906d6f8187",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:55.639+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c0bd055a-f3ec-49bd-a28f-395fd159562f",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:16:57.511+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/82c3c319-7d44-4537-934a-8464a7f8407b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2040,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:01.193+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e5d37332-757c-4239-a159-1656742df226.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:06.371+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d84e8180-ed1c-44cd-b834-c70df3762566",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:11.331+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6f2742c0-dc89-4b34-93a2-31da3f0b3f76",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:13.251+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a7c81469-6688-49e6-8b4c-a4239ea3e98b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:15.442+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/012620f8-4b5b-431f-8d77-6e929bf139c4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2400,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:18.098+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1714bb5d-49ae-48c3-80ef-8887bfb8b0b0",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:19.392+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e5d37332-757c-4239-a159-1656742df226.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:31.419+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a7c81469-6688-49e6-8b4c-a4239ea3e98b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:33.735+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/012620f8-4b5b-431f-8d77-6e929bf139c4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2400,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:34.038+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/efa99585-5121-4cc1-9801-76784a86ac90",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:37.681+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:39.006+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/edf1edeb-ef45-41c4-8afb-fd9c39559faa",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:45.451+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1714bb5d-49ae-48c3-80ef-8887bfb8b0b0",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:51.373+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:53.863+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:17:58.129+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:01.275+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/efa99585-5121-4cc1-9801-76784a86ac90",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:06.219+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/edf1edeb-ef45-41c4-8afb-fd9c39559faa",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:11.818+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:12.665+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a6b15196-4b2b-475d-b25f-f6d3bc7846b2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:14.306+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:18.789+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:28.138+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6dadf7c6-6247-4673-bab2-eeb5844fac66",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:30.118+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:32.289+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:33.003+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e4251950-35b1-4d59-bc8b-ec85ca93d9f5",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:36.213+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:39.486+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a6b15196-4b2b-475d-b25f-f6d3bc7846b2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:47.31+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:49.325+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:53.058+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:54.957+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6dadf7c6-6247-4673-bab2-eeb5844fac66",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:18:59.814+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e4251950-35b1-4d59-bc8b-ec85ca93d9f5",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:06.194+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/90ba2943-866d-4516-a313-0ae21dc1cfc2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:06.75+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:09.24+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:13.503+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:21.965+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/194ea9b5-b83a-4166-938a-e0bce7d23577",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 4128,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:27.126+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6c83401d-ce3d-4661-a14a-1cf5bda8a527",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 4128,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:27.191+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:29.676+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:33.784+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/90ba2943-866d-4516-a313-0ae21dc1cfc2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:33.932+00:00",
+  "event_type": "round_complete",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 2
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:33.941+00:00",
+  "event_type": "adaptation_plan",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plan": {
+    "buildCount": 7,
+    "returnReady": [],
+    "spacedRepCap": 12,
+    "insertBreather": false,
+    "consolidateCount": 2
+   },
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "applied": false,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "roundNumber": 4,
+   "difficultyStates": [],
+   "roundLegoCentrality": 0.8392857142857143
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:33.97+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/bb4ade78-bb51-410a-a519-190ce4c9870e.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:38.989+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1382f9d7-9472-4e77-9846-5598d085ba4b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:40.856+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/534b286c-bd88-42e7-b75a-05dbd1c57617",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2040,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:44.942+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b8f62c0a-e490-4719-ba10-d2309bed7b59.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:49.596+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/194ea9b5-b83a-4166-938a-e0bce7d23577",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 4128,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:54.754+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6c83401d-ce3d-4661-a14a-1cf5bda8a527",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_04_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 4128,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:54.929+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1382f9d7-9472-4e77-9846-5598d085ba4b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1824,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:19:56.8+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/534b286c-bd88-42e7-b75a-05dbd1c57617",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2040,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:00.405+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/cb69ac65-ba84-4d69-8422-b40ca32713ba.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:01.623+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c98e81e6-a920-4b77-abce-13570aa76ac1.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:12.453+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/492f6fb5-2708-41e6-8ff9-6a8d4e9ff9dd",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2232,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:14.709+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ce61f461-1993-48df-9567-d33753f1d4a8",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:15.895+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c0d661bb-8e1c-42ee-a325-13d83c931ce6",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:18.803+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/cb69ac65-ba84-4d69-8422-b40ca32713ba.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:20.007+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/03a5703a-0079-4877-bc90-b2967513a7e1",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:25.765+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c98e81e6-a920-4b77-abce-13570aa76ac1.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:30.848+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/492f6fb5-2708-41e6-8ff9-6a8d4e9ff9dd",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2232,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:33.098+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ce61f461-1993-48df-9567-d33753f1d4a8",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:37.088+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/99fcc480-61c2-4182-a6c6-c86a27c7655d.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:39.959+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c0d661bb-8e1c-42ee-a325-13d83c931ce6",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:44.026+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/03a5703a-0079-4877-bc90-b2967513a7e1",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L02",
+   "seedId": "S0149",
+   "cycleId": "S0149L02_use_01_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:49.894+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/83bd8a25-e486-4277-ac5f-08280af45c9e",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:50.696+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d061bb79-85b4-4e67-b121-b890fa2e1c23",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:53.464+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b004e4f2-b860-40fb-b62b-254a3aba280c",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:20:57.987+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/99fcc480-61c2-4182-a6c6-c86a27c7655d.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:04.512+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b121a061-4132-4692-894e-c4f811b00a76",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3528,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:08.901+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/13eb98af-da16-42e0-8cbe-68f9de05072d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3528,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:11.559+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d061bb79-85b4-4e67-b121-b890fa2e1c23",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:14.322+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b004e4f2-b860-40fb-b62b-254a3aba280c",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:14.991+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/83bd8a25-e486-4277-ac5f-08280af45c9e",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:18.849+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7dd49e84-481d-4994-a7fe-0fab758ed682.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:29.632+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b121a061-4132-4692-894e-c4f811b00a76",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3528,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:32.315+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a1603142-bf62-4f0f-ac73-e8515b9b8fa0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2472,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:34.018+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/13eb98af-da16-42e0-8cbe-68f9de05072d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0149L01",
+   "seedId": "S0149",
+   "cycleId": "S0149L01_use_02_review_4",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3528,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:34.827+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ffe16969-6c02-413d-9e66-486f35cd46f4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:39.094+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7dd49e84-481d-4994-a7fe-0fab758ed682.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:39.949+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/083e97a4-b6f8-46cd-8bdf-3c9cf77a86d3",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:52.578+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a1603142-bf62-4f0f-ac73-e8515b9b8fa0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2472,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:54.71+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/3fd91146-66d9-4ee2-a44a-3a2d377c4806",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3456,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:55.084+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ffe16969-6c02-413d-9e66-486f35cd46f4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:59.021+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7f1f7b3d-9411-42b5-8658-2b0f9993ad45",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3456,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:21:59.357+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/57aef89b-2c91-467f-ac35-e3e192424c1e.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:04.821+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/083e97a4-b6f8-46cd-8bdf-3c9cf77a86d3",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:13.295+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a0650be3-5482-40b1-982e-16fbb7dd5211",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:16.318+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/deaadcb7-976e-4591-b39e-57d93dc63299",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:19.611+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/3fd91146-66d9-4ee2-a44a-3a2d377c4806",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3456,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:21.118+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/57aef89b-2c91-467f-ac35-e3e192424c1e.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:23.915+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7f1f7b3d-9411-42b5-8658-2b0f9993ad45",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0147L02",
+   "seedId": "S0149",
+   "cycleId": "S0147L02_use_04_review_5",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3456,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:29.72+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8c4ca713-b397-4302-9166-cc065d00629f",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:35.053+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a0650be3-5482-40b1-982e-16fbb7dd5211",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:38.072+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/deaadcb7-976e-4591-b39e-57d93dc63299",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:42.813+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:44.256+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/68303eea-ed89-4b09-8005-de5d231c8393",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:48.111+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ec502701-6436-4625-b0c5-bbdf376aa15d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:53.461+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8c4ca713-b397-4302-9166-cc065d00629f",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:56.505+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:22:58.994+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:03.301+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e9803ed5-a2cc-4212-aa7d-7b6f1c88f614.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:08.006+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/68303eea-ed89-4b09-8005-de5d231c8393",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:11.862+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ec502701-6436-4625-b0c5-bbdf376aa15d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0141L01",
+   "seedId": "S0149",
+   "cycleId": "S0141L01_use_04_review_6",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:16.989+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/48ba987a-9623-462e-9406-382fc52c833b",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2448,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:17.22+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/0f4eca6a-21d1-4b2a-a146-0401eb4d6cc4",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:19.476+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d938b820-613b-446a-99ce-9d5bbb9b66a1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L03",
+   "seedId": "S0001",
+   "cycleId": "S0001L03_use_02_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:23.961+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:31.64+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/375a68d7-48f4-4366-b6f2-dda003affcc9",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2904,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:35.262+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/02b34840-9566-4075-ab17-b90502d16d3d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2904,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:35.404+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:37.558+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:40.383+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/0f4eca6a-21d1-4b2a-a146-0401eb4d6cc4",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:41.461+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1cd89077-70d9-4da0-a267-f02502ada957.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:52.558+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9a9d822a-3aff-43d9-aebd-a952cffb3b2a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1968,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:54.574+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/be0b8a86-5136-4395-a1fc-d4765f31e4da",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L02",
+   "seedId": "S0001",
+   "cycleId": "S0001L02_use_01_review_2",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2184,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:54.768+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/375a68d7-48f4-4366-b6f2-dda003affcc9",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2904,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:58.309+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7dd49e84-481d-4994-a7fe-0fab758ed682.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:23:58.382+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/02b34840-9566-4075-ab17-b90502d16d3d",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0137L02",
+   "seedId": "S0149",
+   "cycleId": "S0137L02_use_03_review_7",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2904,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:03.544+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/421b5cd5-c3ef-4950-b679-c3294df9cc81.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:11.779+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a1603142-bf62-4f0f-ac73-e8515b9b8fa0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2472,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:14.288+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ffe16969-6c02-413d-9e66-486f35cd46f4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:14.97+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/563b46bf-399c-49c9-98d9-afa358fa8562",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:17.569+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9da274f2-ff67-49af-a97f-e7e1c0faabd1",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:18.553+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7dd49e84-481d-4994-a7fe-0fab758ed682.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:21.662+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/421b5cd5-c3ef-4950-b679-c3294df9cc81.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:32.038+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a1603142-bf62-4f0f-ac73-e8515b9b8fa0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2472,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:33.088+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/563b46bf-399c-49c9-98d9-afa358fa8562",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:34.545+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ffe16969-6c02-413d-9e66-486f35cd46f4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2736,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:35.68+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9da274f2-ff67-49af-a97f-e7e1c0faabd1",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0128L02",
+   "seedId": "S0149",
+   "cycleId": "S0128L02_use_02_review_8",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:38.818+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/57aef89b-2c91-467f-ac35-e3e192424c1e.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:39.78+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/253a624d-7885-4012-ab67-2fcba3da2f32.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:52.808+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a0650be3-5482-40b1-982e-16fbb7dd5211",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:54.562+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7618e3b9-387e-4b06-9567-8474fe544975",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:55.895+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/deaadcb7-976e-4591-b39e-57d93dc63299",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:24:58.63+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/eeb4303f-5ffb-4711-ad61-daa7603d243b",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:00.63+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/57aef89b-2c91-467f-ac35-e3e192424c1e.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:04.198+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/253a624d-7885-4012-ab67-2fcba3da2f32.v2",
+   "belt": "blue",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.8
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:14.596+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a0650be3-5482-40b1-982e-16fbb7dd5211",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2976,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:17.615+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/deaadcb7-976e-4591-b39e-57d93dc63299",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:22.423+00:00",
+  "event_type": "round_complete",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 3
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:22.441+00:00",
+  "event_type": "adaptation_plan",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plan": {
+    "buildCount": 7,
+    "returnReady": [],
+    "spacedRepCap": 12,
+    "insertBreather": false,
+    "consolidateCount": 2
+   },
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "applied": false,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "roundNumber": 5,
+   "difficultyStates": [],
+   "roundLegoCentrality": 0.8392857142857143
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:22.444+00:00",
+  "event_type": "pod_lap_start",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "plays": 12,
+   "seedId": "S0001",
+   "isLayer1": false,
+   "podRound": 2,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "omitIntro": false,
+   "roundIndex": 4
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:23.592+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "fast",
+   "stage": "round_map",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 2166,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:23.595+00:00",
+  "event_type": "bundle_boot_path",
+  "payload": {
+   "belt": "white",
+   "mode": "fast",
+   "stage": "cycles",
+   "detail": null,
+   "reason": null,
+   "seedId": null,
+   "outcome": "bundle",
+   "budgetMs": 8000,
+   "waitedMs": 3,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": null
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:24.153+00:00",
+  "event_type": "cold_start",
+  "payload": {
+   "belt": "blue",
+   "mode": "fast",
+   "guest": false,
+   "seedId": "S0149",
+   "totalMs": 3854,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "mountedMs": 421,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+   "mainExecMs": 338,
+   "returnUser": false,
+   "roundIndex": 0,
+   "scriptPath": "progressive",
+   "animFloorMs": 2800,
+   "isFreshLoad": true,
+   "warmAudioMs": 3,
+   "mountToReadyMs": 3026
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:25.191+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4d38afef-1ce1-4eaa-a3dd-a769a6711e9b?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "pod_intro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_intro",
+   "elapsedMs": 2747,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:26.815+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1624,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 0,
+   "roundIndex": 4,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:28.351+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/2f38d062-e7a2-44b4-b964-dd198b04fc92.v2?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "trans",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1535,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 1,
+   "roundIndex": 4,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:29.599+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1248,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 2,
+   "roundIndex": 4,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:30.911+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f228573b-69f1-4f50-a600-d087708f7301?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1312,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 3,
+   "roundIndex": 4,
+   "sentenceIdx": 1,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:33.055+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 2144,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 4,
+   "roundIndex": 4,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:34.142+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/13de788c-d60d-4917-ab3d-61d95cd1c3d4.v2?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "trans",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1087,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 5,
+   "roundIndex": 4,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:36.031+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1889,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 6,
+   "roundIndex": 4,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:37.771+00:00",
+  "event_type": "tap_play",
+  "payload": {
+   "belt": "blue",
+   "mode": "fast",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "firstPlay": true,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "roundNumber": 387
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:37.812+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/253a624d-7885-4012-ab67-2fcba3da2f32.v2",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:37.919+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9f1de0bf-fc50-4028-ae0e-039954930501?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1888,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 7,
+   "roundIndex": 4,
+   "sentenceIdx": 2,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:39.794+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/66a5aa07-babb-461f-bc7f-6e7f58423558?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1875,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 8,
+   "roundIndex": 4,
+   "sentenceIdx": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:40.833+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/bbcebb81-9c77-42b3-b3e1-481356e02b6c.v2?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "trans",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1039,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 9,
+   "roundIndex": 4,
+   "sentenceIdx": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:42.567+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/66a5aa07-babb-461f-bc7f-6e7f58423558?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1734,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 10,
+   "roundIndex": 4,
+   "sentenceIdx": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:44.3+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/66a5aa07-babb-461f-bc7f-6e7f58423558?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "ps",
+   "stage": 1,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_play",
+   "elapsedMs": 1733,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 11,
+   "roundIndex": 4,
+   "sentenceIdx": 3,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:47.167+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/003222ed-e1ec-444d-aec1-e05e8b71e1e0?courseId=spa_for_eng",
+   "belt": "white",
+   "mode": "easy",
+   "role": "pod_outro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 2,
+   "cycleType": "pod_outro",
+   "elapsedMs": 2867,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:47.167+00:00",
+  "event_type": "pod_lap_end",
+  "payload": {
+   "belt": "white",
+   "mode": "easy",
+   "seedId": "S0001",
+   "isLayer1": false,
+   "podRound": 2,
+   "cancelled": false,
+   "elapsedMs": 24723,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "abortReason": "completed",
+   "playsExpected": 12,
+   "skippedByUser": false,
+   "stoppedByUser": false,
+   "playsCompleted": 14
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:47.202+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d6d7ecc6-b05b-4813-9a3e-dc5ee28047e9.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:52.33+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7618e3b9-387e-4b06-9567-8474fe544975",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:52.38+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5ca449be-40a4-44b0-95e5-8035b4e4e79a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:54.134+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/22168cf9-1965-42bd-964b-ecdebb68fcc0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:55.973+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/eeb4303f-5ffb-4711-ad61-daa7603d243b",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0115L01",
+   "seedId": "S0149",
+   "cycleId": "S0115L01_use_03_review_9",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:25:57.844+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/2218cb5e-27a6-498a-954b-b501d50f658c.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:00.204+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1714bb5d-49ae-48c3-80ef-8887bfb8b0b0",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:06.392+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5ca449be-40a4-44b0-95e5-8035b4e4e79a",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:08.177+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/22168cf9-1965-42bd-964b-ecdebb68fcc0",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_debut",
+   "cacheHit": true,
+   "cycleType": "debut",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 1680,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:11.356+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/3081fdd5-ce85-4e71-ad9f-d7dc2d72d70d.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:15.965+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/efa99585-5121-4cc1-9801-76784a86ac90",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:20.356+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/edf1edeb-ef45-41c4-8afb-fd9c39559faa",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_03_use_1",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:22.513+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6a6f2eed-7c6e-415b-9a16-745efcdd2658",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:24.683+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/edaf78fa-3943-4364-98dd-9a729ed0c231",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:25.289+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a6b15196-4b2b-475d-b25f-f6d3bc7846b2",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:28.374+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/3081fdd5-ce85-4e71-ad9f-d7dc2d72d70d.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:39.533+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6a6f2eed-7c6e-415b-9a16-745efcdd2658",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2088,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:40.893+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6dadf7c6-6247-4673-bab2-eeb5844fac66",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:41.656+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/edaf78fa-3943-4364-98dd-9a729ed0c231",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_01_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:45.224+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e4251950-35b1-4d59-bc8b-ec85ca93d9f5",
+   "belt": "blue",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "cycleId": "S0149L03_use_02_use_2",
+   "cacheHit": true,
+   "cycleType": "use",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3888,
+   "roundIndex": 386,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:45.349+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8d6ab6f1-97c7-4c22-9a26-17b9d0828c83.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:50.035+00:00",
+  "event_type": "round_complete",
+  "payload": {
+   "belt": "blue",
+   "mode": "fast",
+   "legoId": "S0149L03",
+   "seedId": "S0149",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 386
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:50.043+00:00",
+  "event_type": "adaptation_plan",
+  "payload": {
+   "belt": "purple",
+   "mode": "fast",
+   "plan": {
+    "buildCount": 7,
+    "returnReady": [],
+    "spacedRepCap": 12,
+    "insertBreather": false,
+    "consolidateCount": 2
+   },
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "applied": false,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "roundNumber": 388,
+   "difficultyStates": [],
+   "roundLegoCentrality": 0.6096654275092936
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:50.046+00:00",
+  "event_type": "pod_lap_start",
+  "payload": {
+   "belt": "purple",
+   "mode": "fast",
+   "plays": 16,
+   "seedId": "S0150",
+   "isLayer1": true,
+   "podRound": 387,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "omitIntro": false,
+   "roundIndex": 387
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:52.515+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4e4649b6-c21c-41d3-8c7d-9c59da0c4db5?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "pod_intro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_intro",
+   "elapsedMs": 2469,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:55.689+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4508bafe-e1b3-479f-8fd3-51007bededf0?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3174,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 0,
+   "roundIndex": 387,
+   "sentenceIdx": 16,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:56.781+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/68618dee-299c-4460-8abf-f838b60fa824",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:58.971+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5c7d98e4-745d-4868-b7cf-78366a0d93ec",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:26:59.268+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/9628596d-4f06-49dc-b109-55007241b3e0.v2?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "trans",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3579,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 1,
+   "roundIndex": 387,
+   "sentenceIdx": 16,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:02.372+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/3f892500-67e4-43ff-9578-54ea0bb704f8?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3104,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 2,
+   "roundIndex": 387,
+   "sentenceIdx": 16,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:02.812+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8d6ab6f1-97c7-4c22-9a26-17b9d0828c83.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:05.476+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4508bafe-e1b3-479f-8fd3-51007bededf0?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3104,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 3,
+   "roundIndex": 387,
+   "sentenceIdx": 16,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:08.997+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6d7d61ad-1b44-4e9b-9da0-00ebfb2bdb47?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3521,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 4,
+   "roundIndex": 387,
+   "sentenceIdx": 46,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:12.244+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/84ec5d12-874a-43d0-a32e-ab56b709fc90.v2?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "trans",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3247,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 5,
+   "roundIndex": 387,
+   "sentenceIdx": 46,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:14.286+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/68618dee-299c-4460-8abf-f838b60fa824",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2160,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:15.834+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e152c707-26ca-4629-930c-df82bd15f8c9?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3590,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 6,
+   "roundIndex": 387,
+   "sentenceIdx": 46,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:16.472+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/5c7d98e4-745d-4868-b7cf-78366a0d93ec",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_04_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2304,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:19.396+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6d7d61ad-1b44-4e9b-9da0-00ebfb2bdb47?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3561,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 7,
+   "roundIndex": 387,
+   "sentenceIdx": 46,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:20.312+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/93eaf491-2270-4b74-a1e5-95faa3a3af05.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:24.035+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7700d104-ed7e-4bd1-8314-5034542b228e?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4639,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 8,
+   "roundIndex": 387,
+   "sentenceIdx": 64,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:27.305+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/adcc2e06-14d7-4960-a09f-498ab2abc84a?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "trans",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3270,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 9,
+   "roundIndex": 387,
+   "sentenceIdx": 64,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:31.785+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/a53bf8e8-d657-4997-9dab-94975795701e?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": false,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4479,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 10,
+   "roundIndex": 387,
+   "sentenceIdx": 64,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:33.956+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/86b52711-761d-4777-a7a1-7243e2491218",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2520,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:36.174+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7700d104-ed7e-4bd1-8314-5034542b228e?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4389,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 11,
+   "roundIndex": 387,
+   "sentenceIdx": 64,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:36.51+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/0ee530f7-7051-4c41-b60f-f79362a31380",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2760,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:40.82+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/93eaf491-2270-4b74-a1e5-95faa3a3af05.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:40.848+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/293f4c7b-36a4-4951-9d6b-f9ad6d47d913?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4674,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 12,
+   "roundIndex": 387,
+   "sentenceIdx": 101,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:44.587+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6ad524b9-aeff-48bd-9a97-51de1c0c5ae1.v2?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "trans",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 3739,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 13,
+   "roundIndex": 387,
+   "sentenceIdx": 101,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:49.257+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/0603b715-8399-4c7e-855c-c895148000ea?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4670,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 14,
+   "roundIndex": 387,
+   "sentenceIdx": 101,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:53.699+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/293f4c7b-36a4-4951-9d6b-f9ad6d47d913?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "ps",
+   "stage": 0,
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_play",
+   "elapsedMs": 4442,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "playIndex": 15,
+   "roundIndex": 387,
+   "sentenceIdx": 101,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:54.463+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/86b52711-761d-4777-a7a1-7243e2491218",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2520,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:56.557+00:00",
+  "event_type": "pod_lap_end",
+  "payload": {
+   "belt": "purple",
+   "mode": "fast",
+   "seedId": "S0150",
+   "isLayer1": true,
+   "podRound": 387,
+   "cancelled": false,
+   "elapsedMs": 66511,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "abortReason": "completed",
+   "playsExpected": 16,
+   "skippedByUser": false,
+   "stoppedByUser": false,
+   "playsCompleted": 18
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:56.557+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/59efa075-3e36-41a9-8df7-8489083bc48a?courseId=eus_for_eng",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "pod_outro",
+   "legoId": null,
+   "reason": "natural",
+   "seedId": null,
+   "cacheHit": true,
+   "podRound": 387,
+   "cycleType": "pod_outro",
+   "elapsedMs": 2857,
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:56.595+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1ead67b4-d7a8-4c05-b091-14f952ec105b",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:57.011+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/0ee530f7-7051-4c41-b60f-f79362a31380",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_06_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2760,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:27:59.509+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/87c77177-8f5f-4aee-b0fd-fabb50df17fd",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2376,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:01.32+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c7e7dfce-ff98-4ea0-aa55-b4022cdb9c90.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:02.18+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1de93be9-eb6e-45ee-97d1-e33620482c8c",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_intro",
+   "cacheHit": true,
+   "cycleType": "intro",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2376,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:07.13+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b0e6f8c7-0f6e-4f12-a36e-52b7920164c0.v2",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:14.97+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e60c1526-1754-4810-86f5-f1e200d95157",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2808,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:17.804+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f08c50fe-9e62-46c2-bfd8-f4aae20c9d9e",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2832,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:21.139+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/568cfcde-4637-4ae1-94b7-f48b4cdb111d",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:22.176+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c7e7dfce-ff98-4ea0-aa55-b4022cdb9c90.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:24.697+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/10bf7f54-7c81-4d54-9e33-21d95d859ea4",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_03_build_1",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3192,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:28.758+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ed8a93fa-9604-4f81-b054-3448418c2bbe.v2",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:35.793+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/e60c1526-1754-4810-86f5-f1e200d95157",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2808,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:38.621+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f08c50fe-9e62-46c2-bfd8-f4aae20c9d9e",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_build_05_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2832,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:43.016+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/100c4cd8-6199-44ac-af7b-0489629e9f7b.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:43.53+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/bf5dbe84-8225-4fcd-9512-29afdbbe4a03",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3744,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:47.686+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/285b28db-902a-4751-b5eb-23c3135ba744",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_build_02_build_2",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3744,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:52.338+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/13e67354-01fd-488d-9939-fd8e4fab9704",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_04_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:55.882+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1601c273-20c0-4d02-8d0f-13425983874c",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2400,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:28:58.33+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ed2c3036-2c3a-46a0-ac61-1b375d312bb1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2520,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:02.381+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/100c4cd8-6199-44ac-af7b-0489629e9f7b.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:06.173+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/f79f3782-9b88-46e0-867e-9ea3b6493792",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_04_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3168,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:09.689+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/d77a7442-3f83-4ff0-a634-da1c2726f998",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_04_build_3",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3168,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:13.705+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/54cc171f-9f82-4a97-a2cc-19017c8ac28c.v2",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_01_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:15.242+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1601c273-20c0-4d02-8d0f-13425983874c",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2400,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:17.705+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ed2c3036-2c3a-46a0-ac61-1b375d312bb1",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_06_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2520,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:21.763+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/49663539-222a-4015-9bdb-662c130c13fb.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:27.863+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/b4e0cad2-7cce-490a-a561-4f8ba1078156",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_01_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:31.509+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/05cc3081-9d4a-472d-bdfd-4a485fd20336",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_01_build_4",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3264,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:35.592+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/50945329-cc4e-40e0-80c6-8feb99a75fe4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2832,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:35.652+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/c3752788-aa2d-4499-b22c-cb2d1cdc65aa",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_03_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:38.468+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4936187a-2dad-4de9-9cb7-897754118834",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3048,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:43.057+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/49663539-222a-4015-9bdb-662c130c13fb.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:50.37+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/ebfabff9-b876-48bf-9b74-4a47580c072b",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_03_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3384,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:54.119+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/6648994f-d70d-4d6d-991b-e1e44bbefeed",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_03_build_5",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3384,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:57.027+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/50945329-cc4e-40e0-80c6-8feb99a75fe4",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2832,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:58.37+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/69491a6e-9eb7-45a4-a2f0-f2edaaa69647",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_05_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:29:59.899+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/4936187a-2dad-4de9-9cb7-897754118834",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_02_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3048,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:04.49+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8d8d3adf-92cc-4926-9bc0-07a609a4130b.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:12.291+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/79916dfc-961a-4dd8-8fd6-230764d1af1b",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_05_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3168,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:15.806+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1287f778-2289-4102-9158-793d99dc4d93",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_05_build_6",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3168,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:18.493+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/2f5f4f3b-dcaf-4d3b-ba1f-f3b74ac81b8f",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2952,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:19.824+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/070efb76-12b5-43c2-a1db-73fb8d79ae42",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_02_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:21.578+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/58fb11b6-040b-4cc6-bfcf-5ef26630a420",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:26.207+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/8d8d3adf-92cc-4926-9bc0-07a609a4130b.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:34.361+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/07150346-4f55-483a-8beb-426ebe99fca7",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_02_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3480,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:38.239+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/009ca81c-5fa3-4784-932c-00bb53fc98ed",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target2",
+   "legoId": "S0150L01",
+   "seedId": "S0150",
+   "cycleId": "S0150L01_use_02_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3480,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:40.206+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/2f5f4f3b-dcaf-4d3b-ba1f-f3b74ac81b8f",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target1",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 2952,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:42.831+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/1714bb5d-49ae-48c3-80ef-8887bfb8b0b0",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "known",
+   "legoId": "S0149L03",
+   "seedId": "S0150",
+   "cycleId": "S0149L03_use_03_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:43.184+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/58fb11b6-040b-4cc6-bfcf-5ef26630a420",
+   "belt": "white",
+   "mode": "easy",
+   "role": "target2",
+   "legoId": "S0001L05",
+   "seedId": "S0001",
+   "cycleId": "S0001L05_use_07_build_7",
+   "cacheHit": true,
+   "cycleType": "build",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3096,
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:47.866+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/7dd49e84-481d-4994-a7fe-0fab758ed682.v2",
+   "belt": "white",
+   "mode": "easy",
+   "role": "known",
+   "legoId": "S0001L04",
+   "seedId": "S0001",
+   "cycleId": "S0001L04_use_03_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "roundIndex": 4,
+   "playbackSpeed": 1
+  }
+ },
+ {
+  "occurred_at": "2026-09-18T22:30:58.971+00:00",
+  "event_type": "audio_play",
+  "payload": {
+   "url": "/api/audio/efa99585-5121-4cc1-9801-76784a86ac90",
+   "belt": "purple",
+   "mode": "fast",
+   "role": "target1",
+   "legoId": "S0149L03",
+   "seedId": "S0150",
+   "cycleId": "S0149L03_use_03_review_1",
+   "cacheHit": true,
+   "cycleType": "spaced_rep",
+   "learnerId": "e5d60bc7-e478-4a35-a968-69c5c5a5b6bd",
+   "durationMs": 3960,
+   "roundIndex": 387,
+   "playbackSpeed": 0.9
+  }
+ }
+]

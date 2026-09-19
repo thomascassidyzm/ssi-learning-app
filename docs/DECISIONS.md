@@ -4952,3 +4952,26 @@ watcher does not answer them a second time.
 verifyAdmin's own verified uid and can be nobody else's, and a write carrying
 the View-As header is refused outright by `refuseViewAsWrite`. Both are pinned
 by tests that were watched to fail on a mutated route and pass on this one.
+
+## 2026-09-19 — the seed-phase deletion and the mode pod cadence, verified live (job #233)
+
+Job #232 landed the code and ended with its probe still running; the probe had
+never played a round, so nothing past the merge was proved. It is proved now,
+on staging build `16589cc`, and written up in
+`docs/seed-phase-and-pod-cadence-live-2026-09-18.md` with the raw event rows in
+`docs/p233/`.
+
+**Pods.** EASY fires a layer-2 lap on completed rounds 2 and 4; FAST on 4 and 8
+and on no round between. Seen on both producers — the bundle (`spa_for_eng`)
+and the walk (`cym_n_for_eng`) — with the producer identified per run from
+`bundle_boot_path` and the review cycle-id shape rather than assumed.
+
+**The drained seed.** At rounds 388–391 of `eus_for_eng`, deep past the old
+≥144 tier, neither producer emitted a single seed-phase review; the drained
+seeds came round as cups laps instead. The walk case was forced with
+`?bundle=0&fullscript=walk` so the bundle could not stand in for it.
+
+**Neither ruling needs a DB edit.** `algorithm_config` still carries the long
+Fibonacci tail and a global `pods.roundInterval` of 5; `reviewOffsets()` caps
+the ladder below 144 on both producers, and the per-mode interval defaults sit
+UNDER the mode row, so the absent key means the code value wins.
