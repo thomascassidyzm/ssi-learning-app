@@ -161,7 +161,10 @@ function buildOption(): Record<string, unknown> {
       boundaryGap: true,
       axisLine: { lineStyle: { color: p.line } },
       axisTick: { show: false },
-      axisLabel: { fontFamily: FONT_MONO, color: p.ink3, fontSize: 11 },
+      // Readable on a phone (Tom, 18 Sep 2026: "I can't read the legend on the
+      // x axis"). ink3 at 11px on the warm-grey canvas is a whisper; ink2 at
+      // 12px is the same restraint you can actually read at arm's length.
+      axisLabel: { fontFamily: FONT_MONO, color: p.ink2, fontSize: 12 },
       splitLine: { show: false },
     },
     yAxis: {
@@ -171,7 +174,7 @@ function buildOption(): Record<string, unknown> {
       nameGap: 8,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { fontFamily: FONT_MONO, color: p.ink3, fontSize: 11 },
+      axisLabel: { fontFamily: FONT_MONO, color: p.ink2, fontSize: 12 },
       splitLine: { lineStyle: { color: p.line, type: 'dashed' } },
     },
     series,

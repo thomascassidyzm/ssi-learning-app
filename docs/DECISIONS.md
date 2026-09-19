@@ -5047,3 +5047,28 @@ of many drops it, because naming one of 123 people would be a lie.
 **The gap.** A future per-recipient loop will still mint 123 rows; only the
 reading is fixed. If that recurs, the answer is an audience kind for school
 staff, not another display patch.
+
+## 2026-09-19 — the by-day axis is read on a phone, so it carries day numbers (job #243)
+
+Tom's own report through the app's bug door, 18 Sep 21:57, iPhone 402×874:
+"a genuine bug — I can't read the legend on the x axis." The chart is Working
+now's failure rate by day.
+
+**Reproduced headless, not guessed.** The same ECharts option rendered SSR at
+320, 340 and 402 CSS pixels draws FOUR of the seven "09-12"-style labels and
+silently drops the other three — five characters of 11px mono, seven times
+over, do not fit. Alternate days were labelled, so the reader had to count
+bars to know which day a bar was, and the month was repeated seven times to
+say it once.
+
+**The fix is the label, not the widget's layout.** `intel/dayAxis.ts` gives
+the axis the DAY NUMBER alone — all seven draw at 320px and wider, verified in
+the same headless render — and the month moves into the chart's tag, said
+once: "by day · 12–18 Sep", and "29 Sep – 2 Oct" across a month boundary, so
+an axis running 29, 30, 1, 2 is never ambiguous. Both helpers are pure and
+pinned by a test that was watched red against the old `day.slice(5)` label.
+
+**And the contrast, which was the other half of "can't read".** Both axes in
+`insight/widgets/TimeSeries.vue` go from `ink3` at 11px to `ink2` at 12px —
+the same Mist restraint, at a size an arm's length away can resolve. It is a
+restyle: no capability changed, so no Handbook re-pin.
