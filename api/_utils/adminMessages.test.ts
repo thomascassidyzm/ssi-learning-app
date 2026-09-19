@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { makeChainable, type DB } from '../support/_testkit'
-import { resolveAudience, sendAdminMessage, courseAudiences, parseSendBody, BroadcastMismatchError, groupSentRows, type SentSummary } from './adminMessages'
+import { resolveAudience, sendAdminMessage, courseAudiences, parseSendBody, BroadcastMismatchError, groupSentRows, recentAdminMessages, type SentSummary } from './adminMessages'
 
 let DB: DB
 const svc = () => ({ from: (t: string) => makeChainable(DB, t) }) as any
@@ -185,5 +185,63 @@ describe('groupSentRows — one row per SEND, not per recipient (Tom, 2026-09-19
   it('different words in the same minute are different sends', () => {
     const out = groupSentRows([row({ id: 'a' }), row({ id: 'b', body: 'Something else.' })])
     expect(out).toHaveLength(2)
+  })
+
+  it('the real 18 Sep send folds to ONE row of 123 though it straddles a minute', () => {
+    // 123 rows, 12:26:32 to 12:27:22 UTC (Astra cold-check, job #247). Grouped
+    // by clock minute this read as two rows, 67 and 56.
+    const first = Date.parse('2026-09-18T12:26:32.000Z')
+    const rows = Array.from({ length: 123 }, (_, i) =>
+      row({ id: `m${i}`, target_user_id: `u${i}`, created_at: new Date(first + Math.round((i * 50000) / 122)).toISOString() }),
+    )
+    const out = groupSentRows(rows)
+    expect(out).toHaveLength(1)
+    expect(out[0].parts).toBe(123)
+    expect(out[0].recipient_count).toBe(123)
+  })
+
+  it('two sends of the same words ten minutes apart stay two rows', () => {
+    const out = groupSentRows([
+      row({ id: 'a', created_at: '2026-09-18T12:37:00.000Z' }),
+      row({ id: 'b', created_at: '2026-09-18T12:27:00.000Z' }),
+    ])
+    expect(out.map((g) => g.id)).toEqual(['a', 'b'])
+    expect(out.every((g) => g.parts === 1)).toBe(true)
+  })
+
+  it('two admins sending the same words at once are two sends', () => {
+    const out = groupSentRows([
+      row({ id: 'a', sender_user_id: 'admin-1' }),
+      row({ id: 'b', sender_user_id: 'admin-2', created_at: '2026-09-18T12:27:21.000Z' }),
+    ])
+    expect(out).toHaveLength(2)
+  })
+})
+
+describe('recentAdminMessages — the count is the whole run, not the read window', () => {
+  it('reads past one page so a 600-row loop send reports 600, not 500', async () => {
+    const first = Date.parse('2026-09-18T12:00:00.000Z')
+    DB.admin_messages = Array.from({ length: 600 }, (_, i) => ({
+      id: `m${i}`,
+      sender_user_id: 'admin',
+      audience_kind: 'one',
+      course_code: null,
+      target_user_id: `u${i}`,
+      title: 'Release note',
+      body: 'Three things changed.',
+      recipient_count: 1,
+      created_at: new Date(first + i * 1000).toISOString(),
+      sent_at: new Date(first + i * 1000).toISOString(),
+    }))
+    // One older, unrelated send, so the big group is closed by something after it.
+    DB.admin_messages.push({
+      id: 'old', sender_user_id: 'admin', audience_kind: 'all', course_code: null, target_user_id: null,
+      title: 'Pod 1 is live', body: 'Have a listen.', recipient_count: 3,
+      created_at: '2026-09-01T09:00:00.000Z', sent_at: '2026-09-01T09:00:00.000Z',
+    })
+    const out = await recentAdminMessages(svc())
+    expect(out).toHaveLength(2)
+    expect(out[0]).toMatchObject({ parts: 600, recipient_count: 600, target_user_id: null })
+    expect(out[1]).toMatchObject({ id: 'old', parts: 1, recipient_count: 3 })
   })
 })
