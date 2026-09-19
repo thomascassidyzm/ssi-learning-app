@@ -9,7 +9,7 @@
  * assertion in the comment beside it.
  *
  * Findings pinned here:
- *   X-01  the nightly gate has no `core-test` line          (MEDIUM, residual)
+ *   X-01  FIXED 2026-09-18 — the nightly gate now runs core-test (asserted)
  *   X-02  `test:security-audit` is on no gate                (MEDIUM)
  *   X-03  SEC0901-A-01 subtree-by-slug-path still unfixed    (HIGH, residual)
  *   X-06  no secrets in tracked source                       (SECURE-ASSERTION)
@@ -58,7 +58,7 @@ describe('SEC0905-X-02 — which vitest config collects which security spec', ()
     )
   })
 
-  it('CHARACTERISATION (X-02): the nightly gate runs neither test:security-audit nor core test', () => {
+  it('X-01 is FIXED (asserted) and X-02 (test:security-audit on no gate) is still open', () => {
     // The estate's real gate. If it has moved, this test must be updated
     // rather than deleted — the finding is about the gate, not this path.
     const gate = '/home/tomcassidy/command-surface/ops/ci/ci-checks.sh'
@@ -72,9 +72,12 @@ describe('SEC0905-X-02 — which vitest config collects which security spec', ()
     for (const check of ['player-test', 'api-test', 'api-typecheck', 'release-train-test']) {
       expect(sh).toContain(check)
     }
-    // FINDING X-01: `@ssi/core`'s 751 tests are not. Flip to `.toContain`
-    // when `run core-test ... --filter @ssi/core test` is added.
-    expect(sh).not.toContain('core-test')
+    // X-01 FIXED — `command-surface` commit 7182dd98 (2026-09-18) added the
+    // `run core-test "$PNPM8" --filter @ssi/core test` leg, so `@ssi/core`'s
+    // 751 tests are gated at last. This was the characterisation flipping red
+    // as designed; it is now the regression guard the finding asked for, and
+    // must never go back to `.not.toContain`.
+    expect(sh).toContain('core-test')
     // FINDING X-02: nor is the security-audit config.
     expect(sh).not.toContain('test:security-audit')
   })
