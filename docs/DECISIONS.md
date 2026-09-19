@@ -1,3 +1,42 @@
+## 2026-09-19 — An excluded test is a red test you cannot see; the gate's Node is 20, not yours (job #236)
+
+The nightly went red on `main`, `staging` and `dev` at once. Three checks, three tests
+pinning a mechanism that had moved under them on 2026-09-18 — no product regression in
+any of them. The two cross-branch ones (`api-test`'s X-01 characterisation, which was
+written to go red the day the finding was fixed; `release-train-test`'s search for
+`push origin HEAD:main`, which `4d70aaee1` replaced with a PR merge because main is
+branch-protected now) were repaired on dev by the sibling job in `bc0366024`.
+
+**The ruling this entry records is the third one.** `core-test` was red on `main` only,
+with `ReferenceError: navigator is not defined` across all 21 tests of
+`packages/core/src/persistence/SyncService.test.ts`. On 2026-09-18 job #226 had excluded
+that file wholesale from `packages/core/vitest.config.ts`, on the reading that it "has
+never run green under any config that exists today" and that fixing it meant taking a
+jsdom dependency on `@ssi/core`. Both halves of that reading were wrong, and the
+exclusion is reversed here.
+
+**Why it looked unfixable.** The file does `Object.defineProperty(navigator, 'onLine', …)`.
+Node 21 added a global `navigator`. The nightly gate runs
+`~/ssi-ci/toolchain/node-v20.19.4-linux-x64`; a workstation on this box runs Node 24. So
+the file passes when you try it by hand and fails on the gate, which reads as a test that
+is red under every config rather than one that is red under one Node. **Anything the
+nightly reports must be reproduced on the gate's Node 20 before it is diagnosed — "it
+passes locally" is not evidence about this gate.**
+
+**The fix is one property, not an environment.** `SyncService.ts:99` already guards its
+only read with `typeof navigator !== 'undefined'`, so the production code was never
+wrong; only the test assumed a browser global. It now stubs `navigator` with
+`vi.stubGlobal`, cleared by `vi.unstubAllGlobals()` in `afterEach` — no jsdom, no
+happy-dom, no new dependency, and no dependence on which Node runs it. `core-test` goes
+from 38 files / 793 passing to 39 / 813: 21 tests of the offline-sync queue are back on
+the gate instead of silently skipped.
+
+**The standing point.** Excluding a file to give a new gate "a real pass/fail signal"
+buys a green that means less than the red it replaced — the gate stops reporting on the
+code, and nothing ever comes back to it. Where a test is red because it asserts something
+false about its own environment, fix the assertion; an exclusion is only honest when the
+code under it is deliberately out of scope.
+
 ## 2026-09-18 — A drained seed is not re-served; and the pods come round twice as often on Easy (job #232)
 
 **Two rulings from Tom, both delivery-side, both taken here.** On the first: *"Delete the additional
