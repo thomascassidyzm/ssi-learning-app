@@ -31,6 +31,27 @@ export interface RateTrendOptionInput {
   palette: { line: string; ink2: string; ink3: string }
 }
 
+/**
+ * The band at the bottom of the canvas the LEGEND owns, in pixels.
+ *
+ * Tom's own bug report, 18 Sep 2026, from an iPhone 402px wide: "a genuine
+ * bug — I can't read the legend on the x axis". On his screenshot the legend's
+ * first row — "Basque for English Speakers" — is drawn straight through the
+ * date labels "20 Aug  27 Aug  05 Sep", one sitting on the other.
+ *
+ * The cause is arithmetic. `legend.bottom: 0` stacks upward from the canvas
+ * floor, and a long course name wraps the legend onto TWO rows on a phone, so
+ * the legend claims roughly 34px. `grid.bottom` was 40, of which the x-axis
+ * labels want about 18 — the two bands overlap by design as soon as the legend
+ * takes a second row.
+ *
+ * So the legend gets a band of its own that two rows fit inside, and the grid
+ * stops above it. 64 = two legend rows (34) + the axis labels (18) + air (12).
+ * Naming it here rather than inlining 64 is the point: the next person who
+ * changes one of these two numbers has to look at the other.
+ */
+export const LEGEND_BAND_PX = 64
+
 /** Compact value formatter for the last bar's label. */
 export function fmtTrendValue(v: number): string {
   if (!Number.isFinite(v)) return ''
@@ -60,8 +81,9 @@ export function buildRateTrendOption(i: RateTrendOptionInput): Record<string, un
       itemHeight: 4,
       textStyle: { fontFamily: FONT_MONO, fontSize: 11, color: p.ink2 },
     },
-    // Room for the y-axis title (top-left), the last bar's label and the legend.
-    grid: { left: 46, right: 24, top: 30, bottom: 40 },
+    // Room for the y-axis title (top-left), the last bar's label and the
+    // legend's own band — see LEGEND_BAND_PX.
+    grid: { left: 46, right: 24, top: 30, bottom: LEGEND_BAND_PX },
     xAxis: {
       type: 'category',
       data: i.xLabels,
