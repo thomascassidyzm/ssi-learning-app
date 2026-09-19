@@ -17,6 +17,7 @@ import Chip from '@/intel/Chip.vue'
 import { useIntelApi } from '@/intel/useIntelApi'
 import { questionBySlug } from '@/intel/questions'
 import { metric } from '@/intel/metrics'
+import { dayTick, dayRange } from '@/intel/dayAxis'
 import type { AnyInsightSpec, ResolvedInsight } from '@/insight/spec'
 
 interface Tally { plays: number; failures: number; people: number; rate: number | null }
@@ -62,20 +63,27 @@ const answer = computed<string | null>(() => {
 })
 const headline = computed(() => (data.value && data.value.people > 0 ? pct(data.value.overall.rate) : null))
 
-const spec = computed<AnyInsightSpec>(() => ({
-  widget: 'time-series',
-  query: { metric: 'audioFailureRate', window: '7d' },
-  frame: 'world',
-  title: metric('audioFailureRate', question.slug).label,
-  tag: 'by day',
-}))
+// The axis carries the day number alone and the tag carries the month, so all
+// seven days are labelled on a 402px phone instead of every other one — Tom's
+// own bug report, 18 Sep 2026. See intel/dayAxis.ts.
+const days = computed(() => data.value?.byDay ?? [])
+const spec = computed<AnyInsightSpec>(() => {
+  const range = dayRange(days.value.map((d) => d.day))
+  return {
+    widget: 'time-series',
+    query: { metric: 'audioFailureRate', window: '7d' },
+    frame: 'world',
+    title: metric('audioFailureRate', question.slug).label,
+    tag: range ? `by day · ${range}` : 'by day',
+  }
+})
 const resolved = computed<ResolvedInsight>(() => ({
   isLoading: !data.value && !error.value,
   error: error.value,
   data: {
     kind: 'time-series',
-    x: (data.value?.byDay ?? []).map((d) => d.day.slice(5)),
-    series: [{ name: 'failed plays, per hundred', points: (data.value?.byDay ?? []).map((d) => Math.round((d.rate ?? 0) * 1000) / 10), tone: 'alarm' }],
+    x: days.value.map((d) => dayTick(d.day)),
+    series: [{ name: 'failed plays, per hundred', points: days.value.map((d) => Math.round((d.rate ?? 0) * 1000) / 10), tone: 'alarm' }],
     yLabel: 'per hundred plays',
   },
 }))

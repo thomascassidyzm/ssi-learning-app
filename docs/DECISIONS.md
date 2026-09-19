@@ -1,3 +1,42 @@
+## 2026-09-19 — An excluded test is a red test you cannot see; the gate's Node is 20, not yours (job #236)
+
+The nightly went red on `main`, `staging` and `dev` at once. Three checks, three tests
+pinning a mechanism that had moved under them on 2026-09-18 — no product regression in
+any of them. The two cross-branch ones (`api-test`'s X-01 characterisation, which was
+written to go red the day the finding was fixed; `release-train-test`'s search for
+`push origin HEAD:main`, which `4d70aaee1` replaced with a PR merge because main is
+branch-protected now) were repaired on dev by the sibling job in `bc0366024`.
+
+**The ruling this entry records is the third one.** `core-test` was red on `main` only,
+with `ReferenceError: navigator is not defined` across all 21 tests of
+`packages/core/src/persistence/SyncService.test.ts`. On 2026-09-18 job #226 had excluded
+that file wholesale from `packages/core/vitest.config.ts`, on the reading that it "has
+never run green under any config that exists today" and that fixing it meant taking a
+jsdom dependency on `@ssi/core`. Both halves of that reading were wrong, and the
+exclusion is reversed here.
+
+**Why it looked unfixable.** The file does `Object.defineProperty(navigator, 'onLine', …)`.
+Node 21 added a global `navigator`. The nightly gate runs
+`~/ssi-ci/toolchain/node-v20.19.4-linux-x64`; a workstation on this box runs Node 24. So
+the file passes when you try it by hand and fails on the gate, which reads as a test that
+is red under every config rather than one that is red under one Node. **Anything the
+nightly reports must be reproduced on the gate's Node 20 before it is diagnosed — "it
+passes locally" is not evidence about this gate.**
+
+**The fix is one property, not an environment.** `SyncService.ts:99` already guards its
+only read with `typeof navigator !== 'undefined'`, so the production code was never
+wrong; only the test assumed a browser global. It now stubs `navigator` with
+`vi.stubGlobal`, cleared by `vi.unstubAllGlobals()` in `afterEach` — no jsdom, no
+happy-dom, no new dependency, and no dependence on which Node runs it. `core-test` goes
+from 38 files / 793 passing to 39 / 813: 21 tests of the offline-sync queue are back on
+the gate instead of silently skipped.
+
+**The standing point.** Excluding a file to give a new gate "a real pass/fail signal"
+buys a green that means less than the red it replaced — the gate stops reporting on the
+code, and nothing ever comes back to it. Where a test is red because it asserts something
+false about its own environment, fix the assertion; an exclusion is only honest when the
+code under it is deliberately out of scope.
+
 ## 2026-09-18 — A drained seed is not re-served; and the pods come round twice as often on Easy (job #232)
 
 **Two rulings from Tom, both delivery-side, both taken here.** On the first: *"Delete the additional
@@ -4975,3 +5014,61 @@ seeds came round as cups laps instead. The walk case was forced with
 Fibonacci tail and a global `pods.roundInterval` of 5; `reviewOffsets()` caps
 the ladder below 144 on both producers, and the per-mode interval defaults sit
 UNDER the mode row, so the absent key means the code value wins.
+
+## 2026-09-19 — the Sent list shows one row per SEND, not per recipient (job #243)
+
+Tom, from his phone: "We don't want to see tons of copies of a message sent to
+all learners." Admin → Messages → Sent showed "What's new in your school
+dashboard / one learner · 1 / 18 Sep at 13:27" more than twenty times over.
+
+**The cause was upstream, and it is not in this repo.** `admin_messages` is
+already one row per broadcast and already carries `recipient_count`; the
+18 Sep send minted 123 SEPARATE `audience_kind:'one'` broadcasts, one per
+recipient, 0.4s apart, all under Tom's own uid. The recipients were 33 school
+admins and 83 teachers — the schools release note. `POST
+/api/admin/messages/send` does not loop: it takes ONE audience and writes ONE
+broadcast row. The loop was in the ad-hoc script that sent it, which had no
+"every school staff member" audience to ask for — the three kinds are one,
+course and all. So there is no in-repo sender to fix, and adding a fourth
+audience kind is a feature, not this job.
+
+**What changed: the display folds.** `groupSentRows()` in
+`api/_utils/adminMessages.ts` folds rows sharing TITLE, BODY and SEND MINUTE
+into one row carrying the summed `recipient_count`; `recentAdminMessages` now
+reads a 400-row window and returns the first 30 GROUPS. Nothing is hidden and
+nothing is filtered — a genuine second send of the same words on another day
+is a different minute and stays its own row. A group of one keeps its
+`target_user_id` so "who did that one-learner message go to" survives; a group
+of many drops it, because naming one of 123 people would be a lie.
+
+`sentAudience()` in `AdminMessages.vue` now counts: "123 learners · 18 Sep at
+13:27", and the separate bare count is gone from the line.
+
+**The gap.** A future per-recipient loop will still mint 123 rows; only the
+reading is fixed. If that recurs, the answer is an audience kind for school
+staff, not another display patch.
+
+## 2026-09-19 — the by-day axis is read on a phone, so it carries day numbers (job #243)
+
+Tom's own report through the app's bug door, 18 Sep 21:57, iPhone 402×874:
+"a genuine bug — I can't read the legend on the x axis." The chart is Working
+now's failure rate by day.
+
+**Reproduced headless, not guessed.** The same ECharts option rendered SSR at
+320, 340 and 402 CSS pixels draws FOUR of the seven "09-12"-style labels and
+silently drops the other three — five characters of 11px mono, seven times
+over, do not fit. Alternate days were labelled, so the reader had to count
+bars to know which day a bar was, and the month was repeated seven times to
+say it once.
+
+**The fix is the label, not the widget's layout.** `intel/dayAxis.ts` gives
+the axis the DAY NUMBER alone — all seven draw at 320px and wider, verified in
+the same headless render — and the month moves into the chart's tag, said
+once: "by day · 12–18 Sep", and "29 Sep – 2 Oct" across a month boundary, so
+an axis running 29, 30, 1, 2 is never ambiguous. Both helpers are pure and
+pinned by a test that was watched red against the old `day.slice(5)` label.
+
+**And the contrast, which was the other half of "can't read".** Both axes in
+`insight/widgets/TimeSeries.vue` go from `ink3` at 11px to `ink2` at 12px —
+the same Mist restraint, at a size an arm's length away can resolve. It is a
+restyle: no capability changed, so no Handbook re-pin.
