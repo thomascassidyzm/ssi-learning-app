@@ -478,6 +478,9 @@ export class SimplePlayer {
   // Clips skipped back-to-back with no audible playback in between. See
   // AudioFailedEvent.consecutiveSkips for why this is tracked.
   private consecutiveSkips: number = 0
+
+  /** One known-clip fallback per intro prompt (see tryPromptFallback). */
+  private promptFallbackUsed = false
   // playGeneration the currently-armed play-path safety watchdog belongs to,
   // and the highest currentTime seen for it. The watchdog is a STALL detector:
   // each timeupdate that shows real progress reschedules it, so a healthy clip
@@ -917,6 +920,51 @@ export class SimplePlayer {
   }
 
   /**
+   * The intro prompt died — play the known clip in its place, once.
+   *
+   * Why this exists: three cym_s_for_eng LEGOs have no narration linked on
+   * `course_legos`, the script generator backfills one from a legacy
+   * `lego_introductions` row, and that row names an audio id that is in no
+   * audio table. `/api/audio/<id>` answers 404 with a JSON body, the element
+   * reports MEDIA_ERR_SRC_NOT_SUPPORTED with readyState 0, and the intro was
+   * skipped — 96 failures over one week on `S0006L01_intro` alone, 35 of the
+   * 36 learners who reached it. The producers now carry the LEGO's own known
+   * clip on `known.fallbackUrl` for every intro whose prompt is a narration,
+   * and this is where it gets used.
+   *
+   * The failure is still reported (attempt=2, `lastError` naming the
+   * fallback) so a dead narration stays visible in telemetry — but it is not
+   * counted as a skip, because a clip DID sound.
+   */
+  private tryPromptFallback(errorCode: number | undefined, lastError?: string): boolean {
+    if (this.state.phase !== 'prompt') return false
+    if (this.promptFallbackUsed) return false
+    const fallback = this.currentCycle?.known?.fallbackUrl
+    if (!fallback || fallback === this.retryUrl) return false
+    this.promptFallbackUsed = true
+    const cycle = this.currentCycle
+    console.warn(
+      `[SimplePlayer] Intro narration unplayable — playing the known clip instead. ` +
+      `cycleId=${cycle?.id} legoId=${cycle?.legoId} errorCode=${errorCode}`,
+    )
+    this.emit('audio_failed', this.buildFailedContext(
+      errorCode, 2, `${lastError ?? 'prompt-unplayable'} → prompt-fallback-to-known`,
+    ))
+    this.clearSafetyTimer()
+    void this.playPromptFallback(fallback)
+    return true
+  }
+
+  /** Resolve the fallback url the same way the prompt itself is resolved. */
+  private async playPromptFallback(fallbackUrl: string): Promise<void> {
+    const cycle = this.currentCycle
+    const gen = this.playGeneration
+    const url = await this.resolveUrl(fallbackUrl)
+    if (gen !== this.playGeneration || this.currentCycle !== cycle || !this.state.isPlaying) return
+    this.playAudio(url)
+  }
+
+  /**
    * The clip cannot be played (retry burned, or nothing to retry against).
    * Log loudly, keep the telemetry contract (audio_failed attempt=2, which is
    * what the admin diagnostics group on), and ADVANCE — the phase machine
@@ -927,6 +975,13 @@ export class SimplePlayer {
    */
   private skipFailedClip(errorCode: number | undefined, lastError?: string): void {
     const cycle = this.currentCycle
+    // A DEAD INTRO NARRATION IS NOT A DEAD INTRO (job #256, 2026-09-19).
+    // The intro's prompt is the presentation narration; when it cannot be
+    // played the cycle still has a known clip that says the same thing, so
+    // the intro degrades to a quiet one — known clip, then both target
+    // voices — rather than being skipped in silence. Tried once per prompt,
+    // before anything is counted or advanced past.
+    if (this.tryPromptFallback(errorCode, lastError)) return
     // Counted before the emit so the telemetry payload carries this skip.
     this.consecutiveSkips++
     if (this.consecutiveSkips >= CONSECUTIVE_SKIP_ALARM) {
@@ -1618,6 +1673,8 @@ export class SimplePlayer {
       // the advance, the round entry, the resume restart and every jump all
       // arrive through it. So this is where the run of identical hearings is
       // counted, against exactly the events job #316 measured.
+      // A fresh prompt gets a fresh fallback allowance.
+      this.promptFallbackUsed = false
       if (!opts?.learnerSeek) this.recordPlayIdentity(cycle)
       console.log(`  [${this.state.cycleIndex + 1}/${round?.cycles.length}] "${cycle.known.text}" → "${cycle.target.text}"`)
     }

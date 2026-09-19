@@ -394,6 +394,9 @@ describe('generateScript — main mode', () => {
     expect(intro.type).toBe('intro')
     // First LEGO's presentation id is "S0001L01-pres" per the fixture builder.
     expect(intro.known.audioUrl).toBe('/api/audio/S0001L01-pres')
+    // ...and the LEGO's own known clip rides along as the fallback, for the
+    // narration that exists but cannot be played (job #256).
+    expect(intro.known.fallbackUrl).toBe('/api/audio/S0001L01-known')
   })
 
   it('round shape: legoTargetText / legoKnownText / seedId reflect the lego', () => {

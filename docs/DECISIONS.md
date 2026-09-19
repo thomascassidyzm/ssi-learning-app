@@ -1,3 +1,49 @@
+## 2026-09-19 — The dead intro was a dangling narration id, not the file, the cache or the device (job #256)
+
+`S0006L01_intro` in `cym_s_for_eng` failed for 35 of the 36 learners who reached it in the
+week to 19 September — 96 failures, both platforms, five builds — while the SAME three
+clips played clean in the debut cycle seconds later. Job #253 established the clips are
+healthy and the correlate is exact: the only three LEGOs in the course with a NULL
+`presentation_audio_id` are the only three that fail. It could not establish the
+mechanism, and named two candidates: a service-worker cache poisoned by
+`warmIntroPrompt`'s undrained `fetch`, or the WAV-blob lane.
+
+**Both candidates are refuted.** The service worker has cached no audio since 2026-05-24
+(`vite.config.js` says so in a standing comment) so there is no SW entry to poison, and a
+headless arm-by-arm test of undrained-fetch-then-play against the live proxy plays clean
+every time (`e2e/_256-intro-audio-repro.mjs`). The WAV-blob lane never ran: the element
+reports `readyState 0`.
+
+**The mechanism, reproduced first try on staging** (`e2e/_256-live-intro-probe.mjs`,
+`?course=cym_s_for_eng&preview=8`): the intro prompt is not the known clip at all. It is
+`/api/audio/62889c49-03e0-436d-a009-4aa40ccc6fbe`, which answers **404 `{"error":"Audio
+not found"}`**. The element gets a JSON body, reports MEDIA_ERR_SRC_NOT_SUPPORTED with
+`readyState 0`, and the intro is skipped. That id comes from `generateLearningScript`'s
+backfill: when a LEGO has no `presentation_audio_id`, the generator reads a 2025
+`lego_introductions` row and takes its `audio_uuid` on trust. All three of those rows —
+S0006L01, S0041L01, S0154L02 — name audio that exists in neither `course_audio` nor
+`shared_audio`. "Starts then dies 250 ms in" was two error events 140 ms apart; nothing
+ever sounded.
+
+**Two rulings, both in this change.**
+
+1. **A legacy id is not proof of audio.** A `course_audio` row is its own existence
+   proof; a `lego_introductions` id is checked against `course_audio` before it is used,
+   and one that resolves to nothing is ignored. That is one extra `in.(…)` over a handful
+   of ids, only on courses that have unlinked LEGOs at all.
+2. **A dead narration is not a dead intro.** Every intro whose prompt IS a narration now
+   carries the LEGO's own known clip on `known.fallbackUrl` — all three producers emit it
+   (`@ssi/core generateScript`, `toSimpleRounds`, `backendCyclesToRounds`) — and
+   SimplePlayer plays it rather than skipping the prompt. The failure is still reported
+   (`audio_failed`, attempt 2, `lastError` naming the fallback) so a dead narration stays
+   visible, but it is not counted as a silent skip, because a clip did sound. This is the
+   general repair: the estate has thousands of NULL-presentation LEGOs in quieter courses
+   and the next one will degrade instead of dying.
+
+Not done here: the narration recordings themselves (job #253's item 2 — three short human
+clips), and the watchdog paths, which skip without consulting the fallback. The failure
+class observed goes through `skipFailedClip`, which does.
+
 ## 2026-09-19 — An excluded test is a red test you cannot see; the gate's Node is 20, not yours (job #236)
 
 The nightly went red on `main`, `staging` and `dev` at once. Three checks, three tests

@@ -119,3 +119,33 @@ describe('toPlayerCycle — the intro fallback', () => {
     ).not.toThrow()
   })
 })
+
+/**
+ * A NARRATION THAT EXISTS IS NOT A NARRATION THAT PLAYS (job #256).
+ *
+ * Three cym_s_for_eng intros carried a narration id that is in no audio table
+ * — `/api/audio/<id>` answers 404, the element refuses the JSON body, and the
+ * prompt died. So every intro whose prompt IS a narration also carries the
+ * LEGO's own known clip, and SimplePlayer plays that rather than skipping.
+ */
+describe('toPlayerCycle — the known clip stands behind the narration', () => {
+  it('carries the known clip as the prompt fallback when a narration is used', () => {
+    const c = toPlayerCycle(
+      cycle({ audio: { known_id: 'k', target1_id: 't1', target2_id: 't2', presentation_id: 'pres' } }),
+    )
+    expect(c!.known.audioUrl).toBe('/api/audio/pres')
+    expect(c!.known.fallbackUrl).toBe('/api/audio/k')
+  })
+
+  it('sets no fallback when the prompt is ALREADY the known clip', () => {
+    const c = toPlayerCycle(cycle({ audio: { known_id: 'k', target1_id: 't1', target2_id: 't2' } }))
+    expect(c!.known.fallbackUrl).toBeUndefined()
+  })
+
+  it('sets no fallback on a non-intro cycle', () => {
+    const c = toPlayerCycle(
+      cycle({ id: 'S0005L02_debut', type: 'debut', audio: { known_id: 'k', target1_id: 't1', target2_id: 't2' } }),
+    )
+    expect(c!.known.fallbackUrl).toBeUndefined()
+  })
+})

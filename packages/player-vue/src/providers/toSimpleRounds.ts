@@ -330,6 +330,11 @@ function* toSimpleRoundsGen(
       const promptAudioId = isIntroLike
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
+      // Intro only: the known clip stands behind the narration, for the case
+      // the narration id exists but cannot be played (a dangling id 404s and
+      // the element refuses the JSON body — job #256). SimplePlayer falls back
+      // to this instead of skipping the prompt.
+      const promptFallbackId = isIntroLike && i.presentationAudioId ? i.knownAudioId : undefined
 
       // The fallback point. Until 2026-08-04 this branch was silent in both
       // senses: it quietly degraded to known audio (or to nothing), and it
@@ -370,7 +375,8 @@ function* toSimpleRoundsGen(
         legoId: i.legoKey,
         known: {
           text: i.knownText,
-          audioUrl: audioUrl(promptAudioId)
+          audioUrl: audioUrl(promptAudioId),
+          ...(promptFallbackId ? { fallbackUrl: audioUrl(promptFallbackId) } : {})
         },
         target: {
           // Bookends carry no target text/audio — SimplePlayer's voice1/voice2

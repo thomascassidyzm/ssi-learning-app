@@ -1035,9 +1035,40 @@ export async function generateLearningScript(
 
     // Build lookup: lego_id → audio ID (prefer course_audio.id, fallback to lego_introductions)
     const presLookup = new Map<string, string>()
+    // THE LEGACY IDS ARE NOT TRUSTED (job #256, 2026-09-19). A
+    // `lego_introductions` row is a 2025 import and nothing keeps it honest:
+    // cym_s_for_eng's three unlinked LEGOs — S0006L01, S0041L01, S0154L02 —
+    // each name an `audio_uuid` that exists in NO audio table, so the prompt
+    // url 404s, the element refuses the JSON body with
+    // MEDIA_ERR_SRC_NOT_SUPPORTED, and the intro dies. 96 failures in one week
+    // on S0006L01 alone. A course_audio row IS its own proof of existence; a
+    // legacy id has to be checked, which is one extra `in.(...)` over a
+    // handful of ids and only when a LEGO is missing its link at all.
+    const legacyIds = Array.from(new Set(
+      ((introResult.data || []) as any[])
+        .map((row) => row.presentation_audio_id || row.audio_uuid)
+        .filter(Boolean)
+        .map(String),
+    ))
+    let resolvableLegacyIds = new Set<string>()
+    if (legacyIds.length > 0) {
+      const { data: legacyRows } = await supabase
+        .from('course_audio')
+        .select('id')
+        .in('id', legacyIds)
+      resolvableLegacyIds = new Set(((legacyRows || []) as any[]).map((r) => String(r.id)))
+      const dangling = legacyIds.length - resolvableLegacyIds.size
+      if (dangling > 0) {
+        console.warn(
+          `[generateLearningScript] ${dangling}/${legacyIds.length} legacy lego_introductions ` +
+          `audio ids name audio that does not exist — ignoring them; those intros use the ` +
+          `known clip as their prompt`,
+        )
+      }
+    }
     for (const row of (introResult.data || []) as any[]) {
       const audioId = row.presentation_audio_id || row.audio_uuid
-      if (audioId) presLookup.set(row.lego_id, String(audioId))
+      if (audioId && resolvableLegacyIds.has(String(audioId))) presLookup.set(row.lego_id, String(audioId))
     }
     for (const row of (courseAudioResult.data || []) as any[]) {
       if (row.s3_key && String(row.s3_key).startsWith('pending/')) continue
